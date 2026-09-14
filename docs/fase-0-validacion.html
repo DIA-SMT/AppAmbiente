@@ -1,0 +1,1219 @@
+<title>Trazabilidad de Residuos SMT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --azul:#126ff5; --azul-med:#2589ea; --azul-hondo:#28469f; --azul-deep:#0d3fb0;
+    --celeste:#3cb4f0; --amarillo:#F2D91C;
+    --tinta:#10233d; --texto:#33414f; --gris:#6b7885; --linea:#e3e8ef;
+    --papel:#ffffff; --fondo:#f4f7fc; --panel:#ffffff; --panel-2:#f8fbff;
+    --verde:#10b981; --ambar:#f59e0b; --rojo:#ef4444;
+    --sombra:0 1px 2px rgba(16,35,61,.06), 0 8px 24px rgba(16,35,61,.05);
+    --sans:"Segoe UI","Helvetica Neue",system-ui,Arial,sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+    --max:1080px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --azul:#4d93ff; --azul-med:#3f9ae8; --azul-hondo:#7aa2ff; --azul-deep:#0b2f84;
+      --celeste:#5ec6f7; --amarillo:#F2D91C;
+      --tinta:#eaf1fa; --texto:#c2cede; --gris:#8b9aad; --linea:#24314a;
+      --papel:#0d1420; --fondo:#0a1018; --panel:#111a28; --panel-2:#162133;
+      --verde:#2ee0a5; --ambar:#fbbf24; --rojo:#f87171;
+      --sombra:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.32);
+    }
+  }
+  :root[data-theme="dark"]{
+    --azul:#4d93ff; --azul-med:#3f9ae8; --azul-hondo:#7aa2ff; --azul-deep:#0b2f84;
+    --celeste:#5ec6f7; --amarillo:#F2D91C;
+    --tinta:#eaf1fa; --texto:#c2cede; --gris:#8b9aad; --linea:#24314a;
+    --papel:#0d1420; --fondo:#0a1018; --panel:#111a28; --panel-2:#162133;
+    --verde:#2ee0a5; --ambar:#fbbf24; --rojo:#f87171;
+    --sombra:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.32);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--fondo); color:var(--texto);
+    font-family:var(--sans); font-size:15px; line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:var(--max); margin:0 auto; padding:0 22px}
+  @media (max-width:640px){ .wrap{padding:0 16px} }
+
+  /* ── Franja institucional ─────────────────────────── */
+  .franja{
+    background:
+      radial-gradient(120% 150% at 88% 8%, rgba(60,180,240,.42), transparent 58%),
+      linear-gradient(112deg,#0d3fb0 0%, #126ff5 52%, #2589ea 100%);
+    color:#fff; padding:26px 0 34px;
+  }
+  .franja .wrap{display:flex; flex-direction:column; gap:26px}
+  .marcas{display:flex; align-items:flex-start; justify-content:space-between; gap:16px}
+  .marcas img.smt{height:38px; width:auto}
+  .pastilla{
+    background:#fff; border-radius:10px; padding:9px 13px 7px; text-align:center;
+    box-shadow:0 6px 18px rgba(6,28,72,.25);
+  }
+  .pastilla img{height:24px; width:auto; display:block}
+  .pastilla span{
+    display:block; margin-top:4px; font-size:7.5px; letter-spacing:.16em;
+    font-weight:700; color:var(--azul-deep);
+  }
+  .eyebrow{
+    font-size:11px; letter-spacing:.15em; text-transform:uppercase;
+    font-weight:700; color:#bfe2fb; margin:0 0 8px;
+  }
+  h1{
+    margin:0; font-size:clamp(27px,4.6vw,40px); font-weight:800; letter-spacing:-.5px;
+    line-height:1.14; color:#fff; text-wrap:balance; max-width:20ch;
+  }
+  .bajada{margin:12px 0 0; font-size:clamp(15px,2vw,17px); color:#c5e6fc; max-width:56ch}
+  .meta-portada{
+    display:flex; flex-wrap:wrap; gap:8px 10px; margin-top:4px;
+  }
+  .meta-portada span{
+    font-family:var(--mono); font-size:11.5px; letter-spacing:.02em;
+    background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.22);
+    color:#eaf5ff; padding:4px 10px; border-radius:99px;
+  }
+  .regla{height:5px; background:linear-gradient(90deg,var(--amarillo) 0%,var(--amarillo) 22%,var(--celeste) 22%,var(--celeste) 100%)}
+
+  /* ── Estructura ──────────────────────────────────── */
+  main{padding:44px 0 10px}
+  section{margin:0 0 52px}
+  h2{
+    position:relative; margin:0 0 6px; padding-left:14px;
+    font-size:21px; font-weight:800; color:var(--tinta); letter-spacing:-.2px;
+  }
+  h2::before{
+    content:""; position:absolute; left:0; top:5px; width:5px; height:23px;
+    border-radius:3px; background:linear-gradient(180deg,var(--azul),var(--celeste));
+  }
+  .sub{margin:0 0 22px; padding-left:14px; color:var(--gris); font-size:14.5px; max-width:74ch}
+  h3{margin:30px 0 12px; font-size:15px; font-weight:800; color:var(--tinta);
+     text-transform:uppercase; letter-spacing:.09em}
+  p{margin:0 0 14px; max-width:76ch}
+  b,strong{color:var(--tinta); font-weight:700}
+  code{font-family:var(--mono); font-size:.88em; color:var(--azul-hondo);
+       background:var(--panel-2); border:1px solid var(--linea); border-radius:4px; padding:1px 5px}
+  a{color:var(--azul)}
+
+  /* ── Índice ──────────────────────────────────────── */
+  .indice{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:1px;
+    background:var(--linea); border:1px solid var(--linea); border-radius:10px;
+    overflow:hidden; margin-bottom:46px;
+  }
+  @media (max-width:880px){ .indice{grid-template-columns:repeat(2,1fr)} }
+  .indice a{
+    display:block; background:var(--panel); padding:13px 15px; text-decoration:none;
+    color:var(--tinta); font-weight:700; font-size:13.5px;
+  }
+  .indice a span{display:block; font-weight:400; color:var(--gris); font-size:12px; margin-top:2px}
+  .indice a:hover{background:var(--panel-2)}
+  .indice a:focus-visible{outline:2px solid var(--azul); outline-offset:-2px}
+
+  /* ── Caja de decisión / aviso ────────────────────── */
+  .aviso{
+    border:1px solid var(--linea); border-left:5px solid var(--azul);
+    background:var(--panel); border-radius:8px; padding:16px 18px; box-shadow:var(--sombra);
+  }
+  .aviso.warn{border-left-color:var(--ambar)}
+  .aviso p:last-child{margin-bottom:0}
+  .aviso .tit{
+    display:block; font-weight:800; color:var(--tinta); font-size:14px;
+    margin-bottom:5px;
+  }
+
+  /* ── El movimiento (diagrama) ─────────────────────── */
+  .mov-diag{
+    background:var(--panel); border:1px solid var(--linea); border-radius:12px;
+    padding:22px; box-shadow:var(--sombra); overflow-x:auto;
+  }
+  .mov-diag svg{display:block; min-width:560px; width:100%; height:auto}
+
+  .flujos{display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:14px; margin-top:16px}
+  .flujo{
+    background:var(--panel); border:1px solid var(--linea); border-top:4px solid var(--azul);
+    border-radius:10px; padding:15px 17px; box-shadow:var(--sombra);
+  }
+  .flujo.f2{border-top-color:var(--celeste)}
+  .flujo.f3{border-top-color:var(--azul-hondo)}
+  .flujo h4{margin:0 0 3px; font-size:14.5px; font-weight:800; color:var(--tinta)}
+  .flujo .fase{font-family:var(--mono); font-size:10.5px; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--gris); display:block; margin-bottom:8px}
+  .flujo p{font-size:13.5px; color:var(--gris); margin:0}
+
+  /* ── Tarjetas de entidad ─────────────────────────── */
+  .grupo-tit{
+    display:flex; align-items:center; gap:9px; margin:32px 0 12px;
+    font-size:12.5px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--gris);
+  }
+  .grupo-tit::before{content:""; width:11px; height:11px; border-radius:3px; background:var(--azul)}
+  .grupo-tit.g-lugares::before{background:var(--celeste)}
+  .grupo-tit.g-listas::before{background:var(--azul-hondo)}
+  .grupo-tit.g-priv::before{background:var(--rojo)}
+  .grupo-tit.g-tablero::before{background:var(--ambar)}
+  .grupo-tit.g-sistema::before{background:var(--gris)}
+  .grupo-tit.g-prep::before{background:transparent; border:2px dashed var(--gris)}
+  .grupo-tit em{font-style:normal; font-weight:400; letter-spacing:0; text-transform:none; font-size:13px}
+
+  .tablas{display:grid; grid-template-columns:repeat(auto-fit,minmax(310px,1fr)); gap:14px; align-items:start}
+  .tabla{
+    background:var(--panel); border:1px solid var(--linea); border-left:4px solid var(--azul);
+    border-radius:9px; box-shadow:var(--sombra); overflow:hidden;
+  }
+  .tabla.lugares{border-left-color:var(--celeste)}
+  .tabla.listas{border-left-color:var(--azul-hondo)}
+  .tabla.priv{border-left-color:var(--rojo)}
+  .tabla.tablero{border-left-color:var(--ambar)}
+  .tabla.sistema{border-left-color:var(--gris)}
+  .tabla.prep{border-left-style:dashed; border-left-color:var(--gris)}
+  .tabla > header{padding:12px 15px 10px; border-bottom:1px solid var(--linea); background:var(--panel-2)}
+  .tabla h4{margin:0; font-family:var(--mono); font-size:14px; font-weight:600; color:var(--tinta)}
+  .tabla header p{margin:4px 0 0; font-size:12.5px; color:var(--gris); line-height:1.45}
+  .cols{list-style:none; margin:0; padding:8px 0}
+  .cols li{
+    display:flex; gap:10px; padding:3px 15px; font-size:12.5px; line-height:1.5;
+    align-items:baseline;
+  }
+  .cols li .n{font-family:var(--mono); color:var(--tinta); font-weight:500; flex:0 0 auto}
+  .cols li .t{font-family:var(--mono); color:var(--gris); font-size:11px; flex:1 1 auto;
+    overflow-wrap:anywhere}
+  .cols li.pk .n{color:var(--azul)}
+  .cols li.fk .n{color:var(--celeste)}
+  .cols li.f2{opacity:.62}
+  .cols li.f2 .t::after{content:" · fase 2"; color:var(--gris)}
+  .tabla footer{
+    padding:9px 15px 12px; border-top:1px dashed var(--linea);
+    font-size:11.5px; color:var(--gris);
+  }
+  .tabla footer b{font-size:11.5px}
+
+  /* ── Tabla genérica ──────────────────────────────── */
+  .scroll{overflow-x:auto; border:1px solid var(--linea); border-radius:9px; background:var(--panel); box-shadow:var(--sombra)}
+  table.dat{border-collapse:collapse; width:100%; min-width:620px; font-size:13.5px}
+  table.dat th, table.dat td{padding:10px 14px; text-align:left; vertical-align:top; border-bottom:1px solid var(--linea)}
+  table.dat thead th{
+    background:var(--panel-2); color:var(--tinta); font-size:11.5px; font-weight:800;
+    letter-spacing:.09em; text-transform:uppercase; white-space:nowrap;
+  }
+  table.dat tbody tr:last-child td{border-bottom:0}
+  table.dat td.mono, table.dat th.mono{font-family:var(--mono); font-size:12px; color:var(--tinta)}
+  table.dat td.num{font-variant-numeric:tabular-nums; text-align:right}
+
+  .pill{
+    display:inline-block; font-family:var(--mono); font-size:10.5px; font-weight:500;
+    letter-spacing:.04em; padding:2px 7px; border-radius:99px; white-space:nowrap;
+    border:1px solid; background:transparent;
+  }
+  .pill.si{color:var(--verde); border-color:color-mix(in srgb,var(--verde) 45%,transparent)}
+  .pill.no{color:var(--gris); border-color:var(--linea)}
+  .pill.parc{color:var(--ambar); border-color:color-mix(in srgb,var(--ambar) 45%,transparent)}
+  .pill.full{color:var(--azul); border-color:color-mix(in srgb,var(--azul) 45%,transparent)}
+
+  /* ── Decisiones ──────────────────────────────────── */
+  .decisiones{display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:14px}
+  .dec{
+    background:var(--panel); border:1px solid var(--linea); border-radius:10px;
+    padding:16px 18px; box-shadow:var(--sombra); display:flex; flex-direction:column; gap:9px;
+  }
+  .dec h4{margin:0; font-size:14.5px; font-weight:800; color:var(--tinta); line-height:1.35}
+  .dec .par{font-size:13px; line-height:1.55; margin:0}
+  .dec .par .et{
+    font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase;
+    display:block; margin-bottom:2px;
+  }
+  .dec .prop .et{color:var(--verde)}
+  .dec .alt{color:var(--gris)}
+  .dec .alt .et{color:var(--gris)}
+
+  /* ── Pantallas ───────────────────────────────────── */
+  .rol{
+    display:flex; align-items:baseline; gap:10px; margin:28px 0 14px;
+    padding-bottom:9px; border-bottom:2px solid var(--linea);
+  }
+  .rol h3{margin:0; text-transform:none; letter-spacing:-.1px; font-size:17px}
+  .rol span{font-size:13px; color:var(--gris)}
+  .pantallas{list-style:none; margin:0; padding:0; display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:1px;
+    background:var(--linea); border:1px solid var(--linea); border-radius:10px; overflow:hidden}
+  .pantallas li{background:var(--panel); padding:14px 16px; display:flex; gap:12px}
+  .pantallas .cod{
+    font-family:var(--mono); font-size:11.5px; font-weight:600; color:var(--azul);
+    flex:0 0 34px; padding-top:1px;
+  }
+  .pantallas .cod.adm{color:var(--azul-hondo)}
+  .pantallas b{display:block; font-size:14px; margin-bottom:2px}
+  .pantallas p{margin:0; font-size:12.8px; color:var(--gris); line-height:1.5}
+
+  /* ── Mock celular ────────────────────────────────── */
+  .mock-fila{display:grid; grid-template-columns:minmax(0,290px) minmax(0,1fr); gap:26px; align-items:start}
+  @media (max-width:760px){ .mock-fila{grid-template-columns:1fr} }
+  .tel{
+    border:1px solid var(--linea); border-radius:26px; background:var(--panel);
+    box-shadow:var(--sombra); overflow:hidden; max-width:290px;
+  }
+  .tel-top{
+    background:linear-gradient(112deg,#0d3fb0,#126ff5 60%,#2589ea); color:#fff;
+    padding:12px 16px 11px;
+  }
+  .tel-top .e{font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:#bfe2fb; font-weight:700}
+  .tel-top .t{font-size:16px; font-weight:800; margin-top:2px}
+  .tel-regla{height:3px; background:linear-gradient(90deg,var(--amarillo) 0%,var(--amarillo) 22%,var(--celeste) 22%,var(--celeste) 100%)}
+  .tel-body{padding:14px 14px 16px; display:flex; flex-direction:column; gap:11px}
+  .campo .lab{font-size:10.5px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:var(--gris); display:block; margin-bottom:4px}
+  .campo .val{
+    border:1.5px solid var(--linea); border-radius:8px; padding:11px 12px; font-size:14px;
+    color:var(--tinta); font-weight:600; background:var(--panel-2); display:flex;
+    justify-content:space-between; align-items:center; gap:8px;
+  }
+  .campo .val .car{color:var(--gris); font-size:11px}
+  .campo.auto .val{border-style:dashed; color:var(--gris); font-weight:400}
+  .chips{display:flex; gap:6px; flex-wrap:wrap}
+  .chips .c{
+    border:1.5px solid var(--linea); border-radius:8px; padding:9px 0; flex:1 1 52px;
+    text-align:center; font-size:14px; font-weight:700; color:var(--texto); background:var(--panel-2);
+    font-variant-numeric:tabular-nums;
+  }
+  .chips .c.on{background:var(--azul); border-color:var(--azul); color:#fff}
+  .tel-cta{
+    margin-top:3px; background:var(--verde); color:#04231a; border-radius:9px;
+    padding:14px; text-align:center; font-weight:800; font-size:15px; letter-spacing:.01em;
+  }
+  :root[data-theme="dark"] .tel-cta{color:#04231a}
+  .nota-ej{font-size:11.5px; color:var(--gris); font-style:italic; margin:8px 0 0; text-align:center}
+  .mock-notas{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:11px}
+  .mock-notas li{
+    font-size:13.5px; line-height:1.55; padding-left:16px; position:relative; color:var(--gris);
+  }
+  .mock-notas li::before{
+    content:""; position:absolute; left:0; top:8px; width:7px; height:7px;
+    border-radius:50%; background:var(--celeste);
+  }
+  .mock-notas li b{color:var(--tinta)}
+
+  /* ── Preguntas ───────────────────────────────────── */
+  .preguntas{list-style:none; counter-reset:q; margin:0; padding:0; display:flex; flex-direction:column; gap:1px;
+    background:var(--linea); border:1px solid var(--linea); border-radius:10px; overflow:hidden}
+  .preguntas li{background:var(--panel); padding:15px 18px; counter-increment:q;
+    display:grid; grid-template-columns:30px minmax(0,1fr); gap:12px}
+  .preguntas li::before{
+    content:counter(q,decimal-leading-zero); font-family:var(--mono); font-size:12px;
+    font-weight:600; color:var(--azul); padding-top:2px;
+  }
+  .preguntas .q{margin:0 0 6px; font-size:14.2px; color:var(--tinta); font-weight:700; line-height:1.45}
+  .preguntas .s{margin:0; font-size:13px; color:var(--gris); line-height:1.55}
+  .preguntas .s .et{
+    font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--ambar); margin-right:6px;
+  }
+  .preguntas li.bloq{background:color-mix(in srgb,var(--ambar) 7%,var(--panel))}
+  .preguntas li.bloq .s .et{color:var(--rojo)}
+
+  /* ── Fases ───────────────────────────────────────── */
+  .fases{display:flex; flex-direction:column; gap:1px; background:var(--linea);
+    border:1px solid var(--linea); border-radius:10px; overflow:hidden}
+  .fase-row{background:var(--panel); padding:15px 18px; display:grid;
+    grid-template-columns:92px minmax(0,1fr); gap:14px; align-items:start}
+  @media (max-width:560px){ .fase-row{grid-template-columns:1fr; gap:6px} }
+  .fase-row .n{
+    font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--gris); border:1px solid var(--linea);
+    border-radius:99px; padding:3px 0; text-align:center;
+  }
+  .fase-row.activa{background:var(--panel-2)}
+  .fase-row.activa .n{color:#fff; background:var(--azul); border-color:var(--azul)}
+  .fase-row b{display:block; font-size:14.5px; margin-bottom:3px}
+  .fase-row p{margin:0; font-size:13.2px; color:var(--gris)}
+
+  /* ── Síntesis ────────────────────────────────────── */
+  .sintesis{
+    background:linear-gradient(112deg,#0d3fb0,#126ff5 60%,#2589ea);
+    color:#dcecff; border-radius:12px; padding:26px 28px; margin:8px 0 0;
+  }
+  .sintesis h3{color:#fff; margin:0 0 10px; font-size:13px}
+  .sintesis p{color:#dcecff; margin:0 0 10px; max-width:78ch; font-size:14.5px}
+  .sintesis p:last-child{margin-bottom:0}
+  .sintesis b{color:#fff}
+
+  /* ── Pie ─────────────────────────────────────────── */
+  footer.pie{margin-top:46px; border-top:1px solid var(--linea); background:var(--panel-2)}
+  footer.pie .wrap{display:flex; justify-content:space-between; align-items:center;
+    gap:18px; padding-top:16px; padding-bottom:16px; flex-wrap:wrap}
+  footer.pie img{height:30px; width:auto}
+  footer.pie .der{font-size:11.5px; color:var(--gris); text-align:right; line-height:1.5}
+  footer.pie .der b{display:block; color:var(--tinta); font-size:12px}
+
+  @media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
+</style>
+
+<header class="franja">
+  <div class="wrap">
+    <div class="marcas">
+      <img class="smt" src="logo-smt-blanco.png" alt="Ciudad San Miguel de Tucumán">
+      <div class="pastilla">
+        <img src="logo-ia.png" alt="Dirección de Inteligencia Artificial">
+        <span>DESARROLLO</span>
+      </div>
+    </div>
+    <div>
+      <p class="eyebrow">Secretaría de Ambiente y Desarrollo Sustentable</p>
+      <h1>Registro y trazabilidad de residuos</h1>
+      <p class="bajada">Modelo de datos y pantallas para validar antes de escribir código. Fase&nbsp;1: Planta de Valorización de Residuos Verdes.</p>
+    </div>
+    <div class="meta-portada">
+      <span>FASE 0 · VALIDACIÓN</span>
+      <span>14/09/2026</span>
+      <span>19 tablas · 14 pantallas</span>
+      <span>12 preguntas abiertas</span>
+    </div>
+  </div>
+</header>
+<div class="regla"></div>
+
+<main class="wrap">
+
+  <nav class="indice" aria-label="Contenido">
+    <a href="#stack">Stack propuesto<span>Qué hay que confirmar</span></a>
+    <a href="#movimiento">Todo es un movimiento<span>El principio, en datos</span></a>
+    <a href="#modelo">Modelo de datos<span>19 tablas y sus relaciones</span></a>
+    <a href="#rls">Quién ve qué<span>Permisos por rol</span></a>
+    <a href="#decisiones">Seis decisiones<span>Lo que necesito que valides</span></a>
+    <a href="#pantallas">Pantallas<span>6 del vigilador, 8 de la coordinadora</span></a>
+    <a href="#preguntas">Preguntas para la coordinadora<span>Y con qué sigo si no hay respuesta</span></a>
+    <a href="#fases">Plan por fases<span>Qué entra en cada entrega</span></a>
+  </nav>
+
+  <!-- ═══════════ STACK ═══════════ -->
+  <section id="stack">
+    <h2>Stack propuesto</h2>
+    <p class="sub">Confirmo el stack que planteaste. Lo único que quiero discutir es cómo entran los vigiladores.</p>
+
+    <div class="scroll">
+      <table class="dat">
+        <thead>
+          <tr><th>Pieza</th><th>Elección</th><th>Por qué</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>Aplicación</b></td>
+            <td class="mono">Next.js 15 · App Router · PWA</td>
+            <td>Instalable desde el navegador del celular, sin pasar por Play Store. Los vigiladores rotan seguido: instalar la app tiene que ser abrir un link.</td>
+          </tr>
+          <tr>
+            <td><b>Base y auth</b></td>
+            <td class="mono">Supabase · Postgres + RLS</td>
+            <td>Las reglas de “el vigilador solo ve lo suyo” quedan en la base, no en el código de pantalla. Si mañana alguien consulta la API por fuera de la app, las reglas siguen puestas.</td>
+          </tr>
+          <tr>
+            <td><b>Hosting</b></td>
+            <td class="mono">Vercel</td>
+            <td>Despliegue automático y HTTPS sin infraestructura municipal de por medio.</td>
+          </tr>
+          <tr>
+            <td><b>Mala señal</b></td>
+            <td class="mono">IndexedDB + cola de sincronización</td>
+            <td>El movimiento se guarda en el celular apenas se confirma. Si no hay señal, queda en cola y sube solo cuando vuelve. La pantalla siempre muestra cuántos quedan sin subir.</td>
+          </tr>
+          <tr>
+            <td><b>Excel</b></td>
+            <td class="mono">SheetJS · lectura y escritura</td>
+            <td>Exportar cualquier vista e importar el archivo de pesos con mapeo de columnas.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="aviso warn" style="margin-top:16px">
+      <span class="tit">Lo único que cambia respecto de tu enunciado</span>
+      <p>Propongo <b>un usuario por sitio con PIN</b> (como anticipaste) <b>más un selector de “vigilador a cargo”</b> tomado de una lista que administra la coordinadora. Con un usuario compartido por punto no se pierde trazabilidad personal, y no hay que dar de alta y de baja una cuenta cada vez que rota alguien. El PIN lo resetea la coordinadora desde el panel. La sesión en el celular no vence: el vigilador abre la app y ya está adentro.</p>
+    </div>
+  </section>
+
+  <!-- ═══════════ MOVIMIENTO ═══════════ -->
+  <section id="movimiento">
+    <h2>Todo es un movimiento</h2>
+    <p class="sub">Una sola tabla registra los tres flujos. Lo que cambia entre un ingreso de poda a la Planta y una salida de retazos de tela a una emprendedora son los campos que se completan, no la estructura.</p>
+
+    <div class="mov-diag">
+      <svg viewBox="0 0 700 250" role="img" aria-label="Un movimiento conecta un origen con un destino, transportando uno o más materiales">
+        <defs>
+          <linearGradient id="gmov" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#126ff5"/><stop offset="1" stop-color="#28469f"/>
+          </linearGradient>
+          <marker id="fl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#3cb4f0"/>
+          </marker>
+        </defs>
+
+        <line x1="168" y1="86" x2="262" y2="86" stroke="#3cb4f0" stroke-width="2.4" marker-end="url(#fl)"/>
+        <line x1="438" y1="86" x2="532" y2="86" stroke="#3cb4f0" stroke-width="2.4" marker-end="url(#fl)"/>
+
+        <rect x="20" y="54" width="148" height="64" rx="9" fill="none" stroke="#3cb4f0" stroke-width="1.6"/>
+        <text x="94" y="79" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="13.5" font-weight="700" fill="#2589ea">ORIGEN</text>
+        <text x="94" y="99" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="11.5" fill="#6b7885">sitio, entidad o vecino</text>
+
+        <rect x="532" y="54" width="148" height="64" rx="9" fill="none" stroke="#3cb4f0" stroke-width="1.6"/>
+        <text x="606" y="79" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="13.5" font-weight="700" fill="#2589ea">DESTINO</text>
+        <text x="606" y="99" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="11.5" fill="#6b7885">sitio, entidad o vecino</text>
+
+        <rect x="262" y="40" width="176" height="92" rx="11" fill="url(#gmov)"/>
+        <text x="350" y="70" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="14" font-weight="600" fill="#ffffff">movimientos</text>
+        <text x="350" y="91" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="11.5" fill="#c5e6fc">flujo · tipo · fecha y hora</text>
+        <text x="350" y="109" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="11.5" fill="#c5e6fc">patente · chofer · autoriza</text>
+
+        <line x1="350" y1="132" x2="350" y2="162" stroke="#3cb4f0" stroke-width="2.4" marker-end="url(#fl)"/>
+
+        <rect x="214" y="162" width="272" height="62" rx="9" fill="none" stroke="#e3e8ef" stroke-width="1.6"/>
+        <text x="350" y="186" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="13" font-weight="600" fill="#10233d">movimiento_items</text>
+        <text x="350" y="206" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="11.5" fill="#6b7885">material · cantidad · unidad</text>
+
+        <text x="94" y="181" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="11" fill="#6b7885">De dónde sale</text>
+        <text x="606" y="181" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="11" fill="#6b7885">A dónde va</text>
+      </svg>
+    </div>
+
+    <div class="flujos">
+      <div class="flujo">
+        <h4>Planta de Valorización</h4>
+        <span class="fase">Flujo 1 · Fase 1</span>
+        <p>Ingreso: origen es una cuadrilla o un privado, destino es la Planta. Salida: origen es la Planta, destino solo puede ser un lugar de la lista de habilitados.</p>
+      </div>
+      <div class="flujo f2">
+        <h4>Puntos Verdes</h4>
+        <span class="fase">Flujo 2 · Fase 2</span>
+        <p>Ingreso: el origen es un vecino y el destino el punto. Salida: el origen es el punto y el destino un vecino, carrero, emprendedora u organización, con tipo de valorización.</p>
+      </div>
+      <div class="flujo f3">
+        <h4>Grandes generadores</h4>
+        <span class="fase">Flujo 3 · Fase 3</span>
+        <p>Misma salida que en Puntos Verdes, con el origen en una empresa. No hay estructura nueva: es una entidad más en la lista de orígenes habilitados.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ MODELO ═══════════ -->
+  <section id="modelo">
+    <h2>Modelo de datos</h2>
+    <p class="sub">Diecinueve tablas. Las de <b>fase 1</b> se construyen ahora; las marcadas con borde punteado se crean vacías para no migrar nada después. En cada tarjeta: <code>pk</code> en azul, claves foráneas en celeste.</p>
+
+    <div class="grupo-tit">Núcleo <em>— lo que se carga desde el celular</em></div>
+    <div class="tablas">
+      <article class="tabla">
+        <header>
+          <h4>movimientos</h4>
+          <p>Una fila por cada cosa que entra o sale, en cualquiera de los tres flujos.</p>
+        </header>
+        <ul class="cols">
+          <li class="pk"><span class="n">id</span><span class="t">uuid</span></li>
+          <li><span class="n">numero</span><span class="t">bigint identity · MOV-001432</span></li>
+          <li><span class="n">flujo</span><span class="t">planta | punto_verde | gran_generador</span></li>
+          <li><span class="n">tipo</span><span class="t">ingreso | salida | contenedor</span></li>
+          <li class="fk"><span class="n">sitio_id</span><span class="t">→ sitios · dónde ocurre</span></li>
+          <li><span class="n">ocurrido_en</span><span class="t">timestamptz · default now()</span></li>
+          <li><span class="n">origen_clase</span><span class="t">sitio | entidad | vecino | texto</span></li>
+          <li class="fk"><span class="n">origen_*_id</span><span class="t">→ sitios / entidades / vecinos</span></li>
+          <li><span class="n">origen_detalle</span><span class="t">text · solo si clase = texto</span></li>
+          <li><span class="n">destino_clase</span><span class="t">ídem origen</span></li>
+          <li class="fk"><span class="n">destino_*_id</span><span class="t">→ sitios / entidades / vecinos</span></li>
+          <li><span class="n">destino_detalle</span><span class="t">text</span></li>
+          <li class="fk"><span class="n">vehiculo_id</span><span class="t">→ vehiculos · patente</span></li>
+          <li class="fk"><span class="n">chofer_id</span><span class="t">→ personas</span></li>
+          <li class="fk"><span class="n">autorizado_por_id</span><span class="t">→ personas · salidas</span></li>
+          <li><span class="n">tipo_valorizacion</span><span class="t">reutilizacion | venta | emprendimiento | otro</span></li>
+          <li><span class="n">vecino_sin_datos</span><span class="t">bool · “no quiso dar datos”</span></li>
+          <li class="fk f2"><span class="n">pila_id</span><span class="t">→ pilas</span></li>
+          <li class="fk f2"><span class="n">contenedor_id</span><span class="t">→ contenedores</span></li>
+          <li><span class="n">observaciones</span><span class="t">text</span></li>
+          <li><span class="n">estado</span><span class="t">vigente | anulado</span></li>
+          <li><span class="n">motivo_anulacion</span><span class="t">text · anulado_por_id · anulado_en</span></li>
+          <li class="fk"><span class="n">cargado_por_id</span><span class="t">→ perfiles · auth.uid()</span></li>
+          <li class="fk"><span class="n">vigilador_id</span><span class="t">→ personas · quién estaba de turno</span></li>
+          <li><span class="n">client_uuid</span><span class="t">uuid unique · evita duplicar al sincronizar</span></li>
+          <li><span class="n">creado_en</span><span class="t">timestamptz</span></li>
+        </ul>
+        <footer><b>Reglas en la base:</b> exactamente un <code>origen_*_id</code> según la clase; <code>tipo_valorizacion</code> solo en salidas; <code>cantidad &gt; 0</code>; borrado revocado para todos.</footer>
+      </article>
+
+      <article class="tabla">
+        <header>
+          <h4>movimiento_items</h4>
+          <p>Qué y cuánto. Un camión puede traer poda y restos de jardinería en el mismo viaje; un vecino, cartón y plástico.</p>
+        </header>
+        <ul class="cols">
+          <li class="pk"><span class="n">id</span><span class="t">uuid</span></li>
+          <li class="fk"><span class="n">movimiento_id</span><span class="t">→ movimientos · on delete cascade</span></li>
+          <li class="fk"><span class="n">material_id</span><span class="t">→ materiales</span></li>
+          <li><span class="n">cantidad</span><span class="t">numeric(12,2) · check &gt; 0</span></li>
+          <li class="fk"><span class="n">unidad_id</span><span class="t">→ unidades</span></li>
+          <li><span class="n">observacion</span><span class="t">text</span></li>
+        </ul>
+        <footer><b>Único por</b> <code>(movimiento_id, material_id)</code>. El formulario arranca con un solo ítem: sumar otro es un botón.</footer>
+      </article>
+    </div>
+
+    <div class="grupo-tit g-lugares">Lugares y personas <em>— el quién y el dónde</em></div>
+    <div class="tablas">
+      <article class="tabla lugares">
+        <header>
+          <h4>sitios</h4>
+          <p>Lugares propios del municipio: la Planta y los 8 puntos verdes.</p>
+        </header>
+        <ul class="cols">
+          <li class="pk"><span class="n">id</span><span class="t">uuid</span></li>
+          <li><span class="n">codigo</span><span class="t">text unique · PLANTA, PV-01…</span></li>
+          <li><span class="n">nombre</span><span class="t">text</span></li>
+          <li><span class="n">tipo</span><span class="t">planta | punto_verde</span></li>
+          <li><span class="n">direccion</span><span class="t">text · lat, lng</span></li>
+          <li><span class="n">activo</span><span class="t">bool · orden int</span></li>
+        </ul>
+        <footer>Es lo que precarga el formulario: el vigilador nunca elige su propio sitio.</footer>
+      </article>
+
+      <article class="tabla lugares">
+        <header>
+          <h4>entidades</h4>
+          <p>Toda contraparte externa que no es un vecino suelto. Acá vive la lista de destinos habilitados.</p>
+        </header>
+        <ul class="cols">
+          <li class="pk"><span class="n">id</span><span class="t">uuid</span></li>
+          <li><span class="n">nombre</span><span class="t">text</span></li>
+          <li><span class="n">tipo</span><span class="t">empresa | emprendimiento | organizacion | carrero | dependencia_municipal | planta_externa | otro</span></li>
+          <li><span class="n">habilitada_origen</span><span class="t">bool</span></li>
+          <li><span class="n">habilitada_destino</span><span class="t">bool</span></li>
+          <li><span class="n">flujos</span><span class="t">text[] · en qué flujos aparece</span></li>
+          <li><span class="n">cuit, contacto, telefono</span><span class="t">text · visible solo para admin</span></li>
+          <li><span class="n">barrio, notas</span><span class="t">text</span></li>
+          <li><span class="n">activo</span><span class="t">bool · creado_por_id, creado_en</span></li>
+        </ul>
+        <footer>Los tres flujos comparten esta tabla. Dar de alta un gran generador nuevo es agregar una fila con <code>habilitada_origen</code>.</footer>
+      </article>
+
+      <article class="tabla lugares">
+        <header>
+          <h4>vehiculos</h4>
+          <p>Patentes. Se eligen de lista; el vigilador no tipea una patente.</p>
+        </header>
+        <ul class="cols">
+          <li class="pk"><span class="n">id</span><span class="t">uuid</span></li>
+          <li><span class="n">patente</span><span class="t">text unique · normalizada sin espacios</span></li>
+          <li><span class="n">tipo</span><span class="t">camion | batea | camioneta | tractor | otro</span></li>
+          <li><span class="n">capacidad_m3</span><span class="t">numeric · opcional</span></li>
+          <li class="fk"><span class="n">entidad_id</span><span class="t">→ entidades · de quién es</span></li>
+          <li><span class="n">activo</span><span class="t">bool</span></li>
+        </ul>
+        <footer>Si se conoce <code>capacidad_m3</code>, la app puede calcular el volumen sola y el vigilador no estima nada. <b>Pregunta 2.</b></footer>
+      </article>
+
+      <article class="tabla lugares">
+        <header>
+          <h4>personas</h4>
+          <p>Choferes, vigiladores y quienes autorizan salidas. Una sola lista con rol.</p>
+        </header>
+        <ul class="cols">
+          <li class="pk"><span class="n">id</span><span class="t">uuid</span></li>
+          <li><span class="n">nombre</span><span class="t">text</span></li>
+          <li><span class="n">rol</span><span class="t">chofer | vigilador | autorizante | operario</span></li>
+          <li><span class="n">documento</span><span class="t">text · opcional</span></li>
+          <li class="fk"><span class="n">entidad_id</span><span class="t">→ entidades · empresa del chofer</span></li>
+          <li class="fk"><span class="n">sitio_id</span><span class="t">→ sitios · dónde trabaja</span></li>
+          <li><span class="n">activo</span><span class="t">bool</span></li>
+        </ul>
+        <footer>De acá sale el selector “vigilador a cargo” del inicio de turno.</footer>
+      </article>
+    </div>
+
+    <div class="grupo-tit g-listas">Materiales y unidades <em>— lo que hace que no se pueda cargar mal</em></div>
+    <div class="tablas">
+      <article class="tabla listas">
+        <header>
+          <h4>materiales</h4>
+          <p>Cada material sabe en qué flujo aparece, si entra o sale, y en qué unidad se mide.</p>
+        </header>
+        <ul class="cols">
+          <li class="pk"><span class="n">id</span><span class="t">uuid</span></li>
+          <li><span class="n">nombre</span><span class="t">text · Poda, Chipeo, Compost…</span></li>
+          <li><span class="n">categoria</span><span class="t">verdes | reciclables | textil | madera | especiales</span></li>
+          <li><span class="n">flujos</span><span class="t">text[] · dónde se ofrece</span></li>
+          <li><span class="n">tipos</span><span class="t">text[] · ingreso, salida o ambos</span></li>
+          <li class="fk"><span class="n">unidad_default_id</span><span class="t">→ unidades</span></li>
+          <li><span class="n">unidades_permitidas</span><span class="t">uuid[]</span></li>
+          <li><span class="n">activo</span><span class="t">bool · orden int · color</span></li>
+        </ul>
+        <footer>Que <code>tipos</code> sea un arreglo es lo que impide registrar un ingreso de compost o una salida de poda.</footer>
+      </article>
+
+      <article class="tabla listas">
+        <header>
+          <h4>unidades</h4>
+          <p>Camión, batea, m³, bolsa, kilo. Cuál se usa para cada material lo define la coordinadora.</p>
+        </header>
+        <ul class="cols">
+          <li class="pk"><span class="n">id</span><span class="t">uuid</span></li>
+          <li><span class="n">codigo</span><span class="t">camion | batea | m3 | bolsa | kg | tn</span></li>
+          <li><span class="n">nombre</span><span class="t">text · singular y plural</span></li>
+          <li><span class="n">decimales</span><span class="t">int · 0 para camión, 1 para m³</span></li>
+          <li><span class="n">factor_m3</span><span class="t">numeric · equivalencia estimada</span></li>
+        </ul>
+        <footer><b>Supuesto marcado en el código.</b> <code>factor_m3</code> permite sumar peras con manzanas en el tablero sin volver a cargar nada. <b>Pregunta 1.</b></footer>
+      </article>
+    </div>
+
+    <div class="grupo-tit g-priv">Datos personales <em>— tabla aparte, a propósito</em></div>
+    <div class="tablas">
+      <article class="tabla priv">
+        <header>
+          <h4>vecinos</h4>
+          <p>El vigilador puede crear, nunca leer. La lista de vecinos no existe para él.</p>
+        </header>
+        <ul class="cols">
+          <li class="pk"><span class="n">id</span><span class="t">uuid</span></li>
+          <li><span class="n">nombre</span><span class="t">text · nullable</span></li>
+          <li><span class="n">telefono</span><span class="t">text · nullable</span></li>
+          <li><span class="n">barrio</span><span class="t">text · nullable</span></li>
+          <li class="fk"><span class="n">sitio_alta_id</span><span class="t">→ sitios</span></li>
+          <li><span class="n">anonimizado</span><span class="t">bool · anonimizado_en</span></li>
+          <li class="fk"><span class="n">creado_por_id</span><span class="t">→ perfiles · creado_en</span></li>
+        </ul>
+        <footer>Anonimizar vacía los tres campos y marca la fila. Los movimientos y el tablero no pierden un solo dato.</footer>
+      </article>
+    </div>
+
+    <div class="grupo-tit g-tablero">Tablero e importación</div>
+    <div class="tablas">
+      <article class="tabla tablero">
+        <header>
+          <h4>mapeos_importacion</h4>
+          <p>Guarda a qué columna del Excel corresponde cada campo. Se configura una vez y se reutiliza.</p>
+        </header>
+        <ul class="cols">
+          <li class="pk"><span class="n">id</span><span class="t">uuid</span></li>
+          <li><span class="n">nombre</span><span class="t">text · “Planta 9 de Julio”</span></li>
+          <li><span class="n">tipo</span><span class="t">pesos_contenedores</span></li>
+          <li><span class="n">columnas</span><span class="t">jsonb · {"fecha":"FECHA RETIRO", "sitio":"PUNTO", "peso_kg":"KG NETO"}</span></li>
+          <li><span class="n">transformaciones</span><span class="t">jsonb · formato de fecha, coma decimal, alias de sitios</span></li>
+          <li><span class="n">activo</span><span class="t">bool</span></li>
+        </ul>
+        <footer>Por esto el formato desconocido del Excel no bloquea la fase 1: se resuelve el día que llegue el archivo, sin tocar código.</footer>
+      </article>
+
+      <article class="tabla tablero">
+        <header>
+          <h4>importaciones</h4>
+          <p>Una fila por archivo subido. Si vino mal, se revierte completo.</p>
+        </header>
+        <ul class="cols">
+          <li class="pk"><span class="n">id</span><span class="t">uuid</span></li>
+          <li class="fk"><span class="n">mapeo_id</span><span class="t">→ mapeos_importacion</span></li>
+          <li><span class="n">archivo_nombre</span><span class="t">text · hash</span></li>
+          <li><span class="n">periodo_desde</span><span class="t">date · periodo_hasta</span></li>
+          <li><span class="n">filas_ok</span><span class="t">int · filas_error int</span></li>
+          <li><span class="n">errores</span><span class="t">jsonb · fila y motivo</span></li>
+          <li><span class="n">estado</span><span class="t">previsualizada | confirmada | revertida</span></li>
+          <li class="fk"><span class="n">importado_por_id</span><span class="t">→ perfiles · importado_en</span></li>
+        </ul>
+        <footer>Nada se confirma sin previsualizar. La pantalla muestra las filas que no pudo interpretar antes de guardar.</footer>
+      </article>
+
+      <article class="tabla tablero">
+        <header>
+          <h4>pesos_externos</h4>
+          <p>Los kilos reales que informa la planta de la 9 de Julio, para cruzar contra lo registrado en cada punto.</p>
+        </header>
+        <ul class="cols">
+          <li class="pk"><span class="n">id</span><span class="t">uuid</span></li>
+          <li class="fk"><span class="n">importacion_id</span><span class="t">→ importaciones</span></li>
+          <li class="fk"><span class="n">sitio_id</span><span class="t">→ sitios</span></li>
+          <li><span class="n">fecha</span><span class="t">date</span></li>
+          <li><span class="n">contenedor_codigo</span><span class="t">text · nullable</span></li>
+          <li class="fk"><span class="n">material_id</span><span class="t">→ materiales · nullable</span></li>
+          <li><span class="n">peso_kg</span><span class="t">numeric(12,2)</span></li>
+          <li><span class="n">fila_origen</span><span class="t">jsonb · la fila cruda, tal cual vino</span></li>
+        </ul>
+        <footer>Guardar la fila cruda permite recalcular el indicador si más adelante cambia el criterio de cruce.</footer>
+      </article>
+    </div>
+
+    <div class="grupo-tit g-sistema">Acceso y auditoría</div>
+    <div class="tablas">
+      <article class="tabla sistema">
+        <header>
+          <h4>perfiles</h4>
+          <p>Uno por usuario de <code>auth.users</code>. Define el rol y el sitio asignado.</p>
+        </header>
+        <ul class="cols">
+          <li class="pk"><span class="n">id</span><span class="t">uuid → auth.users</span></li>
+          <li><span class="n">nombre</span><span class="t">text · “Planta Verde — turno”</span></li>
+          <li><span class="n">rol</span><span class="t">admin | vigilador</span></li>
+          <li class="fk"><span class="n">sitio_id</span><span class="t">→ sitios · null si es admin</span></li>
+          <li><span class="n">activo</span><span class="t">bool · ultimo_acceso</span></li>
+        </ul>
+        <footer><code>rol</code> y <code>sitio_id</code> son lo único que leen todas las reglas de permisos.</footer>
+      </article>
+
+      <article class="tabla sistema">
+        <header>
+          <h4>auditoria</h4>
+          <p>Escrita por disparadores de la base, no por la app. Solo se agrega; nunca se edita ni se borra.</p>
+        </header>
+        <ul class="cols">
+          <li class="pk"><span class="n">id</span><span class="t">bigint identity</span></li>
+          <li><span class="n">tabla</span><span class="t">text · registro_id uuid</span></li>
+          <li><span class="n">accion</span><span class="t">insert | update | anular</span></li>
+          <li class="fk"><span class="n">actor_id</span><span class="t">→ perfiles</span></li>
+          <li><span class="n">antes</span><span class="t">jsonb · despues jsonb</span></li>
+          <li><span class="n">creado_en</span><span class="t">timestamptz</span></li>
+        </ul>
+        <footer>Responde “quién cargó esto y quién lo anuló”, que hoy no se puede responder.</footer>
+      </article>
+    </div>
+
+    <div class="grupo-tit g-prep">Creadas vacías <em>— para no migrar nada en la fase 2</em></div>
+    <div class="tablas">
+      <article class="tabla prep">
+        <header>
+          <h4>pilas</h4>
+          <p>Las 17 pilas de compost de 1 × 1 × 100 m. Sin pantalla en fase 1.</p>
+        </header>
+        <ul class="cols">
+          <li class="pk"><span class="n">id</span><span class="t">uuid</span></li>
+          <li><span class="n">codigo</span><span class="t">text · P-01 … P-17</span></li>
+          <li class="fk"><span class="n">sitio_id</span><span class="t">→ sitios</span></li>
+          <li><span class="n">fecha_armado</span><span class="t">date · madurez_estimada date</span></li>
+          <li><span class="n">largo_m</span><span class="t">numeric · ancho_m, alto_m</span></li>
+          <li><span class="n">estado</span><span class="t">en_formacion | madurando | lista | despachada</span></li>
+        </ul>
+        <footer><code>movimientos.pila_id</code> ya existe. Sumar el seguimiento por pila es agregar la pantalla, no cambiar la base.</footer>
+      </article>
+
+      <article class="tabla prep">
+        <header>
+          <h4>contenedores</h4>
+          <p>Recambios, retiros y movimientos de contenedores de los puntos verdes. Flujo todavía sin definir.</p>
+        </header>
+        <ul class="cols">
+          <li class="pk"><span class="n">id</span><span class="t">uuid</span></li>
+          <li><span class="n">codigo</span><span class="t">text unique</span></li>
+          <li><span class="n">tipo</span><span class="t">text · capacidad_m3 numeric</span></li>
+          <li class="fk"><span class="n">sitio_actual_id</span><span class="t">→ sitios</span></li>
+          <li><span class="n">estado</span><span class="t">en_sitio | en_transito | mantenimiento | baja</span></li>
+        </ul>
+        <footer>Un recambio será un movimiento con <code>tipo = contenedor</code> y <code>contenedor_id</code>; la columna ya está.</footer>
+      </article>
+    </div>
+  </section>
+
+  <!-- ═══════════ RLS ═══════════ -->
+  <section id="rls">
+    <h2>Quién ve qué</h2>
+    <p class="sub">Las reglas viven en Postgres, no en la app. Un vigilador con el token de su celular en la mano no puede leer un movimiento de otro punto ni la lista de vecinos, aunque consulte la API directo.</p>
+
+    <div class="scroll">
+      <table class="dat">
+        <thead>
+          <tr><th>Tabla</th><th>Vigilador</th><th>Coordinadora</th><th>Nota</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="mono">movimientos<br>movimiento_items</td>
+            <td><span class="pill si">insertar</span> <span class="pill parc">leer 48 h</span></td>
+            <td><span class="pill full">todo + anular</span></td>
+            <td>Solo inserta en su propio sitio. Lee lo cargado en su sitio las últimas 48 horas, para poder revisar el turno. No puede modificar ni borrar.</td>
+          </tr>
+          <tr>
+            <td class="mono">sitios · materiales<br>unidades · vehiculos<br>personas</td>
+            <td><span class="pill parc">leer activos</span></td>
+            <td><span class="pill full">alta, baja y edición</span></td>
+            <td>El vigilador ve solo las filas activas y filtradas por flujo. Una lista corta es una lista que no se carga mal.</td>
+          </tr>
+          <tr>
+            <td class="mono">entidades</td>
+            <td><span class="pill parc">leer habilitadas</span></td>
+            <td><span class="pill full">alta, baja y edición</span></td>
+            <td>Ve nombre y tipo. Los datos de contacto y el CUIT quedan del lado de la coordinadora.</td>
+          </tr>
+          <tr>
+            <td class="mono">vecinos</td>
+            <td><span class="pill si">insertar</span> <span class="pill no">sin lectura</span></td>
+            <td><span class="pill full">leer y anonimizar</span></td>
+            <td>Es la regla que hace cumplible “los datos de vecinos los ve solo la coordinadora”.</td>
+          </tr>
+          <tr>
+            <td class="mono">importaciones<br>mapeos · pesos_externos</td>
+            <td><span class="pill no">sin acceso</span></td>
+            <td><span class="pill full">todo</span></td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td class="mono">auditoria</td>
+            <td><span class="pill no">sin acceso</span></td>
+            <td><span class="pill parc">solo lectura</span></td>
+            <td>Ni la coordinadora puede editarla. La escriben los disparadores.</td>
+          </tr>
+          <tr>
+            <td class="mono">perfiles</td>
+            <td><span class="pill parc">el propio</span></td>
+            <td><span class="pill full">todo</span></td>
+            <td>Crear usuarios y resetear PIN desde el panel.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="aviso" style="margin-top:16px">
+      <span class="tit">Borrar no existe</span>
+      <p>El permiso de <code>DELETE</code> está revocado en todas las tablas para todos los roles, incluida la coordinadora. Un movimiento equivocado se anula con motivo y sigue en la base: se muestra tachado en el listado y queda fuera del tablero. Es la única forma de que el registro sirva como respaldo de lo que pasó.</p>
+    </div>
+  </section>
+
+  <!-- ═══════════ DECISIONES ═══════════ -->
+  <section id="decisiones">
+    <h2>Seis decisiones que necesito que valides</h2>
+    <p class="sub">Cada una tiene una alternativa razonable que descarté. Si alguna no cierra, es mucho más barato cambiarla ahora.</p>
+
+    <div class="decisiones">
+      <article class="dec">
+        <h4>Una sola tabla de movimientos para los tres flujos</h4>
+        <p class="par prop"><span class="et">Propuesta</span>Un formulario, una exportación, un tablero. Sumar Puntos Verdes es agregar campos que ya están previstos, no un módulo nuevo.</p>
+        <p class="par alt"><span class="et">Alternativa descartada</span>Una tabla por flujo. Da esquemas más limpios, pero triplica el trabajo del tablero y de la exportación, y es lo que ya falló con los Google Forms separados.</p>
+      </article>
+
+      <article class="dec">
+        <h4>El material va en una tabla hija, no en la cabecera</h4>
+        <p class="par prop"><span class="et">Propuesta</span>Un movimiento puede llevar varios materiales. El formulario muestra uno solo; agregar otro es un botón que casi nunca se toca en Planta y se usa todo el tiempo en Puntos Verdes.</p>
+        <p class="par alt"><span class="et">Alternativa descartada</span>Un material por movimiento. Obliga al vecino que trae cartón y plástico a generar dos registros, y así el indicador de “vecinos por punto” cuenta doble.</p>
+      </article>
+
+      <article class="dec">
+        <h4>La unidad es un atributo del material</h4>
+        <p class="par prop"><span class="et">Propuesta</span>La coordinadora define que la poda se mide en m³ y el compost en bolsas. El vigilador nunca elige unidad: le viene puesta y solo pone el número.</p>
+        <p class="par alt"><span class="et">Alternativa descartada</span>Unidad libre por movimiento. Es lo que hoy produce “3 camiones”, “3 m3” y “tres” en la misma columna.</p>
+      </article>
+
+      <article class="dec">
+        <h4>Un usuario por sitio, con nombre de quién está de turno</h4>
+        <p class="par prop"><span class="et">Propuesta</span>PIN por sitio y un selector de vigilador a cargo que se elige una vez al empezar el turno. La rotación de personal no genera trabajo de sistema y cada movimiento igual queda con nombre.</p>
+        <p class="par alt"><span class="et">Alternativa descartada</span>Una cuenta por persona. Es más prolijo en el papel, pero con rotación semanal significa alguien dando de alta usuarios todas las semanas, y vigiladores nuevos trabados en la puerta.</p>
+      </article>
+
+      <article class="dec">
+        <h4>Los vecinos en una tabla aparte</h4>
+        <p class="par prop"><span class="et">Propuesta</span>Separarlos del resto de las contrapartes hace que “solo la coordinadora ve datos de vecinos” sea una regla de dos líneas en la base, y que anonimizar sea vaciar tres campos.</p>
+        <p class="par alt"><span class="et">Alternativa descartada</span>Meter vecinos, empresas y carreros en una sola tabla de contrapartes. Obliga a proteger columnas en vez de filas, que en Supabase se resuelve con vistas y termina más frágil.</p>
+      </article>
+
+      <article class="dec">
+        <h4>La fecha y la hora las pone la app, con margen de 48 horas</h4>
+        <p class="par prop"><span class="et">Propuesta</span>Viene puesta la del momento. Se puede correr hacia atrás hasta 48 horas, y en ese caso el movimiento queda marcado como carga diferida en el listado.</p>
+        <p class="par alt"><span class="et">Alternativa descartada</span>Fecha totalmente libre. Es el campo que más se carga mal en los formularios actuales y el que más ensucia cualquier indicador mensual.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ═══════════ PANTALLAS ═══════════ -->
+  <section id="pantallas">
+    <h2>Pantallas</h2>
+    <p class="sub">Catorce en total. Las seis del vigilador son las únicas que se ven desde un celular en la calle; están pensadas para resolverse con el pulgar y sin leer.</p>
+
+    <div class="rol">
+      <h3>Vigilador</h3>
+      <span>celular · seis pantallas · sin acceso a listas ni tablero</span>
+    </div>
+    <ul class="pantallas">
+      <li>
+        <span class="cod">V1</span>
+        <div>
+          <b>Ingreso</b>
+          <p>Elige el sitio y pone el PIN. La sesión no vence: en los días siguientes abre la app y entra directo.</p>
+        </div>
+      </li>
+      <li>
+        <span class="cod">V2</span>
+        <div>
+          <b>Inicio de turno</b>
+          <p>Dice en qué sitio está y quién está a cargo. Dos botones grandes, ingreso y salida, y abajo lo que va del día con el estado de sincronización.</p>
+        </div>
+      </li>
+      <li>
+        <span class="cod">V3</span>
+        <div>
+          <b>Registrar ingreso a Planta</b>
+          <p>Un solo scroll. Material, cantidad, procedencia, patente y chofer. Todo de listas; el único texto libre es “observaciones”.</p>
+        </div>
+      </li>
+      <li>
+        <span class="cod">V4</span>
+        <div>
+          <b>Registrar salida de Planta</b>
+          <p>Mismo formulario con destino, que solo ofrece la lista de habilitados, y quién autoriza. Si el destino es un vecino o un emprendimiento, aparece el campo de detalle.</p>
+        </div>
+      </li>
+      <li>
+        <span class="cod">V5</span>
+        <div>
+          <b>Listo</b>
+          <p>Número de movimiento en grande, “Cargar otro” y diez minutos para deshacer sin pedirle nada a nadie.</p>
+        </div>
+      </li>
+      <li>
+        <span class="cod">V6</span>
+        <div>
+          <b>Lo de hoy</b>
+          <p>Lo cargado en el turno, con un punto de color por cada uno que todavía no subió. Tocar abre el detalle y permite pedir la anulación.</p>
+        </div>
+      </li>
+    </ul>
+
+    <div class="rol">
+      <h3>Coordinadora</h3>
+      <span>escritorio y celular · ocho pantallas · ve los tres flujos</span>
+    </div>
+    <ul class="pantallas">
+      <li>
+        <span class="cod adm">A1</span>
+        <div>
+          <b>Tablero</b>
+          <p>En fase 1, entradas y salidas de Planta por material y por mes, con el detalle en tabla debajo del gráfico. Las demás tarjetas se suman con cada flujo.</p>
+        </div>
+      </li>
+      <li>
+        <span class="cod adm">A2</span>
+        <div>
+          <b>Movimientos</b>
+          <p>Filtros por flujo, sitio, tipo, material, rango de fechas, patente, destino y estado. El botón de exportar respeta los filtros puestos.</p>
+        </div>
+      </li>
+      <li>
+        <span class="cod adm">A3</span>
+        <div>
+          <b>Detalle del movimiento</b>
+          <p>La ficha completa más quién lo cargó, cuándo y si fue carga diferida. Desde acá se anula con motivo obligatorio.</p>
+        </div>
+      </li>
+      <li>
+        <span class="cod adm">A4</span>
+        <div>
+          <b>Listas maestras</b>
+          <p>Solapas de materiales, unidades, sitios, entidades, vehículos y personas. Desactivar en vez de borrar: lo viejo deja de ofrecerse pero los registros históricos siguen leyéndose.</p>
+        </div>
+      </li>
+      <li>
+        <span class="cod adm">A5</span>
+        <div>
+          <b>Usuarios y accesos</b>
+          <p>Crear el usuario de un sitio, resetear el PIN y desactivar. Muestra el último acceso de cada uno.</p>
+        </div>
+      </li>
+      <li>
+        <span class="cod adm">A6</span>
+        <div>
+          <b>Importar pesos</b>
+          <p>Subir el archivo, ver las primeras filas, decir qué columna es cuál, revisar los errores y recién ahí confirmar. El mapeo queda guardado para la próxima.</p>
+        </div>
+      </li>
+      <li>
+        <span class="cod adm">A7</span>
+        <div>
+          <b>Vecinos</b>
+          <p>Buscar, ver el detalle y anonimizar. Es la única pantalla del sistema con datos personales a la vista.</p>
+        </div>
+      </li>
+      <li>
+        <span class="cod adm">A8</span>
+        <div>
+          <b>Auditoría</b>
+          <p>Qué se cargó, qué se anuló, quién y cuándo. Solo lectura, exportable.</p>
+        </div>
+      </li>
+    </ul>
+
+    <h3>Cómo se ve un ingreso a Planta</h3>
+    <div class="mock-fila">
+      <div>
+        <div class="tel">
+          <div class="tel-top">
+            <div class="e">Planta de Valorización</div>
+            <div class="t">Registrar ingreso</div>
+          </div>
+          <div class="tel-regla"></div>
+          <div class="tel-body">
+            <div class="campo auto">
+              <span class="lab">Fecha y hora</span>
+              <div class="val"><span>14/09/2026 · 09:42</span><span class="car">cambiar</span></div>
+            </div>
+            <div class="campo">
+              <span class="lab">Material</span>
+              <div class="val"><span>Poda</span><span class="car">▾</span></div>
+            </div>
+            <div class="campo">
+              <span class="lab">Cantidad estimada · m³</span>
+              <div class="chips">
+                <div class="c">5</div><div class="c on">10</div><div class="c">15</div><div class="c">20</div><div class="c">otro</div>
+              </div>
+            </div>
+            <div class="campo">
+              <span class="lab">Procedencia</span>
+              <div class="val"><span>Cuadrilla poda — Zona Norte</span><span class="car">▾</span></div>
+            </div>
+            <div class="campo">
+              <span class="lab">Patente</span>
+              <div class="val"><span>AB 123 CD · camión</span><span class="car">▾</span></div>
+            </div>
+            <div class="campo">
+              <span class="lab">Chofer</span>
+              <div class="val"><span>R. Gómez</span><span class="car">▾</span></div>
+            </div>
+            <div class="tel-cta">Registrar ingreso</div>
+          </div>
+        </div>
+        <p class="nota-ej">Los valores mostrados son de ejemplo.</p>
+      </div>
+
+      <ul class="mock-notas">
+        <li><b>Seis toques de principio a fin.</b> Fecha, procedencia, patente y chofer vienen precargados con lo último que se usó en ese sitio; cambiarlos es opcional. Un ingreso típico son tres toques y el botón verde.</li>
+        <li><b>La cantidad son botones, no un teclado.</b> Los valores frecuentes salen de lo que ya se cargó en ese sitio. “Otro” abre el teclado numérico, que es lo que hoy se usa siempre y es lo que más lento y más errado sale.</li>
+        <li><b>La lista de materiales solo muestra lo que puede entrar.</b> Compost y chipeo no aparecen en un ingreso a Planta: no hay forma de elegirlos por error.</li>
+        <li><b>El botón verde funciona sin señal.</b> Guarda en el celular, muestra el número del movimiento y encola la subida. El vigilador nunca espera a la red.</li>
+        <li><b>En la salida cambian tres campos:</b> destino, que solo ofrece los habilitados; quién autoriza; y el detalle del destinatario cuando es un vecino o un emprendimiento.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ═══════════ PREGUNTAS ═══════════ -->
+  <section id="preguntas">
+    <h2>Preguntas para la coordinadora</h2>
+    <p class="sub">Doce preguntas de fase 1. Debajo de cada una está el supuesto con el que sigo si no llega la respuesta, para que ninguna frene el desarrollo. La única que bloquea algo en serio está marcada.</p>
+
+    <ol class="preguntas">
+      <li>
+        <div>
+          <p class="q">¿Cómo se anota hoy la cantidad que trae un camión? ¿“Un camión”, metros cúbicos estimados, o no se anota?</p>
+          <p class="s"><span class="et">Sigo con</span>Poda y jardinería en m³ estimados con botones de 5, 10, 15 y 20; compost en bolsas; chipeo en camiones. Se cambia desde la pantalla de materiales sin tocar código.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p class="q">¿Se sabe cuántos metros cúbicos carga cada camión? Si hay una lista de patentes con capacidad, la app calcula el volumen sola y el vigilador no estima nada.</p>
+          <p class="s"><span class="et">Sigo con</span><code>capacidad_m3</code> como campo opcional del vehículo. Si viene cargado, el formulario propone ese número y el vigilador solo confirma.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p class="q">¿De dónde vienen los camiones que entran a la Planta? ¿Cuadrillas municipales por zona, privados, ambos? ¿Existe la lista en algún lado?</p>
+          <p class="s"><span class="et">Sigo con</span>Cuadrillas municipales por zona más privados por nombre, y una opción “otra procedencia” con texto libre como válvula de escape. Reviso mensualmente qué se escribió ahí y lo convierto en opciones fijas.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p class="q">¿La lista de destinos habilitados existe hoy en papel? ¿Quién la aprueba y cada cuánto cambia?</p>
+          <p class="s"><span class="et">Sigo con</span>La carga la coordinadora y no hay circuito de aprobación dentro de la app. Si hace falta que alguien firme el alta, es media pantalla más.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p class="q">¿Quién autoriza una salida de la Planta? ¿Es siempre la misma persona? ¿Se firma algo hoy?</p>
+          <p class="s"><span class="et">Sigo con</span>Lista de autorizantes, seleccionable, sin firma. El comprobante de salida queda para la fase 2, como acordamos.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p class="q">Si el vigilador se equivoca al cargar, ¿tiene que poder corregirlo él o lo arregla siempre la coordinadora?</p>
+          <p class="s"><span class="et">Sigo con</span>Diez minutos para deshacer por su cuenta. Pasado ese rato, pide la anulación y la resuelve la coordinadora, que carga el motivo.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p class="q">Si alguien estuvo sin señal o sin celular, ¿puede cargar un movimiento de ayer?</p>
+          <p class="s"><span class="et">Sigo con</span>Sí, hasta 48 horas hacia atrás, y el movimiento queda marcado como carga diferida en el listado y en la exportación.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p class="q">¿Un mismo camión puede traer más de un material en el mismo viaje?</p>
+          <p class="s"><span class="et">Sigo con</span>Sí. El formulario arranca con un material y tiene un botón para sumar otro.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p class="q">¿Cuántos ingresos y salidas tiene la Planta por día, más o menos? ¿Y cuántos vecinos por punto verde?</p>
+          <p class="s"><span class="et">Sigo con</span>Volumen bajo, del orden de decenas por día. Si fueran cientos, cambia cómo se arma el listado y el tablero.</p>
+        </div>
+      </li>
+      <li class="bloq">
+        <div>
+          <p class="q">El Excel de pesos de contenedores de la planta de la 9 de Julio: necesito un archivo de muestra, aunque sea viejo o incompleto.</p>
+          <p class="s"><span class="et">Bloquea</span>Es lo único que frena de verdad un entregable: el indicador de eficiencia por punto verde. Todo lo demás avanza igual. La importación se construye con mapeo de columnas configurable, así que el archivo puede llegar tarde sin costo, pero el indicador no se puede validar hasta verlo.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p class="q">¿Hay que migrar el historial de los Google Forms o arrancamos de cero?</p>
+          <p class="s"><span class="et">Sigo con</span>De cero. Los formularios quedan como archivo. Si se quiere migrar, se hace con la misma importación configurable de la pantalla A6 y no es trabajo nuevo.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p class="q">El celular con el que cargan, ¿es del punto o de cada vigilador? ¿Son todos Android?</p>
+          <p class="s"><span class="et">Sigo con</span>Android personal del vigilador, con la app instalada desde el navegador. Es lo que hace que valga la pena que la sesión no venza y que el PIN sea corto.</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ═══════════ FASES ═══════════ -->
+  <section id="fases">
+    <h2>Plan por fases</h2>
+    <p class="sub">Cada fase entrega algo usable en producción. La Planta puede empezar a cargar apenas termine la primera, sin esperar a que existan las otras dos.</p>
+
+    <div class="fases">
+      <div class="fase-row activa">
+        <span class="n">Fase 1</span>
+        <div>
+          <b>Planta de Valorización</b>
+          <p>Modelo completo con las 19 tablas y las reglas de permisos. Acceso con los dos roles. Listas maestras. Ingreso y salida desde el celular, con borrador local. Listado con filtros y exportación a Excel. Un indicador: entradas y salidas por material y por mes.</p>
+        </div>
+      </div>
+      <div class="fase-row">
+        <span class="n">Fase 2</span>
+        <div>
+          <b>Puntos Verdes</b>
+          <p>Ingreso de vecino con la opción “no quiso dar datos”, salida de material con tipo de valorización y alta rápida de quien se lo lleva. Pantalla de vecinos y anonimización. Indicador de vecinos por punto, por semana y por mes.</p>
+        </div>
+      </div>
+      <div class="fase-row">
+        <span class="n">Fase 3</span>
+        <div>
+          <b>Grandes generadores y tablero completo</b>
+          <p>Alta de orígenes por parte de la coordinadora. Importación del Excel de pesos con mapeo de columnas y el indicador de eficiencia por punto. Material recirculado por tipo de valorización.</p>
+        </div>
+      </div>
+      <div class="fase-row">
+        <span class="n">Fase 4</span>
+        <div>
+          <b>Contenedores y pilas de compost</b>
+          <p>Recambios y retiros de contenedores, una vez definido el circuito. Seguimiento por pila: qué ingresos la formaron, cuándo madura y qué salió de ella. Comprobante de salida imprimible.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="sintesis">
+      <h3>En síntesis</h3>
+      <p>El sistema trata todo como un movimiento: algo que sale de un lugar y entra en otro, con material, cantidad y responsable. Esa única idea sostiene los tres flujos, y es lo que permite que sumar Puntos Verdes y grandes generadores más adelante sea agregar pantallas y no rehacer la base.</p>
+      <p>La calidad del dato no se pide, se hace imposible de romper: la unidad la define el material, el destino sale de una lista aprobada, la fecha viene puesta y el sitio lo determina el usuario que entró. <b>Lo que necesito de la coordinadora son las doce respuestas de arriba y un Excel de pesos de muestra.</b> Con eso confirmado, arranco con la Fase 1.</p>
+    </div>
+  </section>
+</main>
+
+<footer class="pie">
+  <div class="wrap">
+    <img src="logo-muni-iso.png" alt="Municipalidad de San Miguel de Tucumán">
+    <div class="der">
+      <b>Dirección de Inteligencia Artificial</b>
+      Secretaría de Ambiente y Desarrollo Sustentable · Septiembre de 2026
+    </div>
+  </div>
+</footer>

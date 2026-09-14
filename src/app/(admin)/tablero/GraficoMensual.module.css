@@ -1,0 +1,30 @@
+/* Todo el color sale de las variables: el gráfico se adapta solo a los dos temas. */
+
+.marco {
+  display: block;
+  width: 100%;
+  height: auto;
+  color: var(--gris);
+}
+
+.grilla { stroke: var(--linea); stroke-width: 1; }
+.base   { stroke: var(--linea-fuerte); stroke-width: 1; }
+
+.rotuloMes {
+  fill: currentColor;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+
+.rotuloValor {
+  fill: currentColor;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.barraIngreso { fill: var(--ingreso); }
+.barraSalida  { fill: var(--salida); }
+
+.leyenda { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.clave { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; color: var(--texto); }

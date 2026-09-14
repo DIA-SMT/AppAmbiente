@@ -1,0 +1,6 @@
+/* La capacidad del vehículo no es una sugerencia más: es el único número que
+   el vigilador no tiene que estimar a ojo, así que se ve distinta. */
+.capacidad {
+  border-color: var(--celeste);
+  box-shadow: inset 0 0 0 1px var(--celeste);
+}

@@ -1,0 +1,29 @@
+{
+  "name": "Residuos SMT — Secretaría de Ambiente",
+  "short_name": "Residuos SMT",
+  "description": "Registro y trazabilidad de residuos de la Secretaría de Ambiente y Desarrollo Sustentable, Municipalidad de San Miguel de Tucumán.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#126ff5",
+  "background_color": "#f4f7fc",
+  "lang": "es-AR",
+  "dir": "ltr",
+  "categories": ["government", "utilities"],
+  "icons": [
+    {
+      "src": "/marca/icono-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/marca/icono-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

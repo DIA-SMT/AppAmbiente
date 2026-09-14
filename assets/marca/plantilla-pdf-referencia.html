@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root{
+    --azul:      #126ff5;
+    --azul-med:  #2589ea;
+    --azul-hondo:#28469f;
+    --celeste:   #3cb4f0;
+    --amarillo:  #F2D91C;
+    --tinta:     #10233d;
+    --texto:     #33414f;
+    --gris:      #6b7885;
+    --linea:     #e3e8ef;
+    --papel:     #ffffff;
+  }
+
+  html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body{
+    font-family: "Segoe UI", "Helvetica Neue", Arial, "DejaVu Sans", sans-serif;
+    color: var(--texto);
+    background: #fff;
+  }
+
+  .page{
+    width: 210mm; height: 297mm;
+    position: relative; overflow: hidden;
+    background: var(--papel);
+    page-break-after: always;
+  }
+  .page:last-child { page-break-after: auto; }
+
+  /* ══════════ ENCABEZADO ══════════ */
+  .hero{
+    height: 53mm;
+    background:
+      radial-gradient(120% 150% at 88% 8%, rgba(60,180,240,.42), transparent 58%),
+      linear-gradient(112deg, #0d3fb0 0%, #126ff5 52%, #2589ea 100%);
+    padding: 11mm 14mm 0;
+    position: relative;
+    display: flex; flex-direction: column; justify-content: flex-start;
+  }
+  .hero::after{
+    content:""; position:absolute; left:0; right:0; bottom:0; height:2.6mm;
+    background: linear-gradient(90deg, var(--amarillo) 0%, var(--amarillo) 22%, var(--celeste) 22%, var(--celeste) 100%);
+  }
+  .hero-top{ display:flex; align-items:flex-start; justify-content:space-between; }
+  .logo-smt{ height: 11mm; }
+  .chip-ia{
+    background:#fff; border-radius: 3mm; padding: 2.4mm 4mm 2mm;
+    box-shadow: 0 3mm 8mm rgba(4,26,66,.26); text-align:center;
+  }
+  .chip-ia img{ height: 6.4mm; display:block; }
+  .chip-ia span{
+    display:block; margin-top:1mm; font-size:5.2pt; letter-spacing:.10em;
+    color:#8a949e; text-transform:uppercase; font-weight:700;
+  }
+  .hero h1{
+    color:#fff; font-size: 25pt; font-weight: 800; letter-spacing:-.4pt;
+    margin-top: 6mm; line-height:1.05;
+  }
+  .hero .lead{
+    color: #d9eaff; font-size: 10.4pt; margin-top: 2.6mm; font-weight:400;
+    max-width: 140mm; line-height:1.35;
+  }
+
+  /* ══════════ CUERPO ══════════ */
+  .body{ padding: 8mm 14mm 0; }
+
+  h2.sec{
+    font-size: 12.4pt; color: var(--tinta); font-weight: 800;
+    display:flex; align-items:center; gap:2.6mm; margin-bottom: 3.4mm;
+  }
+  h2.sec::before{
+    content:""; width:1.5mm; height:5.2mm; border-radius:1mm;
+    background: linear-gradient(180deg, var(--azul), var(--celeste));
+  }
+  p.intro{ font-size: 9.9pt; line-height: 1.62; text-align: justify; }
+  p.intro b{ color: var(--tinta); font-weight:700; }
+
+  /* ── diagrama de flujo ── */
+  .flow{
+    margin-top: 3mm;
+    display:flex; align-items:stretch; gap:0;
+    background: linear-gradient(180deg,#f6faff,#eef6ff);
+    border:.35mm solid #d8e6fa; border-radius: 3.4mm; padding: 5mm 4mm;
+  }
+  .step{ flex:1; text-align:center; padding: 0 2.2mm; }
+  .step .bub{
+    width: 15mm; height: 15mm; border-radius: 50%; margin: 0 auto 2.6mm;
+    display:flex; align-items:center; justify-content:center; font-size: 15pt;
+    color:#fff; box-shadow: 0 2.4mm 5mm rgba(18,111,245,.28);
+  }
+  .s1 .bub{ background: linear-gradient(140deg,#25d366,#1aa851); box-shadow:0 2.4mm 5mm rgba(26,168,81,.30); }
+  .s2 .bub{ background: linear-gradient(140deg,var(--azul),var(--azul-hondo)); }
+  .s3 .bub{ background: linear-gradient(140deg,var(--celeste),var(--azul-med)); }
+  .s4 .bub{ background: linear-gradient(140deg,#f5b81c,#ef8f16); box-shadow:0 2.4mm 5mm rgba(239,143,22,.30); }
+  .step h4{ font-size: 8.6pt; color: var(--tinta); font-weight:800; margin-bottom:1.4mm; }
+  .step p{ font-size: 7.4pt; color: var(--gris); line-height:1.42; }
+  .arrow{
+    align-self: center; color:#b9cfe8; font-size: 13pt; font-weight:300;
+    padding: 0 .5mm; margin-top:-7mm;
+  }
+
+  /* ── tarjetas de prestaciones ── */
+  .cards{ display:grid; grid-template-columns: 1fr 1fr; gap: 3.2mm; margin-top: 3mm; }
+  .card{
+    border:.35mm solid var(--linea); border-left:1.3mm solid var(--azul);
+    border-radius: 2.6mm; padding: 3.4mm 4mm; background:#fff;
+    box-shadow: 0 1.6mm 4mm rgba(21,39,60,.055);
+  }
+  .card.c2{ border-left-color: var(--celeste); }
+  .card.c3{ border-left-color: var(--azul-hondo); }
+  .card.c4{ border-left-color: #f5b81c; }
+  .card.c5{ border-left-color: #25d366; }
+  .card.c6{ border-left-color: var(--azul-med); }
+  .card h4{ font-size: 8.9pt; color: var(--tinta); font-weight:800; margin-bottom:1.2mm; }
+  .card p{ font-size: 7.9pt; line-height:1.48; color: var(--gris); }
+
+  /* ══════════ PIE ══════════ */
+  .foot{
+    position:absolute; left:0; right:0; bottom:0; height: 15mm;
+    border-top:.35mm solid var(--linea);
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 0 14mm; background:#fbfcfe;
+  }
+  .foot-l{ display:flex; align-items:center; gap:3mm; }
+  .foot-l img{ height: 8.4mm; }
+  .foot-l div{ font-size: 6.6pt; color: var(--gris); line-height:1.4; }
+  .foot-l b{ display:block; color: var(--tinta); font-size: 7.4pt; font-weight:800; }
+  .foot-r{ font-size:6.6pt; color:#9aa5b1; text-align:right; line-height:1.5; }
+
+  /* ══════════ PÁGINA 2 ══════════ */
+  .band{
+    height: 20mm; padding: 0 14mm; display:flex; align-items:center; justify-content:space-between;
+    background: linear-gradient(112deg, #0d3fb0, #126ff5 60%, #2589ea);
+    position:relative;
+  }
+  .band::after{
+    content:""; position:absolute; left:0; right:0; bottom:0; height:1.6mm;
+    background: linear-gradient(90deg, var(--amarillo) 0%, var(--amarillo) 22%, var(--celeste) 22%, var(--celeste) 100%);
+  }
+  .band h3{ color:#fff; font-size: 13pt; font-weight:800; }
+  .band img{ height: 7.6mm; opacity:.95; }
+
+  .shot{
+    border:.35mm solid #dbe4ee; border-radius: 2.6mm; overflow:hidden;
+    box-shadow: 0 2.4mm 7mm rgba(21,39,60,.10); background:#fff;
+    position: relative;
+  }
+  .shot img{ width:100%; display:block; }
+  .shot::after{
+    content:""; position:absolute; left:0; right:0; bottom:0; height:9mm;
+    background: linear-gradient(180deg, rgba(255,255,255,0), #ffffff 88%);
+  }
+  .cap{ font-size: 6.8pt; color:#98a3ae; margin-top: 1.6mm; font-style: italic; }
+
+  .kpis{ display:flex; gap:3mm; margin-top:3mm; }
+  .kpi{
+    flex:1; border-radius:2.6mm; padding:3.2mm 3.4mm;
+    background: linear-gradient(160deg,#f6faff,#eaf3ff); border:.35mm solid #d8e6fa;
+  }
+  .kpi b{ display:block; font-size:8.4pt; color: var(--tinta); font-weight:800; margin-bottom:.8mm; }
+  .kpi span{ font-size:7.3pt; color:var(--gris); line-height:1.42; }
+
+  ul.mini{ list-style:none; margin-top:1mm; }
+  ul.mini li{
+    font-size: 8.4pt; line-height:1.75; color: var(--texto);
+    padding-left: 5.4mm; position:relative;
+  }
+  ul.mini li::before{
+    content:""; position:absolute; left:1.4mm; top:1.9mm;
+    width:1.9mm; height:1.9mm; border-radius:50%; background: var(--azul);
+  }
+  ul.mini li b{ color: var(--tinta); font-weight:700; }
+
+  .cierre{
+    margin-top: 3.4mm; border-radius:2.8mm; padding: 3.6mm 5mm;
+    background: linear-gradient(112deg,#0d3fb0,#126ff5 60%,#2589ea);
+    color:#fff;
+  }
+  .cierre b{ font-size:9.2pt; font-weight:800; display:block; margin-bottom:1.2mm; }
+  .cierre p{ font-size:8pt; line-height:1.5; color:#d9eaff; }
+
+  .reglas{
+    display:flex; gap:0; margin-top:3.2mm; border-radius:2.4mm;
+    border:.35mm solid #d8e6fa; background: linear-gradient(160deg,#f6faff,#eaf3ff);
+    padding:2.6mm 0;
+  }
+  .reglas > div{ flex:1; padding:0 4mm; border-left:.35mm solid #d3e3f8; }
+  .reglas > div:first-child{ border-left:none; }
+  .reglas b{ display:block; font-size:8pt; color:var(--tinta); font-weight:800; margin-bottom:.5mm; }
+  .reglas span{ font-size:7pt; color:var(--gris); line-height:1.35; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════ PÁGINA 1 ══════════════════ -->
+<section class="page">
+  <div class="hero">
+    <div class="hero-top">
+      <img class="logo-smt" src="logo-smt-blanco.png" alt="Municipalidad de San Miguel de Tucumán">
+      <div class="chip-ia">
+        <img src="logo-ia.png" alt="Dirección de Inteligencia Artificial">
+        <span>Desarrollo</span>
+      </div>
+    </div>
+    <h1>Bus Turístico SMT</h1>
+    <p class="lead">Asistente virtual de turismo por WhatsApp para San Miguel de Tucumán</p>
+  </div>
+
+  <div class="body">
+    <h2 class="sec">De qué se trata</h2>
+    <p class="intro">
+      El <b>Bus Turístico SMT</b> es el asistente virtual oficial de la Dirección de Turismo de la Municipalidad
+      de San Miguel de Tucumán. Atiende consultas de turistas <b>por WhatsApp, las 24 horas, en español e inglés</b>,
+      con información oficial sobre gastronomía, alojamiento, atracciones, patrimonio histórico y la agenda
+      cultural de la ciudad. Reemplaza la espera por una respuesta inmediata y consistente, sin sumar personal
+      a la atención. Además, <b>cada consulta se registra y se convierte en información de gestión</b> sobre quién
+      nos visita, desde dónde llega y qué está buscando.
+    </p>
+
+    <h2 class="sec" style="margin-top:6mm">Cómo funciona</h2>
+    <div class="flow">
+      <div class="step s1">
+        <div class="bub">💬</div>
+        <h4>El turista consulta</h4>
+        <p>Escribe por WhatsApp. Puede mandar texto, un audio o la foto de un edificio.</p>
+      </div>
+      <div class="arrow">➜</div>
+      <div class="step s2">
+        <div class="bub">🧠</div>
+        <h4>La IA interpreta</h4>
+        <p>Detecta el idioma y entiende qué necesita, con el hilo de la conversación.</p>
+      </div>
+      <div class="arrow">➜</div>
+      <div class="step s3">
+        <div class="bub">🏛️</div>
+        <h4>Busca el dato oficial</h4>
+        <p>Datos cargados por el municipio y la agenda cultural, siempre actualizados.</p>
+      </div>
+      <div class="arrow">➜</div>
+      <div class="step s4">
+        <div class="bub">✓</div>
+        <h4>Responde y registra</h4>
+        <p>Contesta al instante y deja el dato asentado en el panel de gestión.</p>
+      </div>
+    </div>
+
+    <h2 class="sec" style="margin-top:6mm">Qué ofrece al turista</h2>
+    <div class="cards">
+      <div class="card c1">
+        <h4>🌐 Atención bilingüe, 24 horas</h4>
+        <p>Detecta por sí mismo si le escriben en español o en inglés y responde en ese idioma, cualquier día y a cualquier hora.</p>
+      </div>
+      <div class="card c2">
+        <h4>📸 Reconocimiento de patrimonio</h4>
+        <p>El turista manda la foto de un edificio o plaza y el asistente lo identifica y le cuenta su historia.</p>
+      </div>
+      <div class="card c3">
+        <h4>🎤 Mensajes de voz</h4>
+        <p>Transcribe las notas de audio y las responde igual que un mensaje escrito, sin fricción para el visitante.</p>
+      </div>
+      <div class="card c4">
+        <h4>🎭 Agenda cultural en vivo</h4>
+        <p>Informa la programación tomándola directamente de la agenda cultural municipal, sin carga manual.</p>
+      </div>
+      <div class="card c5">
+        <h4>🚌 Bus Turístico Educativo</h4>
+        <p>Las escuelas solicitan el bus por un formulario web y el equipo gestiona y exporta los pedidos desde el panel.</p>
+      </div>
+      <div class="card c6">
+        <h4>📷 Galería de recorridos por QR</h4>
+        <p>Las fotos de cada salida se publican en una galería con enlace y código QR, abierta para los ciudadanos.</p>
+      </div>
+    </div>
+
+    <h2 class="sec" style="margin-top:6.5mm">Qué información le deja al municipio</h2>
+    <div class="kpis" style="margin-top:0">
+      <div class="kpi"><b>Demanda real</b><span>Cuántas consultas se reciben, en qué días y en qué franja horaria se concentran.</span></div>
+      <div class="kpi"><b>Perfil del visitante</b><span>De qué provincia o país llega el turista y qué proporción es internacional.</span></div>
+      <div class="kpi"><b>Intereses</b><span>Qué se consulta más: gastronomía, atracciones, agenda cultural o alojamiento.</span></div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="foot-l">
+      <img src="logo-muni-iso.png" alt="">
+      <div><b>Municipalidad de San Miguel de Tucumán</b>Dirección de Turismo · turismo@smt.gob.ar</div>
+    </div>
+    <div class="foot-r">Desarrollado por la Dirección de Inteligencia Artificial<br>Agosto de 2026 · Página 1 de 3</div>
+  </div>
+</section>
+
+<!-- ══════════════════ PÁGINA 2 ══════════════════ -->
+<section class="page">
+  <div class="band">
+    <h3>El panel de gestión</h3>
+    <img src="logo-smt-blanco.png" alt="">
+  </div>
+
+  <div class="body" style="padding-top:7mm">
+    <p class="intro">
+      Además del asistente, el proyecto incluye un <b>panel web propio</b> desde el que la Dirección de Turismo
+      administra todo el sistema: consulta las estadísticas, revisa las conversaciones, <b>edita las respuestas del asistente
+      sin tocar el código</b>, gestiona las solicitudes del Bus Turístico Educativo y publica las galerías de fotos.
+    </p>
+
+    <h2 class="sec" style="margin-top:6mm">Estadísticas de la demanda turística</h2>
+    <div class="shot" style="width:172mm">
+      <img src="dash_crop.png" alt="Panel — Resumen general">
+    </div>
+    <p class="cap">Vista del panel de estadísticas. Los valores mostrados son de ejemplo.</p>
+
+    <h2 class="sec" style="margin-top:5.5mm">Registro de conversaciones</h2>
+    <div class="shot" style="width:172mm">
+      <img src="inter_crop.png" alt="Panel — Interacciones">
+    </div>
+    <p class="cap">Listado de interacciones, con filtros y exportación a planilla. Los datos mostrados son de ejemplo.</p>
+  </div>
+
+  <div class="foot">
+    <div class="foot-l">
+      <img src="logo-muni-iso.png" alt="">
+      <div><b>Municipalidad de San Miguel de Tucumán</b>Dirección de Turismo · turismo@smt.gob.ar</div>
+    </div>
+    <div class="foot-r">Desarrollado por la Dirección de Inteligencia Artificial<br>Agosto de 2026 · Página 2 de 3</div>
+  </div>
+</section>
+
+<!-- ══════════════════ PÁGINA 3 ══════════════════ -->
+<section class="page">
+  <div class="band">
+    <h3>El Bus Turístico Educativo</h3>
+    <img src="logo-smt-blanco.png" alt="">
+  </div>
+
+  <div class="body" style="padding-top:6.5mm">
+    <p class="intro">
+      Es el servicio <b>gratuito</b> con el que las escuelas recorren la ciudad. La reserva, que antes se hacía por nota
+      y teléfono, pasó a un <b>sitio web propio</b>: la escuela ve los turnos disponibles, elige y envía todo en línea.
+    </p>
+
+    <h2 class="sec" style="margin-top:3.5mm">Cómo lo solicita una escuela</h2>
+    <div class="shot" style="width:140mm">
+      <img src="landing.png" alt="Sitio público del Bus Turístico Educativo">
+    </div>
+    <p class="cap">Portada del sitio público de reservas.</p>
+
+    <div class="shot" style="width:140mm; margin-top:3mm">
+      <img src="form_crop.png" alt="Formulario de solicitud">
+    </div>
+    <p class="cap">Formulario oficial, con calendario de turnos según el circuito elegido y nota modelo adjunta.</p>
+
+    <div class="reglas">
+      <div><b>2 circuitos</b><span>Histórico Cultural y de la Memoria.</span></div>
+      <div><b>Grupos de 15 a 44</b><span>Valida el cupo y bloquea turnos ocupados.</span></div>
+      <div><b>Prioridad definida</b><span>Municipales, provinciales y privadas.</span></div>
+    </div>
+
+    <h2 class="sec" style="margin-top:3.5mm">Cómo lo gestiona el equipo</h2>
+    <div class="shot" style="width:140mm">
+      <img src="soli_crop.png" alt="Panel — Solicitudes educativas">
+    </div>
+    <p class="cap">Cada pedido se aprueba o rechaza, se contacta a la escuela y se exporta la agenda a planilla. Los datos mostrados son de ejemplo.</p>
+
+    <div class="cierre">
+      <b>En síntesis</b>
+      <p>
+        Una misma plataforma resuelve dos frentes: atiende al turista que llega a la ciudad y ordena el trabajo interno
+        del Bus Turístico Educativo, sobre infraestructura propia de la Municipalidad.
+      </p>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="foot-l">
+      <img src="logo-ia.png" alt="" style="height:7mm">
+      <div><b>Dirección de Inteligencia Artificial</b>Diseño y desarrollo del proyecto</div>
+    </div>
+    <div class="foot-r">Municipalidad de San Miguel de Tucumán<br>Agosto de 2026 · Página 3 de 3</div>
+  </div>
+</section>
+
+</body>
+</html>

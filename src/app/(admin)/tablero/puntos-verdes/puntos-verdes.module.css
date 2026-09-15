@@ -1,0 +1,64 @@
+/* Lo que globals.css no cubre: las dos grillas, la cifra grande de los
+   indicadores y la lista de materiales de cada tarjeta. Todo el color sale de
+   las variables, así que los dos temas salen solos. */
+
+.indicadores {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.tarjetas {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(212px, 1fr));
+  align-items: start;
+}
+
+.cifra {
+  font-variant-numeric: tabular-nums;
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--tinta);
+  line-height: 1.05;
+}
+
+/* Un punto sin movimiento no es un dato más: tiene que saltar a la vista. */
+.atencion {
+  border-left: 4px solid var(--salida);
+}
+
+/* ── Materiales principales de cada tipo de valorización ────────────────── */
+
+.materiales {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: .88rem;
+}
+
+.materiales li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.materiales li > span:nth-child(2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Fila de totales de la tabla de vecinos ─────────────────────────────── */
+
+.total th,
+.total td {
+  background: var(--panel-2);
+  border-top: 2px solid var(--linea-fuerte);
+  font-weight: 800;
+  color: var(--tinta);
+}

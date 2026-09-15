@@ -1,0 +1,55 @@
+/* Lo propio de la pantalla de revisiones. Todo lo demás sale de globals.css. */
+
+.fichas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+  /* En el celular, una sola columna; el min() evita que la ficha empuje la
+     página a lo ancho en pantallas de 320 px. */
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
+  align-items: start;
+}
+
+/* Cada alta es una decisión: quién es arriba, el contexto en el medio y las
+   tres acciones abajo, siempre en el mismo orden. */
+.ficha { display: flex; flex-direction: column; gap: 12px; }
+
+.nombre { font-size: 1.15rem; }
+
+.datos {
+  display: flex; flex-direction: column; gap: 3px;
+  font-size: .86rem; color: var(--gris);
+}
+
+/* Una debajo de otra: con guantes o en una tablet, tres botones en fila se
+   tocan mal y el peligroso queda pegado al de confirmar. */
+.acciones { display: grid; gap: 8px; }
+
+/* ── Desplegables ─────────────────────────────────────────────────────── */
+/* Se abren dentro de la propia ficha: en esta app no hay modales. Funcionan
+   sin JavaScript. */
+
+.desplegable summary {
+  list-style: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: var(--toque); padding: 12px 18px;
+  border: 2px solid var(--linea-fuerte); border-radius: var(--r-chico);
+  background: var(--panel); color: var(--tinta);
+  font-size: 1rem; font-weight: 800; text-align: center;
+}
+.desplegable summary::-webkit-details-marker { display: none; }
+.desplegable[open] summary { border-color: var(--azul); color: var(--azul); }
+.peligroso[open] summary { border-color: var(--peligro); color: var(--peligro); }
+
+.cuerpo {
+  margin-top: 8px; padding: 12px 13px;
+  border: 1px solid var(--linea); border-radius: var(--r-chico);
+  background: var(--panel-2);
+  display: flex; flex-direction: column; gap: 10px;
+  font-size: .86rem; color: var(--gris);
+}
+.cuerpo p { margin: 0; }
+
+.error { margin: 0; font-size: .86rem; font-weight: 700; color: var(--peligro); }

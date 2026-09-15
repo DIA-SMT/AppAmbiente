@@ -60,9 +60,20 @@ async function main() {
 
   console.log('  Lectura de movimientos')
   const totalAdmin = await contar(admin, 'select count(*) c from movimientos')
-  const desdeOtroPunto = await contar(otroPunto, 'select count(*) c from movimientos')
   revisar('la coordinadora ve los movimientos', totalAdmin > 0, `ve ${totalAdmin}`)
-  revisar('un vigilador no ve movimientos de otro sitio', desdeOtroPunto === 0, `ve ${desdeOtroPunto}`)
+
+  // Se cuentan los movimientos DE LA PLANTA que ve un vigilador de otro punto.
+  // Contar todos daría falso positivo apenas ese punto tenga los suyos, que es
+  // justamente lo que pasa desde que existe el flujo de Puntos Verdes.
+  const plantaDesdeOtroPunto = await contar(
+    otroPunto,
+    `select count(*) c from movimientos where sitio_id = (select id from sitios where codigo = 'PLANTA')`,
+  )
+  revisar(
+    'un vigilador no ve movimientos de otro sitio',
+    plantaDesdeOtroPunto === 0,
+    `ve ${plantaDesdeOtroPunto}`,
+  )
 
   console.log('\n  Datos personales')
   const entidadesAdmin = await contar(admin, 'select count(*) c from entidades')
@@ -153,6 +164,122 @@ async function main() {
       [admin.perfilId],
     ),
   )
+
+  // ═══ Fase 2 · Puntos Verdes ═══════════════════════════════════════════
+  const pv = otroPunto
+
+  console.log('\n  Puntos Verdes · vecinos')
+
+  // El mismo número escrito de cuatro formas tiene que dar una sola clave.
+  const claves = await comoServicio((tx) =>
+    tx.consultar<{ n: string }>('select app.normalizar_telefono(t) as n from unnest($1::text[]) t', [
+      ['0381 15 456-1122', '+54 9 381 456 1122', '381 456 1122', '3814561122'],
+    ]),
+  )
+  const distintas = new Set(claves.map((c) => c.n))
+  revisar(
+    'cuatro formatos del mismo teléfono son un solo vecino',
+    distintas.size === 1,
+    [...distintas].join(' / '),
+  )
+
+  const material = (
+    await conSesion(pv, (tx) =>
+      tx.consultar<{ id: string; unidad_default_id: string }>(
+        `select id, unidad_default_id from materiales
+          where activo and 'punto_verde' = any(flujos) and 'ingreso' = any(tipos)
+          order by orden limit 1`,
+      ),
+    )
+  )[0]
+
+  const vecinosAntes = await contar(admin, 'select count(*) c from vecinos')
+  for (const tel of ['0381 15 456-9988', '+54 9 381 456 9988']) {
+    await conSesion(pv, async (tx) => {
+      const [v] = await tx.consultar<{ id: string }>(
+        'select app.registrar_vecino($1, $2, $3, $4) as id',
+        ['Prueba Verificar', tel, 'Centro', pv.sitioId],
+      )
+      const [mov] = await tx.consultar<{ id: string }>(
+        `insert into movimientos (flujo, tipo, sitio_id, origen_clase, origen_vecino_id,
+                                  destino_clase, destino_sitio_id, cargado_por_id, observaciones)
+         values ('punto_verde', 'ingreso', $1, 'vecino', $2, 'sitio', $1, $3,
+                 'Generado por db:verificar')
+         returning id`,
+        [pv.sitioId, v.id, pv.perfilId],
+      )
+      await tx.consultar(
+        `insert into movimiento_items (movimiento_id, material_id, cantidad, unidad_id)
+         values ($1, $2, 1, $3)`,
+        [mov.id, material.id, material.unidad_default_id],
+      )
+    })
+  }
+  const vecinosDespues = await contar(admin, 'select count(*) c from vecinos')
+  revisar(
+    'dos visitas del mismo vecino crean un solo vecino',
+    vecinosDespues - vecinosAntes === 1,
+    `${vecinosDespues - vecinosAntes} filas nuevas`,
+  )
+
+  const resumen = await conSesion(admin, (tx) =>
+    tx.consultar<{ visitas: string; identificados: string }>(
+      `select coalesce(sum(visitas), 0)::text as visitas,
+              coalesce(sum(identificados), 0)::text as identificados
+         from v_vecinos_por_periodo where sitio_id = $1`,
+      [pv.sitioId],
+    ),
+  )
+  revisar(
+    'el tablero distingue visitas de vecinos identificados',
+    Number(resumen[0].visitas) > Number(resumen[0].identificados),
+    `${resumen[0].visitas} visitas · ${resumen[0].identificados} identificados`,
+  )
+
+  console.log('\n  Puntos Verdes · alta rápida de contrapartes')
+
+  const carrero = await conSesion(pv, (tx) =>
+    tx.consultar<{ id: string }>(
+      "select app.registrar_entidad_rapida('Carrero de prueba', 'carrero', 'punto_verde') as id",
+    ),
+  )
+  revisar('el vigilador puede dar de alta un carrero', Boolean(carrero[0]?.id))
+
+  const marcada = await contar(
+    admin,
+    `select count(*) c from entidades
+      where nombre = 'Carrero de prueba' and pendiente_revision and not habilitada_origen`,
+  )
+  revisar('queda pendiente de revisión y solo como destino', marcada === 1)
+
+  for (const [etiqueta, tipo] of [
+    ['una empresa', 'empresa'],
+    ['una dependencia municipal', 'dependencia_municipal'],
+  ] as const) {
+    await debeFallar(
+      `el vigilador no puede dar de alta ${etiqueta}`,
+      pv,
+      'select app.registrar_entidad_rapida($1, $2, $3)',
+      ['Trucha SA', tipo, 'punto_verde'],
+    )
+  }
+
+  // Lo cargado por esta verificación queda anulado, no borrado. Y la entidad de
+  // prueba se da de baja, para que no aparezca en la bandeja de revisiones de la
+  // coordinadora cada vez que alguien corre esto.
+  await conSesion(admin, async (tx) => {
+    await tx.consultar(
+      `update movimientos
+          set estado = 'anulado', motivo_anulacion = 'Movimiento de prueba de db:verificar',
+              anulado_por_id = $1, anulado_en = now()
+        where observaciones = 'Generado por db:verificar' and estado = 'vigente'`,
+      [admin.perfilId],
+    )
+    await tx.consultar(
+      `update entidades set activo = false, pendiente_revision = false
+        where nombre = 'Carrero de prueba'`,
+    )
+  })
 
   console.log(`\n  ${pasaron} bien · ${fallaron} mal\n`)
   await (await obtenerBase()).cerrar()

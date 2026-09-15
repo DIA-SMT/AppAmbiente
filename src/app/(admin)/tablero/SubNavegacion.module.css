@@ -1,0 +1,34 @@
+/* Pestañas de los dos tableros. Pastillas, para que no se confundan con la
+   barra de secciones del panel, que va arriba y es la que manda. */
+
+.barra {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pestana {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--toque);
+  padding: 0 20px;
+  border: 2px solid var(--linea);
+  border-radius: 99px;
+  background: var(--panel);
+  color: var(--gris);
+  font-size: .95rem;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.pestana:hover {
+  color: var(--tinta);
+  border-color: var(--linea-fuerte);
+}
+
+.pestana[aria-current='page'] {
+  background: var(--azul);
+  border-color: var(--azul);
+  color: #fff;
+}

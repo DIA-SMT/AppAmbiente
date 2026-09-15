@@ -6,7 +6,8 @@
 import 'server-only'
 import { conSesion, consultarConSesion, type Sesion } from '@db/sesion'
 import type {
-  Entidad, FilaResumen, FiltrosMovimientos, ItemListado, ListasDelFormulario,
+  Entidad, FilaResumen, FilaValorizacion, FilaVecinos, FiltrosMovimientos,
+  ItemListado, ListasDelFormulario,
   Material, MovimientoListado, MovimientoNuevo, Persona, Sitio, TipoMovimiento,
   Unidad, Vehiculo, Flujo,
 } from './tipos'
@@ -60,7 +61,8 @@ export async function listasDelFormulario(
 
     // Vista pública: sin CUIT ni teléfono.
     const entidades = await tx.consultar<Entidad>(
-      `select id, nombre, tipo, habilitada_origen, habilitada_destino, flujos, activo
+      `select id, nombre, tipo, habilitada_origen, habilitada_destino, flujos,
+              activo, pendiente_revision
          from entidades_publicas
         where cardinality(flujos) = 0 or $1 = any(flujos)
         order by nombre`,
@@ -130,6 +132,46 @@ export async function crearMovimiento(
       const sitioId = sesion.rol === 'admin' ? datos.destino_sitio_id ?? datos.origen_sitio_id : sesion.sitioId
       if (!sitioId) return { ok: false, error: 'No se pudo determinar el sitio del movimiento.' }
 
+      // El vecino llega con datos, no con id: el vigilador no puede leer la
+      // lista. app.registrar_vecino decide si es alguien que ya vino (lo busca
+      // por teléfono) o uno nuevo, y devuelve solo el id.
+      let vecinoId: string | null = null
+      if (datos.vecino) {
+        const [fila] = await tx.consultar<{ id: string }>(
+          'select app.registrar_vecino($1, $2, $3, $4) as id',
+          [
+            datos.vecino.nombre ?? null,
+            datos.vecino.telefono ?? null,
+            datos.vecino.barrio ?? null,
+            sitioId,
+          ],
+        )
+        vecinoId = fila.id
+      }
+
+      // Alta en la calle de un carrero o emprendedor. Va por la misma puerta
+      // que el vecino: una función definidora que valida el tipo, fuerza las
+      // banderas y devuelve solo el id. Un insert directo no serviría — el
+      // RETURNING necesita permiso de lectura sobre entidades, que el vigilador
+      // no tiene.
+      let entidadNuevaId: string | null = null
+      if (datos.entidad_nueva) {
+        const [fila] = await tx.consultar<{ id: string }>(
+          'select app.registrar_entidad_rapida($1, $2, $3) as id',
+          [datos.entidad_nueva.nombre, datos.entidad_nueva.tipo, datos.flujo],
+        )
+        entidadNuevaId = fila.id
+      }
+
+      // Un ingreso lo trae el vecino; una salida se la lleva él.
+      const esIngreso = datos.tipo === 'ingreso'
+      const origenVecino  = esIngreso ? vecinoId : (datos.origen_vecino_id ?? null)
+      const destinoVecino = esIngreso ? (datos.destino_vecino_id ?? null) : vecinoId
+      const origenEntidad  = datos.origen_entidad_id ?? null
+      const destinoEntidad = datos.destino_entidad_id ?? entidadNuevaId
+      const origenClase  = origenVecino  ? 'vecino' : datos.origen_clase
+      const destinoClase = destinoVecino ? 'vecino' : (entidadNuevaId ? 'entidad' : datos.destino_clase)
+
       const [mov] = await tx.consultar<{ id: string; numero: number }>(
         `insert into movimientos (
            flujo, tipo, sitio_id, ocurrido_en,
@@ -148,13 +190,13 @@ export async function crearMovimiento(
          ) returning id, numero`,
         [
           datos.flujo, datos.tipo, sitioId, datos.ocurrido_en,
-          datos.origen_clase, datos.origen_sitio_id ?? null, datos.origen_entidad_id ?? null,
-          datos.origen_vecino_id ?? null, datos.origen_detalle ?? null,
-          datos.destino_clase, datos.destino_sitio_id ?? null, datos.destino_entidad_id ?? null,
-          datos.destino_vecino_id ?? null, datos.destino_detalle ?? null,
+          origenClase, datos.origen_sitio_id ?? null, origenEntidad,
+          origenVecino, datos.origen_detalle ?? null,
+          destinoClase, datos.destino_sitio_id ?? null, destinoEntidad,
+          destinoVecino, datos.destino_detalle ?? null,
           datos.vehiculo_id ?? null, datos.chofer_id ?? null,
           datos.autorizado_por_id ?? null, datos.vigilador_id ?? null,
-          datos.tipo_valorizacion ?? null, datos.vecino_sin_datos ?? false,
+          datos.tipo_valorizacion ?? null, datos.vecino?.sin_datos ?? datos.vecino_sin_datos ?? false,
           datos.observaciones?.trim() || null,
           sesion.perfilId, datos.client_uuid,
         ],
@@ -376,5 +418,74 @@ export async function materialesVisibles(sesion: Sesion): Promise<Material[]> {
     sesion,
     `select id, nombre, categoria, flujos, tipos, unidad_default_id, sugerencias, color, orden, activo
        from materiales where activo order by orden, nombre`,
+  )
+}
+
+// ── Puntos Verdes ───────────────────────────────────────────────────────
+
+/**
+ * Visitas y vecinos identificados por punto.
+ *
+ * Son dos números distintos y no se suman: una visita es alguien que vino una
+ * vez; un vecino identificado es alguien que dejó el teléfono y se lo puede
+ * seguir en el tiempo. Quien vino cuatro veces son cuatro visitas y un vecino.
+ */
+export async function resumenVecinos(
+  sesion: Sesion,
+  opciones: { periodo?: 'semana' | 'mes'; sitioId?: string; desde?: string } = {},
+): Promise<FilaVecinos[]> {
+  const periodo = opciones.periodo === 'semana' ? 'semana' : 'mes'
+  const valores: unknown[] = []
+  const par = (v: unknown) => `$${valores.push(v)}`
+  const cond = [`${periodo} >= ${par(opciones.desde ?? '2000-01-01')}::date`]
+  if (opciones.sitioId) cond.push(`sitio_id = ${par(opciones.sitioId)}`)
+
+  return consultarConSesion<FilaVecinos>(
+    sesion,
+    `select sitio_id, sitio_nombre, sitio_codigo, semana, mes,
+            sum(visitas)::int       as visitas,
+            sum(sin_datos)::int     as sin_datos,
+            sum(identificados)::int as identificados
+       from v_vecinos_por_periodo
+      where ${cond.join(' and ')}
+      group by sitio_id, sitio_nombre, sitio_codigo, semana, mes
+      order by ${periodo} desc, sitio_codigo`,
+    valores,
+  )
+}
+
+/** Material recirculado por tipo de valorización. */
+export async function resumenValorizacion(
+  sesion: Sesion,
+  opciones: { flujo?: Flujo; sitioId?: string; meses?: number } = {},
+): Promise<FilaValorizacion[]> {
+  const meses = Math.min(Math.max(opciones.meses ?? 6, 1), 36)
+  const valores: unknown[] = [meses - 1]
+  const par = (v: unknown) => `$${valores.push(v)}`
+  const cond = ["mes >= date_trunc('month', current_date) - make_interval(months => $1)"]
+  if (opciones.flujo)   cond.push(`flujo = ${par(opciones.flujo)}`)
+  if (opciones.sitioId) cond.push(`sitio_id = ${par(opciones.sitioId)}`)
+
+  return consultarConSesion<FilaValorizacion>(
+    sesion,
+    `select * from v_valorizacion where ${cond.join(' and ')} order by mes, tipo_valorizacion`,
+    valores,
+  )
+}
+
+/** Lo que los vigiladores dieron de alta en la calle y falta confirmar. */
+export async function entidadesPendientes(sesion: Sesion) {
+  return consultarConSesion<{
+    id: string; nombre: string; tipo: string; creado_en: string
+    creado_por: string | null; usos: number
+  }>(
+    sesion,
+    `select e.id, e.nombre, e.tipo, e.creado_en, p.nombre as creado_por,
+            (select count(*) from movimientos m
+              where m.destino_entidad_id = e.id or m.origen_entidad_id = e.id)::int as usos
+       from entidades e
+       left join perfiles p on p.id = e.creado_por_id
+      where e.pendiente_revision and e.activo
+      order by e.creado_en desc`,
   )
 }

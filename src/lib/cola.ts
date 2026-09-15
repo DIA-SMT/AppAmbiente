@@ -38,6 +38,29 @@ export const esquemaMovimiento = z.object({
   destino_sitio_id: uuid.nullish(),
   destino_entidad_id: uuid.nullish(),
   destino_detalle: z.string().trim().max(200).nullish(),
+  /**
+   * El vecino se manda con sus datos, no con un id: el vigilador no puede leer
+   * la lista de vecinos, así que no tiene forma de elegir uno existente. La
+   * base resuelve si es alguien que ya vino (por teléfono) o uno nuevo.
+   */
+  vecino: z
+    .object({
+      nombre: z.string().trim().max(120).nullish(),
+      telefono: z.string().trim().max(40).nullish(),
+      barrio: z.string().trim().max(120).nullish(),
+      sin_datos: z.boolean().default(false),
+    })
+    .nullish(),
+  /** Alta en la calle de un carrero o emprendedor que no está en la lista. */
+  entidad_nueva: z
+    .object({
+      nombre: z.string().trim().min(2).max(120),
+      tipo: z.enum(['carrero', 'emprendimiento', 'organizacion', 'otro']),
+    })
+    .nullish(),
+  tipo_valorizacion: z
+    .enum(['reutilizacion', 'venta', 'emprendimiento', 'otro'])
+    .nullish(),
   vehiculo_id: uuid.nullish(),
   chofer_id: uuid.nullish(),
   autorizado_por_id: uuid.nullish(),

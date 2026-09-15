@@ -7,6 +7,7 @@ import { consultarConSesion } from '@db/sesion'
 import { sesionActual, type Sesion } from '@/lib/sesion'
 import type { TipoMovimiento } from '@/lib/tipos'
 import GraficoMensual, { type MesGrafico } from './GraficoMensual'
+import SubNavegacion from './SubNavegacion'
 
 export const dynamic = 'force-dynamic'
 
@@ -155,35 +156,38 @@ export default async function Tablero({
   const enlaceExcel = `/api/exportar?vista=resumen&flujo=planta&meses=${meses}`
 
   const encabezado = (
-    <header className="fila-entre" style={{ flexWrap: 'wrap', rowGap: 12 }}>
-      <div>
-        <h1>Planta de Valorización</h1>
-        <p className="menor gris" style={{ margin: 0 }}>
-          {periodo}
-          {planta ? ` · ${planta.nombre}` : ''}
-        </p>
-      </div>
-      <div className="fila">
-        <div className="fila" style={{ gap: 6 }} role="group" aria-label="Meses que se muestran">
-          {PERIODOS.map((n) => (
-            <Link
-              key={n}
-              href={`/tablero?meses=${n}`}
-              className={`boton chico ${n === meses ? '' : 'secundario'}`}
-              aria-current={n === meses ? 'page' : undefined}
-            >
-              {n} meses
-            </Link>
-          ))}
+    <>
+      <SubNavegacion />
+      <header className="fila-entre" style={{ flexWrap: 'wrap', rowGap: 12 }}>
+        <div>
+          <h1>Planta de Valorización</h1>
+          <p className="menor gris" style={{ margin: 0 }}>
+            {periodo}
+            {planta ? ` · ${planta.nombre}` : ''}
+          </p>
         </div>
-        {filas.length > 0 && (
-          <a className="boton chico secundario" href={enlaceExcel}>
-            <IconoBajar />
-            Exportar a Excel
-          </a>
-        )}
-      </div>
-    </header>
+        <div className="fila">
+          <div className="fila" style={{ gap: 6 }} role="group" aria-label="Meses que se muestran">
+            {PERIODOS.map((n) => (
+              <Link
+                key={n}
+                href={`/tablero?meses=${n}`}
+                className={`boton chico ${n === meses ? '' : 'secundario'}`}
+                aria-current={n === meses ? 'page' : undefined}
+              >
+                {n} meses
+              </Link>
+            ))}
+          </div>
+          {filas.length > 0 && (
+            <a className="boton chico secundario" href={enlaceExcel}>
+              <IconoBajar />
+              Exportar a Excel
+            </a>
+          )}
+        </div>
+      </header>
+    </>
   )
 
   if (!filas.length) {

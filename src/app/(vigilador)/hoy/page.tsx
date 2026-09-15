@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { consultarConSesion } from '@db/sesion'
 import { movimientosDelTurno } from '@/lib/datos'
-import { ETIQUETA_TIPO, cantidadDeMovimiento, hora } from '@/lib/formato'
+import { ETIQUETA_TIPO, ETIQUETA_VALORIZACION, cantidadDeMovimiento, hora } from '@/lib/formato'
 import { sesionActual } from '@/lib/sesion'
 import { ListaPendientes } from '../turno/SelectorVigilador'
 
@@ -11,7 +12,18 @@ export default async function Hoy() {
   const sesion = await sesionActual()
   if (!sesion) redirect('/ingresar')
 
-  const movimientos = await movimientosDelTurno(sesion, 100)
+  // El tipo de sitio decide cómo se nombran los dos botones del final. Los
+  // chips de cada fila no lo necesitan: cada movimiento trae su propio flujo.
+  const [movimientos, sitios] = await Promise.all([
+    movimientosDelTurno(sesion, 100),
+    sesion.sitioId
+      ? consultarConSesion<{ tipo: string }>(
+          sesion, `select tipo from sitios where id = $1`, [sesion.sitioId],
+        )
+      : Promise.resolve([]),
+  ])
+
+  const esPuntoVerde = sitios[0]?.tipo === 'punto_verde'
 
   return (
     <div className="pila">
@@ -34,8 +46,8 @@ export default async function Hoy() {
           const anulado = m.estado === 'anulado'
           const cuanto = cantidadDeMovimiento(m)
           const lugar = m.tipo === 'ingreso'
-            ? `De ${m.origen_nombre ?? '—'}`
-            : `A ${m.destino_nombre ?? '—'}`
+            ? m.origen_clase === 'vecino' ? 'De un vecino' : `De ${m.origen_nombre ?? '—'}`
+            : m.destino_clase === 'vecino' ? 'Se lo llevó un vecino' : `A ${m.destino_nombre ?? '—'}`
 
           return (
             <li key={m.id} className={anulado ? 'anulado' : undefined}>
@@ -47,6 +59,10 @@ export default async function Hoy() {
                 <span className="fila">
                   <span className="mono menor gris cifras">{hora(m.ocurrido_en)}</span>
                   <span className={`chip ${m.tipo}`}>{ETIQUETA_TIPO[m.tipo]}</span>
+                  {m.flujo === 'punto_verde' && m.tipo === 'salida' && m.tipo_valorizacion && (
+                    <span className="chip">{ETIQUETA_VALORIZACION[m.tipo_valorizacion]}</span>
+                  )}
+                  {m.vecino_sin_datos && <span className="chip">Sin datos</span>}
                   {anulado && <span className="chip anulado">Anulado</span>}
                   {m.carga_diferida && !anulado && <span className="chip diferida">Cargado después</span>}
                 </span>
@@ -65,8 +81,12 @@ export default async function Hoy() {
         })}
       </ul>
 
-      <Link href="/cargar/ingreso" className="boton secundario ancho-total">Registrar otro ingreso</Link>
-      <Link href="/cargar/salida" className="boton secundario ancho-total">Registrar otra salida</Link>
+      <Link href="/cargar/ingreso" className="boton secundario ancho-total">
+        {esPuntoVerde ? 'Registrar lo que trae un vecino' : 'Registrar otro ingreso'}
+      </Link>
+      <Link href="/cargar/salida" className="boton secundario ancho-total">
+        {esPuntoVerde ? 'Registrar lo que se lleva alguien' : 'Registrar otra salida'}
+      </Link>
     </div>
   )
 }

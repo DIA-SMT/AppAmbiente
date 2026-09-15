@@ -101,6 +101,19 @@ const PERSONAS: ReadonlyArray<readonly [string, string]> = [
   ['Rubén Ovejero',      'operario'],
 ]
 
+// Dos por punto, que es lo que permite que el selector de turno tenga algo que
+// elegir y que se note el cambio de guardia.
+const VIGILADORES_POR_PUNTO: ReadonlyArray<readonly [string, readonly string[]]> = [
+  ['PV-01', ['Gustavo Nieva', 'Silvia Barrionuevo']],
+  ['PV-02', ['Elena Quiroga', 'Pablo Tejerina']],
+  ['PV-03', ['Rosa Maldonado', 'Julio Ale']],
+  ['PV-04', ['Mónica Assaf', 'Damián Correa']],
+  ['PV-05', ['Fabián Toledo', 'Lucía Brandán']],
+  ['PV-06', ['Norma Agüero', 'Cristian Herrera']],
+  ['PV-07', ['Vanesa Robles', 'Emanuel Díaz']],
+  ['PV-08', ['Patricia Leiva', 'Marcos Figueroa']],
+]
+
 async function sembrar() {
   await comoServicio(async (tx) => {
     // ── Sitios ───────────────────────────────────────────────────────────
@@ -152,6 +165,10 @@ async function sembrar() {
     }
 
     // ── Personas ─────────────────────────────────────────────────────────
+    // Choferes, autorizantes y operarios trabajan en la Planta. Los vigiladores
+    // van repartidos: el selector de "quién está de turno" solo ofrece los del
+    // propio punto, así que si todos quedan en la Planta, los ocho puntos
+    // verdes abren diciendo que no hay nadie cargado.
     for (const [nombre, rol] of PERSONAS) {
       await tx.consultar(
         `insert into personas (nombre, rol, sitio_id)
@@ -159,6 +176,17 @@ async function sembrar() {
          where not exists (select 1 from personas where nombre = $1 and rol = $2)`,
         [nombre, rol],
       )
+    }
+
+    for (const [codigo, nombres] of VIGILADORES_POR_PUNTO) {
+      for (const nombre of nombres) {
+        await tx.consultar(
+          `insert into personas (nombre, rol, sitio_id)
+           select $1, 'vigilador', (select id from sitios where codigo = $2)
+           where not exists (select 1 from personas where nombre = $1 and rol = 'vigilador')`,
+          [nombre, codigo],
+        )
+      }
     }
 
     // ── Pilas de compost (creadas, sin pantalla en la fase 1) ────────────
@@ -285,13 +313,251 @@ async function sembrar() {
     `)
 
     const [{ total: creados }] = await tx.consultar<{ total: string }>(
-      'select count(*)::text as total from movimientos',
+      `select count(*)::text as total from movimientos where flujo = 'planta'`,
     )
-    console.log(`  ${creados} movimientos de ejemplo generados (últimos 4 meses).`)
+    console.log(`  ${creados} movimientos de la Planta generados (últimos 4 meses).`)
   })
 
+  // ── Movimientos de puntos verdes (fase 2) ──────────────────────────────
+  // Un punto verde recibe gente cuando la gente no trabaja: acá los fines de
+  // semana pesan más que los días hábiles, justo al revés que la Planta.
+  await comoServicio(async (tx) => {
+    const [{ total }] = await tx.consultar<{ total: string }>(
+      `select count(*)::text as total from movimientos where flujo = 'punto_verde'`,
+    )
+    if (Number(total) > 0) {
+      console.log('  Ya hay movimientos de puntos verdes: no se generan ejemplos.')
+      return
+    }
+
+    // Dos contrapartes dadas de alta "en la calle", para que la pantalla de
+    // revisión de la coordinadora tenga algo que revisar.
+    await tx.consultar(`
+      insert into entidades (
+        nombre, tipo, habilitada_origen, habilitada_destino, flujos,
+        pendiente_revision, creado_por_id
+      )
+      select e.nombre, e.tipo, false, true, array['punto_verde']::text[], true,
+             (select p.id from perfiles p where p.usuario = e.usuario)
+        from (values ('Carrero Don Ramón',      'carrero',        'pv03'),
+                     ('Taller Manos a la Obra', 'emprendimiento', 'pv06'))
+             as e(nombre, tipo, usuario)
+      on conflict do nothing
+    `)
+
+    // ── Vecinos que vuelven ──────────────────────────────────────────────
+    // Sin gente repetida, "vecinos identificados" daría lo mismo que
+    // "visitas" y el tablero parecería correcto aunque confundiera las dos
+    // cosas. Estos 60 tienen teléfono y vuelven varias veces en los 4 meses.
+    // El teléfono se guarda normalizado, igual que lo hace app.registrar_vecino.
+    await tx.consultar(`
+      insert into vecinos (nombre, telefono, barrio, sitio_alta_id, creado_por_id, creado_en)
+      select nuevo.nombre, nuevo.telefono, nuevo.barrio,
+             nuevo.sitio_id, nuevo.perfil_id, nuevo.creado_en
+        from (
+          select
+            (array['Ana','Marcela','Silvia','Lucía','Carla','Rosa','Mirta','Julieta',
+                   'Noelia','Vanina','Juan','Carlos','Sergio','Ramón','Pablo','Diego',
+                   'Martín','Alberto','Néstor','Facundo'])[1 + (n % 20)]
+              || ' ' ||
+            (array['Gómez','Juárez','Ríos','Coronel','Villagra','Sosa','Ledesma','Paz',
+                   'Ibáñez','Ovejero','Córdoba','Herrera','Nieva','Toledo','Brizuela',
+                   'Robles','Costilla'])[1 + ((n * 3) % 17)]                      as nombre,
+            -- 381 + 7 dígitos, que es un número de Tucumán.
+            app.normalizar_telefono(
+              '381' || (4 + n % 3)::text || lpad(((n * 137 + 41) % 1000000)::text, 6, '0')
+            )                                                                     as telefono,
+            (array['Barrio Sur','Villa Luján','Barrio Norte','Villa 9 de Julio','Ciudadela',
+                   'Barrio Jardín','Villa Amalia','Villa Mariano Moreno','San Cayetano',
+                   'El Bajo','Barrio Ejército del Norte','Villa Alem','Barrio Policial',
+                   'Los Vázquez'])[1 + ((n * 5) % 14)]                            as barrio,
+            pt.sitio_id, pt.perfil_id,
+            now() - make_interval(days => 90 + (n % 30))                          as creado_en
+          from generate_series(0, 59) n
+          join lateral (
+            select s.id as sitio_id,
+                   (select p.id from perfiles p
+                     where p.sitio_id = s.id order by p.usuario limit 1) as perfil_id
+              from sitios s
+             where s.tipo = 'punto_verde' and s.activo
+             order by s.orden
+            offset (n % greatest(1, (select count(*) from sitios
+                                      where tipo = 'punto_verde' and activo)))
+             limit 1
+          ) pt on true
+        ) nuevo
+       where not exists (select 1 from vecinos v where v.telefono = nuevo.telefono)
+    `)
+
+    // ── Visitas, movimientos e ítems ─────────────────────────────────────
+    await tx.consultar(`
+      with puntos as (
+        select s.id as sitio_id, s.codigo as sitio_codigo, pf.id as perfil_id,
+               (row_number() over (order by s.orden)) - 1 as idx
+          from sitios s
+          join lateral (
+            select p.id from perfiles p where p.sitio_id = s.id order by p.usuario limit 1
+          ) pf on true
+         where s.tipo = 'punto_verde' and s.activo
+      ),
+      vigiladores as (
+        select p.id, (row_number() over (order by p.nombre)) - 1 as rn,
+               count(*) over () as total
+          from personas p where p.rol = 'vigilador' and p.activo
+      ),
+      destinos as (
+        select e.id, (row_number() over (order by e.nombre)) - 1 as rn,
+               count(*) over () as total
+          from entidades e
+         where e.activo and e.habilitada_destino and 'punto_verde' = any(e.flujos)
+      ),
+      conocidos as (
+        select v.id, (row_number() over (order by v.telefono)) - 1 as rn,
+               count(*) over () as total
+          from vecinos v where v.telefono is not null and not v.anonimizado
+      ),
+      dias as (
+        select generate_series(current_date - interval '119 days', current_date, interval '1 day')::date as d
+      ),
+      crudo as (
+        select d.d, pt.sitio_id, pt.perfil_id, pt.idx,
+               md5(d.d::text || '-pv-' || g::text || '-' || pt.sitio_codigo) as h
+          from dias d, puntos pt, generate_series(1, 6) g
+      ),
+      slots as (
+        -- La semilla sale del md5 y no de la fecha en segundos, por lo mismo
+        -- que en el bloque de la Planta. El sufijo '-pv-' hace que los puntos
+        -- verdes no repitan la secuencia de allá. 28 bits para que el entero
+        -- nunca salga negativo.
+        -- Cada decisión usa su propia semilla: si dos salieran del mismo
+        -- número, los restos quedan atados entre sí y la variedad se pierde
+        -- sin que se note (p. ej. todas las salidas al mismo destino).
+        select c.d, c.sitio_id, c.perfil_id, c.idx,
+               ('x' || substr(c.h,  1, 7))::bit(28)::int as semilla,
+               ('x' || substr(c.h,  8, 7))::bit(28)::int as semilla_b,
+               ('x' || substr(c.h, 15, 7))::bit(28)::int as semilla_c,
+               ('x' || substr(c.h, 22, 7))::bit(28)::int as semilla_d,
+               ('x' || substr(c.h, 25, 7))::bit(28)::int as semilla_e,
+               md5(c.h || '-vecino')::uuid               as vecino_anonimo_id
+          from crudo c
+      ),
+      elegidos as (
+        select s.*,
+               case when s.semilla_b % 5 = 0 then 'salida' else 'ingreso' end as tipo,
+               (s.semilla_b % 5 <> 0 and s.semilla_d % 100 < 35)             as sin_datos
+          from slots s
+         -- 6 franjas por día y por punto: 4 se usan el fin de semana y 1 o 2
+         -- entre semana.
+         where (s.semilla % 12) < case when extract(isodow from s.d) >= 6 then 8 else 3 end
+      ),
+      visitas as (
+        select e.d, e.sitio_id, e.perfil_id, e.tipo, e.sin_datos, e.vecino_anonimo_id,
+               co.id as vecino_conocido_id,
+               de.id as destino_id,
+               vg.id as vigilador_id,
+               case when e.tipo = 'salida' then
+                 (array['venta','venta','venta','venta',
+                        'emprendimiento','emprendimiento','emprendimiento',
+                        'reutilizacion','reutilizacion','otro'])[1 + (e.semilla_c % 10)]
+               end as tipo_valorizacion,
+               -- El disparador rechaza fechas futuras: el último día del rango
+               -- se recorta contra el reloj.
+               least(e.d + make_interval(hours => 8 + (e.semilla_e % 11),
+                                         mins  => e.semilla_b % 60),
+                     now() - interval '20 minutes') as ocurrido_en,
+               least(e.d + make_interval(hours => 8 + (e.semilla_e % 11),
+                                         mins  => (e.semilla_b % 60) + 3 + (e.semilla_e % 9)),
+                     now() - interval '15 minutes') as creado_en
+          from elegidos e
+          -- Cada punto tiene su vecindario: una ventana de 12 vecinos del
+          -- padrón, así el mismo teléfono vuelve mes a mes al mismo lugar.
+          left join conocidos co
+            on e.tipo = 'ingreso' and not e.sin_datos
+           and co.rn = ((e.idx * 7) + (e.semilla_c % 12)) % co.total
+          left join destinos de
+            on e.tipo = 'salida' and de.rn = e.semilla_d % de.total
+          left join vigiladores vg on vg.rn = e.semilla_e % vg.total
+         where e.tipo = 'ingreso' or de.id is not null
+      ),
+      anonimos as (
+        -- Una fila de vecino vacía por visita, que es lo que hace
+        -- app.registrar_vecino cuando no hay teléfono con el que reconocer a
+        -- nadie: cuenta como visita y nunca como vecino identificado.
+        insert into vecinos (id, sitio_alta_id, creado_por_id, creado_en)
+        select v.vecino_anonimo_id, v.sitio_id, v.perfil_id, v.creado_en
+          from visitas v
+         where v.tipo = 'ingreso' and (v.sin_datos or v.vecino_conocido_id is null)
+        returning id
+      ),
+      insertados as (
+        insert into movimientos (
+          flujo, tipo, sitio_id, ocurrido_en,
+          origen_clase, origen_vecino_id, origen_sitio_id,
+          destino_clase, destino_sitio_id, destino_entidad_id,
+          tipo_valorizacion, vecino_sin_datos,
+          vigilador_id, cargado_por_id, creado_en
+        )
+        select
+          'punto_verde', v.tipo, v.sitio_id, v.ocurrido_en,
+          case when v.tipo = 'ingreso' then 'vecino' else 'sitio' end,
+          case when v.tipo = 'ingreso'
+               then coalesce(v.vecino_conocido_id, v.vecino_anonimo_id) end,
+          case when v.tipo = 'salida'  then v.sitio_id end,
+          case when v.tipo = 'ingreso' then 'sitio' else 'entidad' end,
+          case when v.tipo = 'ingreso' then v.sitio_id end,
+          case when v.tipo = 'salida'  then v.destino_id end,
+          v.tipo_valorizacion, v.sin_datos,
+          v.vigilador_id, v.perfil_id, v.creado_en
+        from visitas v
+        returning id, tipo, numero
+      ),
+      materiales_pv as (
+        select mt.id, mt.unidad_default_id, t.tipo,
+               row_number() over (partition by t.tipo order by mt.orden) as rn,
+               count(*)     over (partition by t.tipo)                   as total
+          from materiales mt
+          cross join (values ('ingreso'::text), ('salida')) as t(tipo)
+         where mt.activo and 'punto_verde' = any(mt.flujos) and t.tipo = any(mt.tipos)
+      ),
+      items as (
+        select i.id, i.tipo, i.numero, 0 as desplazamiento from insertados i
+        union all
+        -- Tres de cada diez visitas traen dos materiales: cartón y plástico
+        -- en la misma bolsa es lo más común del punto verde.
+        select i.id, i.tipo, i.numero, 3 from insertados i where i.numero % 10 < 3
+      )
+      insert into movimiento_items (movimiento_id, material_id, cantidad, unidad_id)
+      select it.id, m.id,
+             -- Todo se pesa en kg: el vecino deja unos kilos, la salida se
+             -- lleva cientos.
+             case when it.tipo = 'ingreso'
+                  then (20  + ((it.numero + it.desplazamiento) * 7)  % 180)::numeric  / 10
+                  else (800 + ((it.numero + it.desplazamiento) * 13) % 4200)::numeric / 10
+             end,
+             m.unidad_default_id
+        from items it
+        join materiales_pv m
+          on m.tipo = it.tipo
+         and m.rn = 1 + ((it.numero + it.desplazamiento) % m.total)
+    `)
+
+    const [{ total: creados }] = await tx.consultar<{ total: string }>(
+      `select count(*)::text as total from movimientos where flujo = 'punto_verde'`,
+    )
+    console.log(`  ${creados} movimientos de puntos verdes generados (últimos 4 meses).`)
+  })
+
+  const totales = await comoServicio((tx) =>
+    tx.consultar<{ flujo: string; total: string }>(
+      `select flujo, count(*)::text as total from movimientos group by flujo`,
+    ),
+  )
+  const porFlujo = (flujo: string) => totales.find((t) => t.flujo === flujo)?.total ?? '0'
+
   console.log(`
-  Listo. Usuarios de desarrollo:
+  Listo. Movimientos cargados: ${porFlujo('planta')} de la Planta y ${porFlujo('punto_verde')} de puntos verdes.
+
+  Usuarios de desarrollo:
 
     Coordinadora   usuario: coordinacion   clave: ambiente2026
     Planta         usuario: planta         PIN:   1234

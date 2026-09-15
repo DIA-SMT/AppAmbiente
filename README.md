@@ -7,9 +7,8 @@ Reemplaza los Google Forms que hoy se comparten por WhatsApp para registrar lo q
 entra y sale de la Planta de Valorización de Residuos Verdes, los ocho puntos verdes
 y los retiros pactados con grandes generadores.
 
-**Fase 1 (esta entrega): el flujo de la Planta.** El modelo de datos, los permisos y
-las listas maestras ya cubren los tres flujos; las pantallas de puntos verdes y
-grandes generadores son las fases 2 y 3.
+**Fases 1 y 2 entregadas:** la Planta de Valorización y los ocho Puntos Verdes.
+Grandes generadores y la importación del Excel de pesos son la fase 3.
 
 El documento de validación con el modelo completo, las decisiones de diseño y las
 preguntas abiertas está en [`docs/fase-0-validacion.html`](docs/fase-0-validacion.html).
@@ -28,9 +27,9 @@ npm run dev
 
 Y abrir http://localhost:3000
 
-`npm run preparar` aplica las migraciones y carga datos de ejemplo (unos 200
-movimientos repartidos en los últimos cuatro meses, para que el tablero y el listado
-no abran vacíos).
+`npm run preparar` aplica las migraciones y carga datos de ejemplo (unos 2.300
+movimientos de los dos flujos repartidos en los últimos cuatro meses, para que el
+tablero y el listado no abran vacíos).
 
 En realidad con `npm run dev` alcanza: al abrir la conexión, el servidor aplica solo
 las migraciones que falten. `npm run preparar` está para cargar además los datos de
@@ -78,11 +77,16 @@ los días.
 npm run db:verificar
 ```
 
-Catorce comprobaciones contra la base real: que un vigilador de otro punto no vea los
-movimientos de la Planta, que no lea la tabla `entidades` (pero sí la vista sin CUIT
-ni teléfono), que no lea vecinos ni la auditoría, que no pueda cargar a nombre de
+Veintiuna comprobaciones contra la base real: que un vigilador de otro punto no vea
+los movimientos de la Planta, que no lea la tabla `entidades` (pero sí la vista sin
+CUIT ni teléfono), que no lea vecinos ni la auditoría, que no pueda cargar a nombre de
 otro ni con fecha de hace una semana, que nadie pueda borrar, y que cargar un
 movimiento deje rastro con nombre en la auditoría.
+
+De la fase 2: que cuatro formas de escribir el mismo teléfono den un solo vecino, que
+dos visitas de la misma persona no la dupliquen, que el tablero distinga visitas de
+vecinos identificados, y que el vigilador pueda dar de alta un carrero pero no una
+empresa ni una dependencia municipal.
 
 Conviene correrlo después de tocar `db/migrations/0010_rls.sql` y antes de desplegar.
 
@@ -110,7 +114,7 @@ el que se conecta la app tiene que ser miembro de `authenticated`.
 
 ```
 db/
-  migrations/        12 migraciones SQL, en orden. Es la fuente de verdad del modelo.
+  migrations/        14 migraciones SQL, en orden. Es la fuente de verdad del modelo.
   client.ts          conexión: PGlite o postgres-js según DATABASE_URL
   sesion.ts          conSesion() pone la identidad en la base antes de consultar
   credenciales.ts    hasheo de PIN con scrypt
@@ -121,7 +125,8 @@ src/
   app/
     ingresar/        pantalla de acceso
     (vigilador)/     turno, carga de ingreso y salida, listo, lo de hoy
-    (admin)/         tablero, movimientos, listas, vecinos, usuarios, auditoría
+    (admin)/         tablero (planta y puntos verdes), movimientos, listas,
+                     revisiones, vecinos, usuarios, auditoría
     api/             exportar a Excel, sincronizar la cola offline
 docs/                documento de validación de fase 0
 assets/marca/        identidad institucional (logos y plantilla de referencia)
@@ -157,7 +162,24 @@ Están todos anotados en el código con la palabra `SUPUESTO` y explicados en
 3. **48 horas de carga retroactiva** para el vigilador, marcada como carga diferida.
    La coordinadora no tiene ese límite.
 
-## Lo que falta para cerrar la fase 1
+## Cómo funcionan los Puntos Verdes
+
+**El vecino se registra sin que el vigilador pueda leer la lista.** Manda nombre,
+teléfono y barrio; `app.registrar_vecino` decide si es alguien que ya vino —lo busca
+por teléfono normalizado— y devuelve solo el id. El vigilador nunca ve un dato de
+nadie, y el mismo vecino no se duplica visita tras visita.
+
+**Visitas y vecinos identificados no son lo mismo**, y el tablero los muestra en
+columnas separadas a propósito. Quien vino cuatro veces son cuatro visitas y un
+vecino. Presentarlos como un solo número haría mentir al indicador.
+
+**El alta rápida tiene válvula.** Cuando aparece un carrero que no está en la lista,
+el vigilador lo da de alta desde el celular para no quedarse trabado; queda marcado
+*pendiente de revisión* y solo habilitado como destino. La coordinadora lo confirma,
+lo fusiona con uno escrito distinto, o lo descarta, desde **Revisiones**. No puede
+dar de alta una empresa ni una dependencia municipal: eso sigue siendo de ella.
+
+## Lo que falta para cerrar la fase 3
 
 Un archivo de muestra del Excel de pesos de contenedores de la planta de la
 9 de Julio. Es lo único que bloquea un entregable: el indicador de eficiencia por

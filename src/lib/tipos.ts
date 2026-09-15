@@ -51,6 +51,47 @@ export interface Entidad {
   habilitada_destino: boolean
   flujos: Flujo[]
   activo: boolean
+  /** La dio de alta un vigilador en la calle y falta que la coordinadora la confirme. */
+  pendiente_revision?: boolean
+}
+
+/** Datos del vecino tal como los manda el celular. Nunca un id: no puede leerlos. */
+export interface VecinoDelCelular {
+  nombre?: string | null
+  telefono?: string | null
+  barrio?: string | null
+  sin_datos: boolean
+}
+
+/** Una fila de v_vecinos_por_periodo. */
+export interface FilaVecinos {
+  sitio_id: string
+  sitio_nombre: string
+  sitio_codigo: string
+  semana: string
+  mes: string
+  /** Cuánta gente vino. Si alguien vino cuatro veces, son cuatro visitas. */
+  visitas: number
+  sin_datos: number
+  /** Personas distintas que dejaron teléfono. No se pueden sumar con visitas. */
+  identificados: number
+}
+
+/** Una fila de v_valorizacion. */
+export interface FilaValorizacion {
+  sitio_id: string
+  flujo: Flujo
+  mes: string
+  semana: string
+  tipo_valorizacion: TipoValorizacion
+  material_id: string
+  material_nombre: string
+  material_color: string
+  unidad_codigo: string
+  unidad_plural: string
+  movimientos: number
+  cantidad: number
+  equivalente_m3: number
 }
 
 export interface Vehiculo {
@@ -111,6 +152,9 @@ export interface MovimientoNuevo {
   vigilador_id?: string | null
   tipo_valorizacion?: TipoValorizacion | null
   vecino_sin_datos?: boolean
+  /** Si viene, la base lo resuelve contra los vecinos ya registrados. */
+  vecino?: VecinoDelCelular | null
+  entidad_nueva?: { nombre: string; tipo: string } | null
   observaciones?: string | null
   /** Generado en el celular. Evita duplicar si el envío se reintenta. */
   client_uuid: string

@@ -32,11 +32,24 @@ export default async function InicioDeTurno() {
   if (!sesion) redirect('/ingresar')
 
   // La lista de vigiladores sale del mismo lugar que las del formulario: una
-  // sola consulta trae todo lo del sitio.
+  // sola consulta trae todo lo del sitio. El flujo que se pasa acá solo cambia
+  // qué materiales y qué entidades vuelven, y esta pantalla no usa ninguno de
+  // los dos: el tipo de sitio sale de la misma respuesta.
   const [listas, movimientos] = await Promise.all([
     listasDelFormulario(sesion, 'planta', 'ingreso'),
     movimientosDelTurno(sesion, 100),
   ])
+
+  const esPuntoVerde = listas.sitio?.tipo === 'punto_verde'
+  const textos = esPuntoVerde
+    ? {
+        ingreso: { rotulo: 'Registrar lo que trae un vecino', detalle: 'Alguien deja material' },
+        salida: { rotulo: 'Registrar lo que se lleva alguien', detalle: 'Material que sale del punto' },
+      }
+    : {
+        ingreso: { rotulo: 'Registrar ingreso', detalle: 'Algo que llega al punto' },
+        salida: { rotulo: 'Registrar salida', detalle: 'Algo que se lleva alguien' },
+      }
 
   const vigentes = movimientos.filter((m) => m.estado === 'vigente')
   const ingresos = vigentes.filter((m) => m.tipo === 'ingreso').length
@@ -58,16 +71,16 @@ export default async function InicioDeTurno() {
       <Link href="/cargar/ingreso" className="boton-accion ingreso">
         <span className="icono"><FlechaAbajo /></span>
         <span>
-          <span className="rotulo">Registrar ingreso</span>
-          <span className="detalle">Algo que llega al punto</span>
+          <span className="rotulo">{textos.ingreso.rotulo}</span>
+          <span className="detalle">{textos.ingreso.detalle}</span>
         </span>
       </Link>
 
       <Link href="/cargar/salida" className="boton-accion salida">
         <span className="icono"><FlechaArriba /></span>
         <span>
-          <span className="rotulo">Registrar salida</span>
-          <span className="detalle">Algo que se lleva alguien</span>
+          <span className="rotulo">{textos.salida.rotulo}</span>
+          <span className="detalle">{textos.salida.detalle}</span>
         </span>
       </Link>
 

@@ -5,6 +5,10 @@
  * minuto. Todo lo que se puede saber sin preguntar viene puesto: la hora, el
  * sitio, y lo último que se eligió en este mismo celular.
  *
+ * Es el mismo formulario para la Planta y para los puntos verdes: cambian tres
+ * bloques, no la estructura. En un punto verde el ingreso lo trae un vecino
+ * (sin patente ni chofer) y la salida pide para qué se lleva el material.
+ *
  * El envío nunca bloquea al vigilador: si la red no responde, el movimiento se
  * guarda en el celular y la pantalla sigue igual de rápido.
  */
@@ -14,14 +18,25 @@ import { useRouter } from 'next/navigation'
 import { useFormStatus } from 'react-dom'
 import { guardar, recordado, recordar, type MovimientoDelCelular } from '@/lib/cola'
 import {
-  ETIQUETA_TIPO, cantidad, desdeInputFechaHora, fechaHora, numero, paraInputFechaHora,
+  ETIQUETA_ENTIDAD, ETIQUETA_TIPO, ETIQUETA_VALORIZACION,
+  cantidad, desdeInputFechaHora, fechaHora, numero, paraInputFechaHora,
 } from '@/lib/formato'
-import type { ListasDelFormulario, Material } from '@/lib/tipos'
+import type { Flujo, ListasDelFormulario, Material, TipoValorizacion } from '@/lib/tipos'
+import BloqueVecino, {
+  VECINO_VACIO, recordarBarrio, vecinoSinDatos, type DatosVecino,
+} from './BloqueVecino'
 import { registrarMovimiento, type EstadoAlta } from './acciones'
 import estilos from './FormularioMovimiento.module.css'
 
 const OTRA = 'otra'
 const VECINO = 'vecino'
+const NUEVA = 'nueva'
+
+const VALORIZACIONES: TipoValorizacion[] = ['reutilizacion', 'venta', 'emprendimiento', 'otro']
+
+/** Lo único que un vigilador puede dar de alta desde la calle. */
+const TIPOS_ENTIDAD = ['carrero', 'emprendimiento', 'organizacion', 'otro'] as const
+type TipoEntidadNueva = (typeof TIPOS_ENTIDAD)[number]
 
 interface Fila {
   material: string
@@ -64,15 +79,22 @@ function BotonRegistrar({ tipo }: { tipo: 'ingreso' | 'salida' }) {
 
 export default function FormularioMovimiento({
   tipo,
+  flujo,
   listas,
   ahora,
 }: {
   tipo: 'ingreso' | 'salida'
+  flujo: Flujo
   listas: ListasDelFormulario
   ahora: string
 }) {
   const router = useRouter()
   const sitioId = listas.sitio?.id ?? ''
+  const esPuntoVerde = flujo === 'punto_verde'
+
+  // En un punto verde el vecino llega caminando o en su auto: preguntarle la
+  // patente y el chofer es tiempo perdido.
+  const llevaTransporte = !(esPuntoVerde && tipo === 'ingreso')
 
   const [cuando, setCuando] = useState(ahora)
   const [fechaAbierta, setFechaAbierta] = useState(false)
@@ -85,6 +107,10 @@ export default function FormularioMovimiento({
   const [vehiculo, setVehiculo] = useState('')
   const [chofer, setChofer] = useState('')
   const [observaciones, setObservaciones] = useState('')
+  const [vecino, setVecino] = useState<DatosVecino>(VECINO_VACIO)
+  const [entidadNombre, setEntidadNombre] = useState('')
+  const [entidadTipo, setEntidadTipo] = useState<TipoEntidadNueva | ''>('')
+  const [valorizacion, setValorizacion] = useState<TipoValorizacion | ''>('')
 
   // Se genera una sola vez por formulario: si el primer envío falla y se
   // reintenta, el servidor reconoce que es el mismo movimiento y no lo duplica.
@@ -104,6 +130,8 @@ export default function FormularioMovimiento({
 
   const patente = listas.vehiculos.find((x) => x.id === vehiculo)?.patente
 
+  const destinoElegido = listas.destinos.find((d) => d.id === destino)
+
   // Quién está de turno lo eligió la pantalla anterior y vive en este celular.
   // Si el que quedó guardado ya no está en la lista del punto, se manda vacío
   // antes que romper el alta.
@@ -119,19 +147,24 @@ export default function FormularioMovimiento({
     if (!sitioId) return
 
     if (tipo === 'ingreso') {
-      const p = recordado(sitioId, 'procedencia')
-      if (listas.origenes.some((o) => o.id === p)) setOrigen(p)
+      // En un punto verde el origen es el vecino: no hay procedencia que repetir.
+      if (!esPuntoVerde) {
+        const p = recordado(sitioId, 'procedencia')
+        if (listas.origenes.some((o) => o.id === p)) setOrigen(p)
+      }
     } else {
       const d = recordado(sitioId, 'destino')
       if (listas.destinos.some((o) => o.id === d)) setDestino(d)
-      const a = recordado(sitioId, 'autoriza')
-      if (listas.autorizantes.some((x) => x.id === a)) setAutoriza(a)
+      if (!esPuntoVerde) {
+        const a = recordado(sitioId, 'autoriza')
+        if (listas.autorizantes.some((x) => x.id === a)) setAutoriza(a)
+      }
     }
     const v = recordado(sitioId, 'vehiculo')
     if (listas.vehiculos.some((x) => x.id === v)) setVehiculo(v)
     const c = recordado(sitioId, 'chofer')
     if (listas.choferes.some((x) => x.id === c)) setChofer(c)
-  }, [sitioId, tipo, listas])
+  }, [sitioId, tipo, esPuntoVerde, listas])
 
   function cambiarFila(indice: number, cambios: Partial<Fila>) {
     setFilas((previas) => previas.map((f, i) => (i === indice ? { ...f, ...cambios } : f)))
@@ -165,8 +198,18 @@ export default function FormularioMovimiento({
     if (cargadas().length === 0) campos['material-0'] ??= 'Elegí qué material es y cuánto.'
 
     if (tipo === 'ingreso') {
-      if (!origen) campos.origen = 'Falta de dónde viene.'
-      if (origen === OTRA && !origenTexto.trim()) campos.origenTexto = 'Escribí de dónde viene.'
+      // Los datos del vecino son todos opcionales: nunca frenan un registro.
+      if (!esPuntoVerde) {
+        if (!origen) campos.origen = 'Falta de dónde viene.'
+        if (origen === OTRA && !origenTexto.trim()) campos.origenTexto = 'Escribí de dónde viene.'
+      }
+    } else if (esPuntoVerde) {
+      if (!destino) campos.destino = 'Falta quién se lo lleva.'
+      if (destino === NUEVA) {
+        if (entidadNombre.trim().length < 2) campos.entidadNombre = 'Escribí el nombre.'
+        if (!entidadTipo) campos.entidadTipo = 'Elegí qué es.'
+      }
+      if (!valorizacion) campos.valorizacion = 'Elegí para qué se lo lleva.'
     } else {
       if (!destino) campos.destino = 'Falta a dónde va.'
       if (!autoriza) campos.autoriza = 'Falta quién autoriza la salida.'
@@ -175,13 +218,24 @@ export default function FormularioMovimiento({
     return campos
   }
 
+  /** Lo que se manda del vecino. Vacío y "no quiso dar datos" son lo mismo. */
+  function datosDelVecino() {
+    const sin = vecinoSinDatos(vecino)
+    return {
+      nombre: sin ? null : vecino.nombre.trim() || null,
+      telefono: sin ? null : vecino.telefono.trim() || null,
+      barrio: sin ? null : vecino.barrio.trim() || null,
+      sin_datos: sin,
+    }
+  }
+
   function armar(): MovimientoDelCelular {
     // Si no tocó la fecha, vale el momento del envío y no el que se pintó al
     // abrir la pantalla.
     const instante = (tocoFecha ? desdeInputFechaHora(cuando) : new Date()) ?? new Date()
 
     const comun = {
-      flujo: 'planta' as const,
+      flujo,
       tipo,
       ocurrido_en: instante.toISOString(),
       items: cargadas().map((f) => ({
@@ -189,14 +243,26 @@ export default function FormularioMovimiento({
         cantidad: aNumero(f.cantidad) ?? 0,
         unidad_id: porId.get(f.material)?.unidad_default_id ?? '',
       })),
-      vehiculo_id: vehiculo || null,
-      chofer_id: chofer || null,
+      vehiculo_id: llevaTransporte ? vehiculo || null : null,
+      chofer_id: llevaTransporte ? chofer || null : null,
       vigilador_id: vigiladorDelTurno(),
       observaciones: observaciones.trim() || null,
       client_uuid: uuidRef.current,
     }
 
     if (tipo === 'ingreso') {
+      // El vecino trae el material: el origen lo arma la base con lo que se
+      // manda en `vecino`, y el destino es el propio punto.
+      if (esPuntoVerde) {
+        return {
+          ...comun,
+          origen_clase: 'vecino',
+          destino_clase: 'sitio',
+          destino_sitio_id: sitioId,
+          vecino: datosDelVecino(),
+        }
+      }
+
       return {
         ...comun,
         origen_clase: origen === OTRA ? 'texto' : 'entidad',
@@ -207,13 +273,27 @@ export default function FormularioMovimiento({
       }
     }
 
+    if (esPuntoVerde) {
+      return {
+        ...comun,
+        origen_clase: 'sitio',
+        origen_sitio_id: sitioId,
+        destino_clase: destino === VECINO ? 'vecino' : 'entidad',
+        destino_entidad_id: destino === VECINO || destino === NUEVA ? null : destino,
+        vecino: destino === VECINO ? datosDelVecino() : null,
+        entidad_nueva: destino === NUEVA && entidadTipo
+          ? { nombre: entidadNombre.trim(), tipo: entidadTipo }
+          : null,
+        tipo_valorizacion: valorizacion || null,
+      }
+    }
+
     return {
       ...comun,
       origen_clase: 'sitio',
       origen_sitio_id: sitioId,
-      // Fase 1: al vecino no se le piden datos. La pantalla de alta de vecino
-      // es de la fase 2, así que hasta entonces la salida se guarda como texto
-      // y la coordinadora la ve igual en su listado.
+      // En la Planta al vecino no se le piden datos: la salida se guarda como
+      // texto y la coordinadora la ve igual en su listado.
       destino_clase: destino === VECINO ? 'texto' : 'entidad',
       destino_entidad_id: destino === VECINO ? null : destino,
       destino_detalle: destino === VECINO ? 'Vecino' : null,
@@ -221,27 +301,41 @@ export default function FormularioMovimiento({
     }
   }
 
+  function quienEs(): string | undefined {
+    if (tipo === 'ingreso') {
+      if (esPuntoVerde) return vecino.nombre.trim() || 'Vecino'
+      return origen === OTRA ? origenTexto.trim() : listas.origenes.find((o) => o.id === origen)?.nombre
+    }
+    if (destino === VECINO) return (esPuntoVerde && vecino.nombre.trim()) || 'Vecino'
+    if (destino === NUEVA) return entidadNombre.trim()
+    return destinoElegido?.nombre
+  }
+
   function resumir(): string {
     const partes = cargadas().map((f) => {
       const m = porId.get(f.material)
       return `${m?.nombre ?? 'Material'} ${cantidad(aNumero(f.cantidad), m?.unidad ?? null)}`
     })
-    const lugar = tipo === 'ingreso'
-      ? (origen === OTRA ? origenTexto.trim() : listas.origenes.find((o) => o.id === origen)?.nombre)
-      : (destino === VECINO ? 'Vecino' : listas.destinos.find((o) => o.id === destino)?.nombre)
-    return [ETIQUETA_TIPO[tipo], partes.join(' + '), lugar].filter(Boolean).join(' · ')
+    return [ETIQUETA_TIPO[tipo], partes.join(' + '), quienEs()].filter(Boolean).join(' · ')
   }
 
   function guardarBorrador() {
     if (!sitioId) return
     if (tipo === 'ingreso') {
-      if (origen && origen !== OTRA) recordar(sitioId, 'procedencia', origen)
+      if (esPuntoVerde) recordarBarrio(vecino.barrio)
+      else if (origen && origen !== OTRA) recordar(sitioId, 'procedencia', origen)
+    } else if (esPuntoVerde) {
+      // "Un vecino" y "agregar a la lista" no son destinos que convenga repetir.
+      if (destino !== VECINO && destino !== NUEVA) recordar(sitioId, 'destino', destino)
+      if (destino === VECINO) recordarBarrio(vecino.barrio)
     } else {
       if (destino) recordar(sitioId, 'destino', destino)
       if (autoriza) recordar(sitioId, 'autoriza', autoriza)
     }
-    recordar(sitioId, 'vehiculo', vehiculo)
-    recordar(sitioId, 'chofer', chofer)
+    if (llevaTransporte) {
+      recordar(sitioId, 'vehiculo', vehiculo)
+      recordar(sitioId, 'chofer', chofer)
+    }
   }
 
   async function enviar(previo: EstadoAlta, datos: FormData): Promise<EstadoAlta> {
@@ -417,8 +511,15 @@ export default function FormularioMovimiento({
         </button>
       )}
 
-      {/* ── De dónde / a dónde ─────────────────────────────────────────── */}
-      {tipo === 'ingreso' ? (
+      {/* ── Quién lo trae / quién se lo lleva ──────────────────────────── */}
+      {tipo === 'ingreso' && esPuntoVerde && (
+        <div className="campo">
+          <span className="etiqueta">Quién lo trae</span>
+          <BloqueVecino valor={vecino} alCambiar={setVecino} />
+        </div>
+      )}
+
+      {tipo === 'ingreso' && !esPuntoVerde && (
         <>
           <div className="campo">
             <label htmlFor="origen">Procedencia</label>
@@ -456,7 +557,100 @@ export default function FormularioMovimiento({
             </div>
           )}
         </>
-      ) : (
+      )}
+
+      {tipo === 'salida' && esPuntoVerde && (
+        <>
+          <div className="campo">
+            <label htmlFor="destino">Quién se lo lleva</label>
+            <select
+              id="destino"
+              className="control"
+              value={destino}
+              aria-invalid={campos.destino ? true : undefined}
+              onChange={(e) => setDestino(e.target.value)}
+            >
+              <option value="">¿Quién se lo lleva?</option>
+              {listas.destinos.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.pendiente_revision ? `${d.nombre} · a confirmar` : d.nombre}
+                </option>
+              ))}
+              <option value={VECINO}>Un vecino</option>
+              <option value={NUEVA}>Agregar a la lista…</option>
+            </select>
+            {destinoElegido?.pendiente_revision && (
+              <span className="fila">
+                <span className="chip pendiente">A confirmar</span>
+                <span className="menor gris crecer">Lo cargó un vigilador y la coordinadora todavía no lo revisó.</span>
+              </span>
+            )}
+            {campos.destino && <span className="error">{campos.destino}</span>}
+          </div>
+
+          {destino === VECINO && <BloqueVecino valor={vecino} alCambiar={setVecino} />}
+
+          {destino === NUEVA && (
+            <div className="tarjeta-plana pila" style={{ padding: 14 }}>
+              <div className="campo">
+                <label htmlFor="entidad-nombre">Nombre</label>
+                <input
+                  id="entidad-nombre"
+                  className="control"
+                  type="text"
+                  maxLength={120}
+                  autoComplete="off"
+                  placeholder="Cómo lo anotamos en la lista"
+                  value={entidadNombre}
+                  aria-invalid={campos.entidadNombre ? true : undefined}
+                  onChange={(e) => setEntidadNombre(e.target.value)}
+                />
+                {campos.entidadNombre && <span className="error">{campos.entidadNombre}</span>}
+              </div>
+
+              <div className="campo">
+                <label htmlFor="entidad-tipo">Qué es</label>
+                <select
+                  id="entidad-tipo"
+                  className="control"
+                  value={entidadTipo}
+                  aria-invalid={campos.entidadTipo ? true : undefined}
+                  onChange={(e) => setEntidadTipo(e.target.value as TipoEntidadNueva | '')}
+                >
+                  <option value="">Elegí qué es…</option>
+                  {TIPOS_ENTIDAD.map((t) => (
+                    <option key={t} value={t}>{ETIQUETA_ENTIDAD[t]}</option>
+                  ))}
+                </select>
+                {campos.entidadTipo && <span className="error">{campos.entidadTipo}</span>}
+              </div>
+
+              <span className="menor gris">
+                Queda en la lista para que la coordinadora lo confirme.
+              </span>
+            </div>
+          )}
+
+          <div className="campo">
+            <span className="etiqueta" id="rotulo-valorizacion">Para qué se lo lleva</span>
+            <div className="sugerencias" role="group" aria-labelledby="rotulo-valorizacion">
+              {VALORIZACIONES.map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  aria-pressed={valorizacion === v}
+                  onClick={() => setValorizacion(v)}
+                >
+                  {ETIQUETA_VALORIZACION[v]}
+                </button>
+              ))}
+            </div>
+            {campos.valorizacion && <span className="error">{campos.valorizacion}</span>}
+          </div>
+        </>
+      )}
+
+      {tipo === 'salida' && !esPuntoVerde && (
         <>
           <div className="campo">
             <label htmlFor="destino">Destino</label>
@@ -496,25 +690,29 @@ export default function FormularioMovimiento({
       )}
 
       {/* ── Transporte ─────────────────────────────────────────────────── */}
-      <div className="campo">
-        <label htmlFor="vehiculo">Patente</label>
-        <select id="vehiculo" className="control" value={vehiculo} onChange={(e) => setVehiculo(e.target.value)}>
-          <option value="">Sin vehículo</option>
-          {listas.vehiculos.map((v) => (
-            <option key={v.id} value={v.id}>{v.patente}</option>
-          ))}
-        </select>
-      </div>
+      {llevaTransporte && (
+        <>
+          <div className="campo">
+            <label htmlFor="vehiculo">Patente</label>
+            <select id="vehiculo" className="control" value={vehiculo} onChange={(e) => setVehiculo(e.target.value)}>
+              <option value="">Sin vehículo</option>
+              {listas.vehiculos.map((v) => (
+                <option key={v.id} value={v.id}>{v.patente}</option>
+              ))}
+            </select>
+          </div>
 
-      <div className="campo">
-        <label htmlFor="chofer">Chofer</label>
-        <select id="chofer" className="control" value={chofer} onChange={(e) => setChofer(e.target.value)}>
-          <option value="">Sin chofer</option>
-          {listas.choferes.map((c) => (
-            <option key={c.id} value={c.id}>{c.nombre}</option>
-          ))}
-        </select>
-      </div>
+          <div className="campo">
+            <label htmlFor="chofer">Chofer</label>
+            <select id="chofer" className="control" value={chofer} onChange={(e) => setChofer(e.target.value)}>
+              <option value="">Sin chofer</option>
+              {listas.choferes.map((c) => (
+                <option key={c.id} value={c.id}>{c.nombre}</option>
+              ))}
+            </select>
+          </div>
+        </>
+      )}
 
       <div className="campo">
         <label htmlFor="observaciones">Observaciones</label>

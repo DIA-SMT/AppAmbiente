@@ -1,0 +1,62 @@
+/* Todo el color sale de las variables: el gráfico se adapta solo a los dos temas.
+   La parte "sin datos" va del mismo color, más clara y con trama, para que no
+   dependa solo del color y se distinga igual en una impresión en blanco y negro. */
+
+.marco {
+  display: block;
+  width: 100%;
+  height: auto;
+  color: var(--gris);
+}
+
+.grilla { stroke: var(--linea); stroke-width: 1; }
+.base   { stroke: var(--linea-fuerte); stroke-width: 1; }
+
+.rotuloPunto {
+  fill: currentColor;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+
+.rotuloValor {
+  fill: currentColor;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cifraBarra {
+  fill: var(--tinta);
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* La trama se aplica con el atributo fill del rect, no desde acá: un
+   url(#…) dentro de una hoja de estilos externa no siempre resuelve contra el
+   documento y el relleno queda en negro. */
+.barraConDatos { fill: var(--azul); }
+
+.tramaFondo { fill: var(--azul); opacity: .24; }
+.tramaLinea { stroke: var(--azul); stroke-width: 2.5; opacity: .55; }
+
+.leyenda { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.clave { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; color: var(--texto); }
+
+.muestraSolida,
+.muestraTrama {
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  flex: 0 0 auto;
+}
+.muestraSolida { background: var(--azul); }
+.muestraTrama {
+  background:
+    repeating-linear-gradient(
+      45deg,
+      color-mix(in srgb, var(--azul) 55%, transparent) 0 2px,
+      transparent 2px 5px
+    ),
+    color-mix(in srgb, var(--azul) 24%, transparent);
+}

@@ -5,3 +5,7 @@ node_modules/
 .env.local
 *.tsbuildinfo
 next-env.d.ts
+
+# SQL generado para pegar en el editor del proveedor (npm run db:sql).
+# Trae hashes con sal nueva en cada corrida, así que no tiene sentido versionarlo.
+db/produccion.sql

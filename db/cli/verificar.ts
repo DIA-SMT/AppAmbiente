@@ -13,6 +13,7 @@ import { obtenerBase, describirMotor } from '../client'
 
 let pasaron = 0
 let fallaron = 0
+let omitidas = 0
 
 function revisar(descripcion: string, condicion: boolean, detalle = '') {
   if (condicion) {
@@ -41,7 +42,23 @@ async function contar(sesion: Sesion, sql: string, params: unknown[] = []): Prom
 
 const MARCA = 'Generado por db:verificar'
 const TELEFONOS_PRUEBA = ['3814569988']
-const ENTIDADES_PRUEBA = ['Carrero de prueba', 'Productor de prueba verificar']
+/** La que crea esta verificación para tener algo con CUIT y teléfono que leer. */
+const ENTIDAD_FIJA = 'Organización de prueba verificar'
+const ENTIDADES_PRUEBA = ['Carrero de prueba', 'Productor de prueba verificar', ENTIDAD_FIJA]
+const PILA_PRUEBA = 'VERIF-PRUEBA'
+
+/**
+ * Una comprobación que no se puede hacer sobre esta base.
+ *
+ * No es lo mismo que fallar. Las que miran la cadena del compost necesitan
+ * movimientos vinculados a pilas, y una base recién creada no los tiene —ni los
+ * va a tener hasta que la Planta cargue el primer camión—. Contarlas como
+ * fallas haría que una base sana se vea rota.
+ */
+function omitir(descripcion: string, porque: string) {
+  omitidas++
+  console.log(`  · ${descripcion}  → ${porque}`)
+}
 
 /**
  * Borra lo que dejó una corrida anterior, para que correr esto dos veces dé el
@@ -68,6 +85,11 @@ async function limpiarRastros() {
       [TELEFONOS_PRUEBA],
     )
     await tx.consultar('delete from entidades where nombre = any($1::text[])', [ENTIDADES_PRUEBA])
+    await tx.consultar(
+      'delete from pila_controles where pila_id in (select id from pilas where codigo = $1)',
+      [PILA_PRUEBA],
+    )
+    await tx.consultar('delete from pilas where codigo = $1', [PILA_PRUEBA])
   })
 }
 
@@ -90,6 +112,36 @@ async function main() {
   const admin = buscar('coordinacion')
   const planta = buscar('planta')
   const otroPunto = buscar('pv02')
+
+  // Contra una base recién creada no hay nada cargado, y una comprobación sobre
+  // la nada engaña en las dos direcciones: "la coordinadora ve los movimientos"
+  // falla por no haber ninguno, y "el vigilador no lee entidades" pasa porque no
+  // hay entidades que leer. Así que se pone una fila de cada cosa antes de
+  // empezar. limpiarRastros() las saca al final.
+  await comoServicio(async (tx) => {
+    await tx.consultar(
+      `insert into entidades (nombre, tipo, habilitada_destino, flujos, cuit, telefono, notas)
+       select $1, 'organizacion', true, array['planta']::text[], '30-11111111-1', '381 400 0000', $2
+        where not exists (select 1 from entidades where nombre = $1)`,
+      [ENTIDAD_FIJA, MARCA],
+    )
+    const [mov] = await tx.consultar<{ id: string }>(
+      `insert into movimientos (flujo, tipo, sitio_id, origen_clase, origen_detalle,
+                                destino_clase, destino_sitio_id, cargado_por_id, observaciones)
+       values ('planta', 'ingreso', $1, 'texto', 'Preparación de db:verificar',
+               'sitio', $1, $2, $3)
+       returning id`,
+      [planta.sitioId, planta.perfilId, MARCA],
+    )
+    await tx.consultar(
+      `insert into movimiento_items (movimiento_id, material_id, cantidad, unidad_id)
+       select $1, m.id, 1, m.unidad_default_id
+         from materiales m
+        where m.activo and 'planta' = any(m.flujos) and 'ingreso' = any(m.tipos)
+        order by m.orden limit 1`,
+      [mov.id],
+    )
+  })
 
   console.log('  Lectura de movimientos')
   const totalAdmin = await contar(admin, 'select count(*) c from movimientos')
@@ -187,16 +239,6 @@ async function main() {
   )
   revisar('la auditoría guarda quién lo cargó', conActor > 0)
 
-  // El movimiento de prueba queda anulado, no borrado: en este sistema no se borra.
-  await conSesion(admin, (tx) =>
-    tx.consultar(
-      `update movimientos
-          set estado = 'anulado', motivo_anulacion = 'Movimiento de prueba de db:verificar',
-              anulado_por_id = $1, anulado_en = now()
-        where observaciones = 'Generado por db:verificar' and estado = 'vigente'`,
-      [admin.perfilId],
-    ),
-  )
 
   // ═══ Fase 2 · Puntos Verdes ═══════════════════════════════════════════
   const pv = otroPunto
@@ -386,12 +428,25 @@ async function main() {
   // ═══ Pilas de compost ═════════════════════════════════════════════════
   console.log('\n  Pilas de compost')
 
+  // Una base recién creada no tiene pilas: las arma la Planta a medida que
+  // junta poda. Para poder probar las políticas hace falta una, así que si no
+  // hay se crea acá y limpiarRastros() la saca al final.
+  await comoServicio((tx) =>
+    tx.consultar(
+      `insert into pilas (codigo, sitio_id, estado, fecha_armado, notas)
+       select $1, $2, 'en_formacion', current_date, $3
+        where not exists (select 1 from pilas where codigo = $1)`,
+      [PILA_PRUEBA, planta.sitioId, MARCA],
+    ),
+  )
+
   const [unaPila] = await conSesion(planta, (tx) =>
     tx.consultar<{ id: string; codigo: string }>(
-      "select id, codigo from v_pilas where activo order by codigo limit 1",
+      'select id, codigo from v_pilas where activo order by codigo limit 1',
     ),
   )
   revisar('el vigilador de la Planta ve sus pilas', Boolean(unaPila?.id))
+  if (!unaPila?.id) throw new Error('Sin pila no se pueden probar los controles.')
 
   const pilasDesdeOtroPunto = await contar(pv, 'select count(*) c from v_pilas')
   revisar(
@@ -446,28 +501,19 @@ async function main() {
         limit 1`,
     ),
   )
-  revisar(
-    'una salida de compost sabe de qué pila y de qué poda viene',
-    cadena.length === 1,
-    cadena[0] ? `${cadena[0].pila}: ${Number(cadena[0].m3).toFixed(0)} m³ de ${cadena[0].procedencias?.slice(0, 40)}…` : '',
-  )
-
-  // Lo cargado por esta verificación queda anulado, no borrado. Y la entidad de
-  // prueba se da de baja, para que no aparezca en la bandeja de revisiones de la
-  // coordinadora cada vez que alguien corre esto.
-  await conSesion(admin, async (tx) => {
-    await tx.consultar(
-      `update movimientos
-          set estado = 'anulado', motivo_anulacion = 'Movimiento de prueba de db:verificar',
-              anulado_por_id = $1, anulado_en = now()
-        where observaciones = 'Generado por db:verificar' and estado = 'vigente'`,
-      [admin.perfilId],
+  const hayCadena = await contar(admin, 'select count(*) c from movimientos where pila_id is not null')
+  if (hayCadena === 0) {
+    omitir(
+      'una salida de compost sabe de qué pila y de qué poda viene',
+      'todavía no hay movimientos vinculados a pilas',
     )
-    await tx.consultar(
-      `update entidades set activo = false, pendiente_revision = false
-        where nombre in ('Carrero de prueba', 'Productor de prueba verificar')`,
+  } else {
+    revisar(
+      'una salida de compost sabe de qué pila y de qué poda viene',
+      cadena.length === 1,
+      cadena[0] ? `${cadena[0].pila}: ${Number(cadena[0].m3).toFixed(0)} m³ de ${cadena[0].procedencias?.slice(0, 40)}…` : '',
     )
-  })
+  }
 
   // ═══ Conteo diario ════════════════════════════════════════════════════
   console.log('\n  Conteo diario de vecinos')
@@ -674,7 +720,29 @@ async function main() {
     )
   }
 
-  console.log(`\n  ${pasaron} bien · ${fallaron} mal\n`)
+  // Lo que cargó esta verificación queda anulado, no borrado: en este sistema
+  // nada se borra. Va al final para que las comprobaciones que miran vecinos y
+  // conteos lo tengan todavía vigente mientras corren. Y la entidad de prueba se
+  // da de baja, para que no aparezca en la bandeja de revisiones de la
+  // coordinadora cada vez que alguien corre esto.
+  await conSesion(admin, async (tx) => {
+    await tx.consultar(
+      `update movimientos
+          set estado = 'anulado', motivo_anulacion = 'Movimiento de prueba de db:verificar',
+              anulado_por_id = $1, anulado_en = now()
+        where observaciones = $2 and estado = 'vigente'`,
+      [admin.perfilId, MARCA],
+    )
+    await tx.consultar(
+      `update entidades set activo = false, pendiente_revision = false
+        where nombre = any($1::text[])`,
+      [ENTIDADES_PRUEBA],
+    )
+  })
+
+  console.log(
+    `\n  ${pasaron} bien · ${fallaron} mal${omitidas ? ` · ${omitidas} sin datos para probar` : ''}\n`,
+  )
   await (await obtenerBase()).cerrar()
   process.exit(fallaron === 0 ? 0 : 1)
 }

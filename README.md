@@ -89,7 +89,11 @@ npm run db:verificar
 ```
 
 Cuarenta y cuatro comprobaciones contra la base real, y es repetible: limpia sus propios
-rastros antes de empezar, así correrla dos veces da lo mismo.
+rastros antes de empezar, así correrla dos veces da lo mismo. Sirve igual contra una
+base recién creada: se arma las filas que necesita —una entidad con CUIT, un
+movimiento, una pila— porque una comprobación sobre la nada engaña en las dos
+direcciones. «La coordinadora ve los movimientos» falla por no haber ninguno, y «el
+vigilador no lee entidades» pasa porque no hay entidades que leer.
 
 **De los permisos:** que un vigilador de otro punto no vea los movimientos de la
 Planta, que no lea la tabla `entidades` (pero sí la vista sin CUIT ni teléfono), que
@@ -131,38 +135,76 @@ que un vigilador no ve lo que no tiene que ver no requiere desplegar nada.
 
 ### Poner la base en producción
 
-Sirve cualquier Postgres 15 o superior. Supabase y Neon ya traen los roles
-`anon` y `authenticated` que la migración 0001 detecta; en uno propio los crea ella.
+Sirve cualquier Postgres 15 o superior. Supabase y Neon ya traen los roles `anon`
+y `authenticated` que la migración 0001 detecta; en uno propio los crea ella.
+
+Hay dos caminos y los dos dejan exactamente la misma base.
+
+#### Opción A · pegar un archivo en el editor SQL
+
+Es la que conviene cuando no se puede conectar el CLI contra la base remota. Con
+Supabase pasa seguido: la conexión directa es **sólo IPv6** y muchos proveedores
+de internet de Tucumán todavía no lo dan, así que `npm run db:migrar` se queda
+esperando sin decir por qué.
+
+```bash
+npm run db:sql
+```
+
+Escribe `db/produccion.sql` (unos 130 KB): las 18 migraciones en orden, las filas
+de `app.migraciones` y los datos base. Se pega entero en **SQL Editor → New query
+→ Run**, y al final devuelve una tabla con lo que quedó cargado.
+
+Antes de escribir el archivo, `db:sql` lo ejecuta contra un Postgres en memoria y
+comprueba el resultado; si no da, falla y no lo escribe. El archivo arranca con un
+guardián que aborta si la base ya tiene migraciones aplicadas, así que no hay forma
+de aplicarlo dos veces por accidente.
+
+No se versiona: los hashes de las contraseñas llevan sal nueva en cada corrida, así
+que se regenera cuando se lo necesita.
+
+#### Opción B · el CLI contra la base remota
 
 Los proveedores dan dos cadenas de conexión y **no son intercambiables**:
 
 | | Cuál | Para qué |
 |---|---|---|
-| **Directa** | Supabase: puerto `5432`. Neon: el host sin `-pooler` | `db:migrar`, `db:sembrar`, `db:verificar` |
-| **Pooler** | Supabase: puerto `6543`. Neon: el host con `-pooler` | La app, o sea `DATABASE_URL` en Vercel |
+| **Sesión** | Supabase: el *pooler* en el puerto `5432`. Neon: el host sin `-pooler` | `db:migrar`, `db:sembrar`, `db:verificar` |
+| **Transacción** | Supabase: el *pooler* en el puerto `6543`. Neon: el host con `-pooler` | La app, o sea `DATABASE_URL` en Vercel |
 
 Las migraciones traen bloques `do $$ ... $$` que no sobreviven a un pooler en modo
 transacción. La app, al revés, abre una conexión por invocación y sin pooler agota
 el servidor.
 
 ```bash
-# 1 · Estructura: tablas, vistas, funciones y las políticas de seguridad.
-DATABASE_URL="<cadena directa>" npm run db:migrar
-
-# 2 · Datos base: los 9 sitios, los recipientes, las 14 corrientes, los
-#     contenedores y los usuarios. Nada inventado.
-DATABASE_URL="<cadena directa>" npm run db:sembrar
-
-# 3 · Que las políticas hagan lo que dicen, contra la base de verdad.
-DATABASE_URL="<cadena directa>" npm run db:verificar
+DATABASE_URL="<cadena de sesión>" npm run db:migrar
 ```
 
-El paso 2 **no carga movimientos de ejemplo**: fuera de la base local `db:sembrar`
-no los genera. Los datos inventados —choferes, patentes, destinos, pilas y unos
-2.300 movimientos— quedan detrás de `-- --ejemplos`, y en una base de verdad no se
-pueden sacar después: en este sistema nada se borra.
+```bash
+DATABASE_URL="<cadena de sesión>" npm run db:sembrar
+```
 
-Lo que queda vacío a propósito y carga la coordinadora:
+#### Con cualquiera de las dos
+
+```bash
+DATABASE_URL="<cadena de sesión>" npm run db:verificar
+```
+
+Contra un Postgres de verdad esto **falla** mientras algún usuario conserve la clave
+de fábrica. Es a propósito: están publicadas en este repositorio. Se cambian desde
+*Usuarios* y se vuelve a correr.
+
+Una comprobación queda *sin datos para probar* —la cadena del compost necesita
+movimientos vinculados a pilas, y una base nueva no los tiene hasta que la Planta
+cargue el primer camión—. Eso no es una falla.
+
+#### Lo que la base nueva NO trae
+
+Ningún dato inventado: ni choferes, ni patentes, ni destinos habilitados, ni pilas,
+ni movimientos. Fuera de la base local, `db:sembrar` no los genera, y en una base de
+verdad no se pueden sacar después: acá nada se borra.
+
+Lo que queda vacío lo carga la coordinadora:
 
 - **Personas y vehículos**, desde *Listas maestras*.
 - **Entidades** (destinos habilitados), desde *Revisiones*: el vigilador escribe a
@@ -170,8 +212,18 @@ Lo que queda vacío a propósito y carga la coordinadora:
   movimientos anteriores que habían escrito ese mismo destino a mano.
 - **Pilas**, desde *Compost*, a medida que se arman.
 
-El paso 3 **falla** mientras algún usuario conserve la clave de fábrica. Es a
-propósito: están publicadas en este repositorio. Se cambian desde *Usuarios*.
+#### Variables en Vercel
+
+Son dos, y ninguna más:
+
+| Nombre | Valor |
+|---|---|
+| `DATABASE_URL` | la cadena del pooler en **modo transacción** (`:6543`) |
+| `AUTH_SECRET` | `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"` |
+
+Sin `AUTH_SECRET` la app no arranca y lo dice. Se deja vacío en `.env.example` a
+propósito: con la clave de firma publicada, cualquiera podría emitirse una sesión de
+coordinación.
 
 ---
 
@@ -184,7 +236,8 @@ db/
   sesion.ts          conSesion() pone la identidad en la base antes de consultar
   credenciales.ts    hasheo de PIN con scrypt
   migraciones.ts     aplicador que usan el CLI y el servidor de desarrollo
-  cli/               migrar · sembrar · reset · verificar
+  datos-base.ts      los datos del relevamiento y las sentencias que los cargan
+  cli/               migrar · sembrar · reset · verificar · exportar-sql
 src/
   lib/               tipos, capa de datos, sesión, formato argentino
   app/
@@ -207,6 +260,7 @@ assets/marca/        identidad institucional (logos y plantilla de referencia)
 | `npm run db:migrar` | Aplica las migraciones pendientes |
 | `npm run db:sembrar` | Datos base. En la base local, además, datos de ejemplo (idempotente) |
 | `npm run db:sembrar -- --sin-ejemplos` | Solo los datos base, aunque sea la base local |
+| `npm run db:sql` | Escribe db/produccion.sql para pegar en el editor del proveedor |
 | `npm run db:reset` | Borra la base local y la rehace desde cero |
 | `npm run db:verificar` | Comprueba que las políticas de seguridad hagan lo que dicen |
 | `npm run typecheck` | Chequeo de tipos |

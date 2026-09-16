@@ -1,10 +1,10 @@
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { consultarConSesion } from '@db/sesion'
-import { listasDelFormulario } from '@/lib/datos'
+import { listasDelFormulario, pilasEnFormacion, pilasParaDespachar } from '@/lib/datos'
 import { paraInputFechaHora } from '@/lib/formato'
 import { sesionActual, type Sesion } from '@/lib/sesion'
-import type { Flujo } from '@/lib/tipos'
+import type { FilaPila, Flujo } from '@/lib/tipos'
 import FormularioMovimiento from './FormularioMovimiento'
 
 export const dynamic = 'force-dynamic'
@@ -36,7 +36,18 @@ export default async function Cargar({ params }: { params: Promise<{ tipo: strin
   if (!sesion) redirect('/ingresar')
 
   const flujo = await flujoDelSitio(sesion)
-  const listas = await listasDelFormulario(sesion, flujo, tipo)
+
+  // Las pilas solo existen en la Planta, y cada tipo de movimiento ofrece las
+  // suyas: a un ingreso entra la que se está armando, de una salida sale una que
+  // ya se pueda despachar. En un punto verde no hay ninguna y el campo no existe.
+  const [listas, pilas] = await Promise.all([
+    listasDelFormulario(sesion, flujo, tipo),
+    flujo !== 'planta'
+      ? Promise.resolve<FilaPila[]>([])
+      : tipo === 'ingreso'
+        ? pilasEnFormacion(sesion)
+        : pilasParaDespachar(sesion),
+  ])
 
   const esPuntoVerde = flujo === 'punto_verde'
   const titulo = esPuntoVerde
@@ -60,6 +71,7 @@ export default async function Cargar({ params }: { params: Promise<{ tipo: strin
           tipo={tipo}
           flujo={flujo}
           listas={listas}
+          pilas={pilas}
           ahora={paraInputFechaHora()}
         />
       )}

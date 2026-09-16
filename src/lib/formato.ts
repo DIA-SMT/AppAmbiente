@@ -43,6 +43,37 @@ export function mesCorto(v: Date | string | null | undefined) {
   return fMesCorto.format(d).replace('.', '').toUpperCase()
 }
 
+/**
+ * Una columna `date` de Postgres, formateada como fecha argentina.
+ *
+ * Un `date` es una fecha de calendario: no tiene hora ni zona. El driver la
+ * entrega como un Date a medianoche UTC, y formatearla en hora de Tucumán
+ * (UTC−3) la corre al día anterior — el 1 de septiembre se lee como 31 de
+ * agosto. Hay que leer las partes en UTC y recién ahí armar la fecha.
+ *
+ * Para columnas `timestamptz` —que sí son un instante— va fecha() o fechaHora(),
+ * que convierten a hora de Tucumán como corresponde.
+ */
+export function fechaDeCalendario(v: Date | string | null | undefined): string {
+  if (v === null || v === undefined || v === '') return '—'
+  if (typeof v === 'string') {
+    const m = /^(d{4})-(d{2})-(d{2})/.exec(v)
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : '—'
+  }
+  if (Number.isNaN(v.getTime())) return '—'
+  const dos = (n: number) => String(n).padStart(2, '0')
+  return `${dos(v.getUTCDate())}/${dos(v.getUTCMonth() + 1)}/${v.getUTCFullYear()}`
+}
+
+/** La misma fecha de calendario, como clave aaaa-mm-dd para agrupar. */
+export function claveDeCalendario(v: Date | string | null | undefined): string | null {
+  if (v === null || v === undefined || v === '') return null
+  if (typeof v === 'string') return v.slice(0, 10) || null
+  if (Number.isNaN(v.getTime())) return null
+  const dos = (n: number) => String(n).padStart(2, '0')
+  return `${v.getUTCFullYear()}-${dos(v.getUTCMonth() + 1)}-${dos(v.getUTCDate())}`
+}
+
 /** Números con coma decimal. Los decimales se piden según la unidad. */
 export function numero(v: number | string | null | undefined, decimales = 0): string {
   if (v === null || v === undefined || v === '') return '—'

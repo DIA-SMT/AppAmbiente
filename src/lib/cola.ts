@@ -61,6 +61,13 @@ export const esquemaMovimiento = z.object({
   tipo_valorizacion: z
     .enum(['reutilizacion', 'venta', 'emprendimiento', 'otro'])
     .nullish(),
+  /**
+   * A qué pila entró la poda, o de cuál salió el compost. Es lo que cierra la
+   * cadena que pidió la Secretaría: sin esto, un camión de compost no tiene de
+   * dónde. Opcional a propósito: perder el movimiento sería peor que perder la
+   * trazabilidad de ese movimiento.
+   */
+  pila_id: uuid.nullish(),
   vehiculo_id: uuid.nullish(),
   chofer_id: uuid.nullish(),
   autorizado_por_id: uuid.nullish(),

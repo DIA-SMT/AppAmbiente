@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { consultarConSesion } from '@db/sesion'
-import { movimientoPorId } from '@/lib/datos'
+import { movimientoPorId, trazaDeSalida } from '@/lib/datos'
 import { exigirAdmin } from '@/lib/sesion'
 import {
   ETIQUETA_ENTIDAD, ETIQUETA_FLUJO, ETIQUETA_TIPO, ETIQUETA_VALORIZACION,
@@ -9,6 +9,7 @@ import {
 } from '@/lib/formato'
 import type { ItemListado } from '@/lib/tipos'
 import AnularMovimiento from './AnularMovimiento'
+import Trazabilidad from './Trazabilidad'
 
 export const dynamic = 'force-dynamic'
 
@@ -65,6 +66,11 @@ export default async function PantallaMovimiento({
         [id],
       )
     : []
+
+  // La vista de trazabilidad solo mira salidas vigentes: en una anulada no hay
+  // nada que contar, y el aviso de arriba ya explica por qué.
+  const esSalidaVigente = m.tipo === 'salida' && !anulado
+  const traza = esSalidaVigente ? await trazaDeSalida(sesion, id) : null
 
   const claseTipo = m.tipo === 'ingreso' || m.tipo === 'salida' ? ` ${m.tipo}` : ''
 
@@ -193,6 +199,8 @@ export default async function PantallaMovimiento({
           </table>
         </div>
       </section>
+
+      {esSalidaVigente && <Trazabilidad traza={traza} />}
 
       <section className="tarjeta-plana pila-chica" style={{ padding: 16, background: 'var(--panel-2)' }}>
         <h2>Trazabilidad</h2>

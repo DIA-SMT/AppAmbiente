@@ -213,10 +213,24 @@ async function sembrar() {
       }
     }
 
-    // ── Pilas de compost (creadas, sin pantalla en la fase 1) ────────────
+    // ── Pilas de compost ─────────────────────────────────────────────────
+    // Diecisiete pilas de 1 × 1 × 100 m escalonadas en el tiempo: las más
+    // viejas ya se despacharon, la última se está armando. Sin ese escalonado
+    // no se puede ver si el tablero distingue una pila lista de una atrasada.
     await tx.consultar(
-      `insert into pilas (codigo, sitio_id, estado)
-       select 'P-' || lpad(n::text, 2, '0'), (select id from sitios where codigo = 'PVRV'), 'madurando'
+      `insert into pilas (codigo, sitio_id, estado, fecha_armado, fecha_cierre, largo_m, ancho_m, alto_m)
+       select
+         'P-' || lpad(n::text, 2, '0'),
+         (select id from sitios where codigo = 'PVRV'),
+         case
+           when n <= 3  then 'despachada'
+           when n <= 6  then 'lista'
+           when n <= 15 then 'madurando'
+           else 'en_formacion'
+         end,
+         (current_date - ((18 - n) * 21))::date,
+         case when n <= 15 then (current_date - ((18 - n) * 21) + 18)::date end,
+         100, 1, 1
          from generate_series(1, 17) n
        on conflict (codigo) do nothing`,
     )
@@ -569,6 +583,124 @@ async function sembrar() {
       `select count(*)::text as total from movimientos where flujo = 'punto_verde'`,
     )
     console.log(`  ${creados} movimientos de puntos verdes generados (últimos 4 meses).`)
+  })
+
+  // ── La cadena del compost ───────────────────────────────────────────────
+  // Sin esto las pilas quedan como cajas vacías y no se puede evaluar lo único
+  // que la Secretaría nombró como necesidad no cubierta: saber de dónde salió
+  // un camión de compost. Se arma en dos pasos.
+  await comoServicio(async (tx) => {
+    const [{ ya }] = await tx.consultar<{ ya: string }>(
+      'select count(*)::text as ya from movimientos where pila_id is not null',
+    )
+    if (Number(ya) > 0) {
+      console.log('  La cadena del compost ya está armada: no se toca.')
+      return
+    }
+
+    // 1. Cada ingreso a la Planta entra a la pila que estaba abierta ese día,
+    //    hasta llenarla. Una pila mide 1 × 1 × 100 m: no le entran veinte
+    //    camiones. Sin el tope, toda la ventana caía en la misma pila y la
+    //    ficha mostraba 700 m³ en una cancha de 100.
+    //
+    //    Los ingresos que no entran quedan sin pila, que también es realista:
+    //    no todos los camiones se anotan, sobre todo al principio. Y hace que
+    //    el indicador de "cuántas salidas declaran pila" tenga algo que medir.
+    await tx.consultar(`
+      with ordenados as (
+        select
+          m.id,
+          p.id as pila_id,
+          sum(i.m3) over (partition by p.id order by m.ocurrido_en
+                          rows between unbounded preceding and current row) as acumulado
+        from movimientos m
+        join pilas p
+          on p.sitio_id = m.sitio_id
+         and m.ocurrido_en::date between p.fecha_armado
+                                     and coalesce(p.fecha_cierre, current_date)
+        join lateral (
+          select sum(it.cantidad * coalesce(u.factor_m3, 0)) as m3
+            from movimiento_items it join unidades u on u.id = it.unidad_id
+           where it.movimiento_id = m.id
+        ) i on true
+        where m.flujo = 'planta' and m.tipo = 'ingreso' and m.pila_id is null
+      )
+      update movimientos m
+         set pila_id = o.pila_id
+        from ordenados o
+       where m.id = o.id
+         and o.acumulado <= (select largo_m * ancho_m * alto_m from pilas where id = o.pila_id)
+    `)
+
+    // 2. Cada salida de compost, triturado o leña sale de una pila que ya podía
+    //    despacharse a esa fecha. Las salidas de chipeo no: el chipeo no pasa
+    //    por pila, se tritura y se va.
+    await tx.consultar(`
+      update movimientos m
+         set pila_id = elegida.id
+        from (
+          select m2.id as movimiento_id,
+                 -- Nunca de una pila en formación: de esas todavía no sale nada.
+                 (select p.id
+                    from pilas p
+                   where p.sitio_id = m2.sitio_id
+                     and p.estado <> 'en_formacion'
+                     and p.fecha_cierre is not null
+                     and p.fecha_cierre < m2.ocurrido_en::date
+                   order by p.fecha_cierre desc
+                   limit 1) as id
+            from movimientos m2
+           where m2.flujo = 'planta' and m2.tipo = 'salida' and m2.pila_id is null
+             and exists (
+               select 1 from movimiento_items i join materiales mt on mt.id = i.material_id
+                where i.movimiento_id = m2.id
+                  and mt.nombre in ('Compost', 'Triturado', 'Leña'))
+        ) elegida
+       where m.id = elegida.movimiento_id and elegida.id is not null
+    `)
+
+    // 3. Controles: un volteo cada dos semanas desde el cierre y riegos entre
+    //    medio. La pila P-13 queda sin voltear a propósito, para que el tablero
+    //    tenga al menos una atrasada que mostrar.
+    await tx.consultar(
+      `insert into pila_controles (pila_id, tipo, ocurrido_en, registrado_por_id)
+       select p.id, 'volteo',
+              (p.fecha_cierre + (n * 14))::timestamptz + interval '9 hours',
+              (select id from perfiles where usuario = 'planta')
+         from pilas p, generate_series(1, 8) n
+        where p.fecha_cierre is not null
+          and p.codigo <> 'P-13'
+          and (p.fecha_cierre + (n * 14)) <= current_date`,
+    )
+    await tx.consultar(
+      `insert into pila_controles (pila_id, tipo, ocurrido_en, registrado_por_id)
+       select p.id, 'riego',
+              (p.fecha_cierre + (n * 7))::timestamptz + interval '16 hours',
+              (select id from perfiles where usuario = 'planta')
+         from pilas p, generate_series(1, 16) n
+        where p.fecha_cierre is not null
+          and (p.fecha_cierre + (n * 7)) <= current_date`,
+    )
+    // Una temperatura por pila, que es el otro control que se anota.
+    await tx.consultar(
+      `insert into pila_controles (pila_id, tipo, ocurrido_en, valor, registrado_por_id)
+       select p.id, 'temperatura',
+              (coalesce(p.fecha_cierre, p.fecha_armado) + 30)::timestamptz + interval '10 hours',
+              48 + (('x' || substr(md5(p.codigo), 1, 4))::bit(16)::int % 22),
+              (select id from perfiles where usuario = 'planta')
+         from pilas p
+        where (coalesce(p.fecha_cierre, p.fecha_armado) + 30) <= current_date`,
+    )
+
+    const [r] = await tx.consultar<{ ing: string; sal: string; ctrl: string }>(
+      `select
+         (select count(*)::text from movimientos where pila_id is not null and tipo = 'ingreso') as ing,
+         (select count(*)::text from movimientos where pila_id is not null and tipo = 'salida')  as sal,
+         (select count(*)::text from pila_controles) as ctrl`,
+    )
+    console.log(
+      `  Cadena del compost: ${r.ing} ingresos y ${r.sal} salidas vinculados a pilas, ${r.ctrl} controles.`,
+    )
   })
 
   const totales = await comoServicio((tx) =>

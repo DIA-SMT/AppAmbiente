@@ -27,6 +27,19 @@ function FlechaArriba() {
   )
 }
 
+/** Dar vuelta la pila: dos flechas que giran. */
+function Voltear() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+      <path d="M3 21v-5h5" />
+    </svg>
+  )
+}
+
 export default async function InicioDeTurno() {
   const sesion = await sesionActual()
   if (!sesion) redirect('/ingresar')
@@ -82,6 +95,21 @@ export default async function InicioDeTurno() {
           <span className="detalle">{textos.salida.detalle}</span>
         </span>
       </Link>
+
+      {/* Las pilas son de la Planta: un punto verde no tiene ninguna. */}
+      {!esPuntoVerde && (
+        <Link
+          href="/pila"
+          className="boton-accion"
+          style={{ borderColor: 'color-mix(in srgb, var(--azul) 40%, transparent)' }}
+        >
+          <span className="icono" style={{ background: 'var(--azul)' }}><Voltear /></span>
+          <span>
+            <span className="rotulo">Anotar volteo o riego</span>
+            <span className="detalle">Control de las pilas</span>
+          </span>
+        </Link>
+      )}
 
       <div className="tarjeta fila-entre">
         <div>

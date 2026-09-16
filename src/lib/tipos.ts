@@ -169,6 +169,8 @@ export interface MovimientoNuevo {
   vigilador_id?: string | null
   tipo_valorizacion?: TipoValorizacion | null
   vecino_sin_datos?: boolean
+  /** A qué pila entró, o de cuál salió. Solo en el flujo de la Planta. */
+  pila_id?: string | null
   /** Si viene, la base lo resuelve contra los vecinos ya registrados. */
   vecino?: VecinoDelCelular | null
   entidad_nueva?: { nombre: string; tipo: string } | null
@@ -270,4 +272,85 @@ export interface FilaResumen {
   movimientos: number
   cantidad: number
   equivalente_m3: number
+}
+
+// ── Pilas de compost ────────────────────────────────────────────────────
+
+export type EstadoPila = 'en_formacion' | 'madurando' | 'lista' | 'despachada'
+export type TipoControl = 'volteo' | 'riego' | 'temperatura' | 'humedad' | 'observacion'
+
+/** Fila de v_pilas. */
+export interface FilaPila {
+  id: string
+  codigo: string
+  sitio_id: string
+  sitio_nombre: string
+  estado: EstadoPila
+  fecha_armado: string | null
+  fecha_cierre: string | null
+  madurez: string | null
+  largo_m: number | null
+  ancho_m: number | null
+  alto_m: number | null
+  volumen_nominal_m3: number | null
+  composicion: string | null
+  notas: string | null
+  activo: boolean
+  responsable: string | null
+  dias_desde_armado: number | null
+  /** Negativo si ya pasó la fecha de madurez. */
+  dias_para_madurez: number | null
+  volteos: number
+  riegos: number
+  ultimo_volteo: string | null
+  ultima_temperatura: number | null
+  /** Cerrada y sin voltear hace más de tres semanas. */
+  volteo_atrasado: boolean
+  m3_ingresados: number
+  m3_despachados: number
+  ingresos: number
+  salidas: number
+}
+
+/** Fila de v_pila_composicion: de qué está hecha, calculado desde los ingresos. */
+export interface FilaComposicion {
+  pila_id: string
+  material_id: string
+  material: string
+  material_color: string
+  origen: string
+  movimientos: number
+  primer_ingreso: string
+  ultimo_ingreso: string
+  m3: number
+}
+
+export interface ControlDePila {
+  id: string
+  pila_id: string
+  tipo: TipoControl
+  ocurrido_en: string
+  valor: number | null
+  observacion: string | null
+  registrado_por: string | null
+}
+
+/** Fila de v_trazabilidad_salidas: de dónde salió este camión. */
+export interface TrazaDeSalida {
+  movimiento_id: string
+  numero: number
+  ocurrido_en: string
+  tipo_valorizacion: TipoValorizacion | null
+  destino: string
+  patente: string | null
+  chofer: string | null
+  autoriza: string | null
+  pila_id: string
+  pila: string
+  fecha_armado: string | null
+  fecha_cierre: string | null
+  madurez: string | null
+  volteos: number
+  m3_que_la_formaron: number | null
+  procedencias: string | null
 }

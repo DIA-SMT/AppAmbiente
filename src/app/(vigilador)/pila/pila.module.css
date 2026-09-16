@@ -1,0 +1,38 @@
+/* Lo propio de la pantalla de pilas. Todo lo demás sale de globals.css. */
+
+/* Cada pila termina en dos botones grandes: pegadas como .lista se leerían
+   como un solo bloque y el pulgar no encontraría dónde empieza cada una. */
+.tarjetas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Una pila madurando que hace más de tres semanas que no se voltea se pierde.
+   Se marca con el ámbar que globals.css ya usa para .aviso.atencion.
+   Va con el elemento adelante para ganarle al borde de .tarjeta. */
+li.atrasada { border-left: 4px solid var(--salida); }
+
+/* El chip del atraso no es un tipo de movimiento: es una alarma, y por eso no
+   reusa ninguna de las variantes de .chip. */
+span.atraso {
+  color: color-mix(in srgb, var(--salida) 45%, var(--tinta));
+  background: var(--salida-bg);
+  border-color: transparent;
+}
+
+/* Volteo y riego, del mismo ancho y uno al lado del otro: quedan en el mismo
+   lugar en todas las pilas de la lista y se tocan sin mirar. */
+.acciones { display: flex; gap: 10px; }
+.acciones > * { flex: 1 1 0; min-width: 0; }
+
+/* La temperatura se anota mucho menos que un volteo: el botón que la revela no
+   compite por el ancho con los dos de arriba. */
+.revelar { align-self: flex-start; }
+
+.temperatura { display: flex; gap: 10px; }
+.temperatura input { flex: 1 1 auto; min-width: 0; }
+.temperatura button { flex: 0 0 auto; }

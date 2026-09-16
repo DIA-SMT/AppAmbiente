@@ -21,7 +21,9 @@ import {
   ETIQUETA_ENTIDAD, ETIQUETA_TIPO, ETIQUETA_VALORIZACION,
   cantidad, desdeInputFechaHora, fechaHora, numero, paraInputFechaHora,
 } from '@/lib/formato'
-import type { Flujo, ListasDelFormulario, Material, TipoValorizacion, Unidad } from '@/lib/tipos'
+import type {
+  FilaPila, Flujo, ListasDelFormulario, Material, TipoValorizacion, Unidad,
+} from '@/lib/tipos'
 import BloqueVecino, {
   VECINO_VACIO, recordarBarrio, vecinoSinDatos, type DatosVecino,
 } from './BloqueVecino'
@@ -56,6 +58,45 @@ const ETIQUETA_RECIPIENTE: Record<string, string> = {
 
 /** A partir de este tamaño nadie descarga veinte de una: se cuentan de a uno. */
 const RECIPIENTE_GRANDE_M3 = 4
+
+// ── La pila ─────────────────────────────────────────────────────────────
+// Alguien tiene que decir a qué pila entró la poda y de cuál salió el compost:
+// sin eso la cadena «poda que entró → pila → compost que salió → destino» no
+// existe. Es un campo más y tiene que costar un toque.
+
+/**
+ * Los tres materiales que salen de una pila. El chipeo no: se tritura y se va,
+ * no pasa por ninguna. Se reconoce por el nombre porque el material no declara
+ * si pasa por pila — es el mismo criterio con el que la siembra arma la cadena.
+ */
+const MATERIALES_DE_PILA = ['compost', 'triturado', 'leña']
+
+function saleDeUnaPila(nombre: string | undefined): boolean {
+  return MATERIALES_DE_PILA.includes((nombre ?? '').trim().toLowerCase())
+}
+
+/**
+ * "madura en 14 días", "lista hace 2 meses". El signo de dias_para_madurez dice
+ * de qué lado de la fecha está: negativo es que ya pasó.
+ */
+function rotuloMadurez(p: FilaPila): string {
+  if (p.dias_para_madurez === null || p.dias_para_madurez === undefined) {
+    return 'sin fecha de madurez'
+  }
+  const dias = Number(p.dias_para_madurez)
+  if (!Number.isFinite(dias)) return 'sin fecha de madurez'
+
+  if (dias > 0) {
+    if (dias >= 60) return `madura en ${Math.round(dias / 30)} meses`
+    return `madura en ${dias} ${dias === 1 ? 'día' : 'días'}`
+  }
+
+  const pasados = -dias
+  if (pasados === 0) return 'lista hoy'
+  if (pasados < 45) return `lista hace ${pasados} ${pasados === 1 ? 'día' : 'días'}`
+  const meses = Math.round(pasados / 30)
+  return `lista hace ${meses} ${meses === 1 ? 'mes' : 'meses'}`
+}
 
 interface Fila {
   material: string
@@ -216,11 +257,14 @@ export default function FormularioMovimiento({
   tipo,
   flujo,
   listas,
+  pilas,
   ahora,
 }: {
   tipo: 'ingreso' | 'salida'
   flujo: Flujo
   listas: ListasDelFormulario
+  /** En un ingreso, las que están en formación; en una salida, las que se pueden despachar. */
+  pilas: FilaPila[]
   ahora: string
 }) {
   const router = useRouter()
@@ -248,6 +292,14 @@ export default function FormularioMovimiento({
   const [entidadNombre, setEntidadNombre] = useState('')
   const [entidadTipo, setEntidadTipo] = useState<TipoEntidadNueva | ''>('')
   const [valorizacion, setValorizacion] = useState<TipoValorizacion | ''>('')
+
+  // Se arma de a una pila por vez: si hay una sola en formación, el ingreso va
+  // ahí y no hay nada que elegir. Un select de un solo elemento es un toque
+  // regalado, así que se muestra el código y un botón para cambiarlo.
+  const [pila, setPila] = useState(() =>
+    tipo === 'ingreso' && pilas.length === 1 ? pilas[0].id : '',
+  )
+  const [cambiandoPila, setCambiandoPila] = useState(false)
 
   // Se genera una sola vez por formulario: si el primer envío falla y se
   // reintenta, el servidor reconoce que es el mismo movimiento y no lo duplica.
@@ -280,6 +332,13 @@ export default function FormularioMovimiento({
   const patente = listas.vehiculos.find((x) => x.id === vehiculo)?.patente
 
   const destinoElegido = listas.destinos.find((d) => d.id === destino)
+
+  // El campo de la pila aparece y desaparece solo, según lo que se esté
+  // cargando: una salida de chipeo no tiene pila de la cual salir.
+  const salePorPila = useMemo(
+    () => filas.some((f) => f.material && saleDeUnaPila(porId.get(f.material)?.nombre)),
+    [filas, porId],
+  )
 
   // Quién está de turno lo eligió la pantalla anterior y vive en este celular.
   // Si el que quedó guardado ya no está en la lista del punto, se manda vacío
@@ -396,6 +455,17 @@ export default function FormularioMovimiento({
     }
   }
 
+  /**
+   * La pila que se declara. Fuera de la Planta no hay ninguna, y en una salida
+   * que no pasa por pila —el chipeo— lo que se haya elegido antes no se manda:
+   * el campo ya no está en pantalla y mandarlo sería declarar algo que nadie vio.
+   */
+  function pilaDeclarada(): string | null {
+    if (flujo !== 'planta') return null
+    if (tipo === 'salida' && !salePorPila) return null
+    return pila || null
+  }
+
   function armar(): MovimientoDelCelular {
     // Si no tocó la fecha, vale el momento del envío y no el que se pintó al
     // abrir la pantalla.
@@ -414,6 +484,7 @@ export default function FormularioMovimiento({
       })),
       vehiculo_id: llevaTransporte ? vehiculo || null : null,
       chofer_id: llevaTransporte ? chofer || null : null,
+      pila_id: pilaDeclarada(),
       vigilador_id: vigiladorDelTurno(),
       observaciones: observaciones.trim() || null,
       client_uuid: uuidRef.current,
@@ -931,6 +1002,70 @@ export default function FormularioMovimiento({
             {campos.autoriza && <span className="error">{campos.autoriza}</span>}
           </div>
         </>
+      )}
+
+      {/* ── La pila ────────────────────────────────────────────────────── */}
+      {/* Solo en la Planta: el punto verde no tiene pilas. */}
+      {flujo === 'planta' && tipo === 'ingreso' && (
+        pilas.length === 0 ? (
+          <div className="aviso atencion">
+            No hay ninguna pila en formación. Pedile a la coordinadora que abra una desde el
+            panel. El ingreso se registra igual, pero después no se va a poder decir a qué pila
+            entró esta poda.
+          </div>
+        ) : pilas.length === 1 && !cambiandoPila ? (
+          <div className="campo automatico">
+            <span className="etiqueta">¿A qué pila va?</span>
+            <div className="fila-entre">
+              <span className="fuerte">{pilas[0].codigo}</span>
+              <button
+                type="button"
+                className="boton fantasma chico"
+                onClick={() => setCambiandoPila(true)}
+              >
+                Cambiar
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="campo">
+            <label htmlFor="pila">¿A qué pila va?</label>
+            <select
+              id="pila"
+              className="control"
+              value={pila}
+              onChange={(e) => setPila(e.target.value)}
+            >
+              <option value="">Sin pila</option>
+              {pilas.map((p) => (
+                <option key={p.id} value={p.id}>{p.codigo}</option>
+              ))}
+            </select>
+            <span className="ayuda">
+              Es lo que después dice de qué está hecho el compost que salga de ahí.
+            </span>
+          </div>
+        )
+      )}
+
+      {flujo === 'planta' && tipo === 'salida' && salePorPila && pilas.length > 0 && (
+        <div className="campo">
+          <label htmlFor="pila">¿De qué pila sale?</label>
+          <select
+            id="pila"
+            className="control"
+            value={pila}
+            onChange={(e) => setPila(e.target.value)}
+          >
+            <option value="">Sin indicar</option>
+            {pilas.map((p) => (
+              <option key={p.id} value={p.id}>{p.codigo} · {rotuloMadurez(p)}</option>
+            ))}
+          </select>
+          <span className="ayuda">
+            Es lo que permite decir de dónde salió este camión. Si no la sabés, dejalo sin indicar.
+          </span>
+        </div>
       )}
 
       {/* ── Transporte ─────────────────────────────────────────────────── */}

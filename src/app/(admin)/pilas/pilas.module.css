@@ -1,0 +1,158 @@
+/* Lo único que globals.css no cubre: el resumen de arriba, la barra de
+   maduración —que es lo que se lee de un vistazo— y las rejillas del
+   formulario y de la ficha. */
+
+/* ── Resumen del estado general ────────────────────────────────────────── */
+
+.resumen {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(152px, 1fr));
+}
+
+.dato {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: var(--toque);
+  padding: 14px 16px;
+  color: inherit;
+  text-decoration: none;
+}
+.dato:hover { border-color: var(--azul); box-shadow: var(--sombra-alta); }
+.dato .cifra {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--tinta);
+  font-variant-numeric: tabular-nums;
+}
+.dato .rotulo { font-size: .84rem; color: var(--gris); }
+
+/* La única de las cuatro que pide hacer algo. El color va en el borde y el
+   fondo, no en el número: ámbar sobre ámbar claro no se lee. */
+.dato.marcada { border-color: var(--salida); background: var(--salida-bg); }
+.dato.marcada .rotulo { color: var(--tinta); font-weight: 700; }
+
+/* ── Listado ───────────────────────────────────────────────────────────── */
+
+.grupo { display: flex; flex-direction: column; gap: 8px; }
+.tituloGrupo { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+
+.filaPila {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-height: var(--toque);
+  color: inherit;
+  text-decoration: none;
+}
+.filaPila:hover .codigo { text-decoration: underline; }
+
+.codigo {
+  font-family: var(--mono);
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--tinta);
+}
+
+.marcas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 16px;
+  font-size: .84rem;
+  color: var(--gris);
+  font-variant-numeric: tabular-nums;
+}
+.marcas b { color: var(--tinta); font-weight: 700; }
+
+/* ── Barra de maduración ───────────────────────────────────────────────── */
+
+.maduracion { display: flex; flex-direction: column; gap: 4px; }
+
+.barra {
+  height: 10px;
+  border-radius: 99px;
+  background: var(--linea);
+  overflow: hidden;
+}
+.avance {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--celeste), var(--azul));
+}
+.barra.completa .avance { background: var(--ingreso); }
+.barra.atrasada .avance { background: var(--salida); }
+
+.extremos {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  font-size: .78rem;
+  color: var(--gris);
+}
+
+/* ── Ficha ─────────────────────────────────────────────────────────────── */
+
+.datos {
+  margin: 0;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+}
+.datos > div { display: flex; flex-direction: column; gap: 2px; }
+.datos dd { margin: 0; color: var(--tinta); font-weight: 600; }
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  padding-top: 14px;
+  border-top: 1px solid var(--linea);
+}
+.acciones form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+
+.correccion { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+
+/* `campo` es de globals.css: en un módulo hay que pedirla global o el
+   compilador la renombra y la regla no engancha con nada. */
+.acciones :global(.campo) { flex: 0 1 190px; }
+.correccion :global(.campo) { flex: 0 1 230px; }
+
+/* ── Formulario ────────────────────────────────────────────────────────── */
+
+.rejilla {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(214px, 1fr));
+  align-items: start;
+}
+.entero { grid-column: 1 / -1; }
+
+.medidas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+
+.opcion {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--toque);
+  padding: 10px 16px 10px 13px;
+  border: 2px solid var(--linea);
+  border-radius: var(--r-chico);
+  background: var(--panel-2);
+  color: var(--tinta);
+  font-weight: 600;
+  cursor: pointer;
+}
+.opcion input { width: 22px; height: 22px; margin: 0; accent-color: var(--azul); }
+.opcion:has(input:checked) { border-color: var(--azul); background: var(--panel); }
+
+.pieFormulario {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  padding-top: 4px;
+}

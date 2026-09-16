@@ -60,6 +60,7 @@ async function limpiarRastros() {
       [MARCA],
     )
     await tx.consultar('delete from movimientos where observaciones = $1', [MARCA])
+    await tx.consultar('delete from pila_controles where observacion = $1', [MARCA])
     await tx.consultar(
       'delete from vecinos where app.normalizar_telefono(telefono) = any($1::text[])',
       [TELEFONOS_PRUEBA],
@@ -294,6 +295,25 @@ async function main() {
     )
   }
 
+  // Una tabla nueva sin GRANT falla con "permission denied" antes de que las
+  // políticas siquiera se evalúen. Pasó con pila_controles: se detecta acá para
+  // que no vuelva a pasar con la próxima.
+  const sinPermiso = await comoServicio((tx) =>
+    tx.consultar<{ tabla: string }>(
+      `select c.relname as tabla
+         from pg_class c
+         join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'public' and c.relkind = 'r'
+          and not has_table_privilege('authenticated', c.oid, 'SELECT')
+        order by 1`,
+    ),
+  )
+  revisar(
+    'todas las tablas tienen permiso de lectura para la app',
+    sinPermiso.length === 0,
+    sinPermiso.map((t) => t.tabla).join(', '),
+  )
+
   console.log('\n  Puntos Verdes · destinos escritos a mano')
 
   // Dos salidas al mismo destino escrito a mano, una con otras mayúsculas.
@@ -359,6 +379,75 @@ async function main() {
     'un vigilador no puede formalizar destinos',
     pv,
     "select app.formalizar_destino('x', 'Trucha', 'empresa', 'punto_verde')",
+  )
+
+  // ═══ Pilas de compost ═════════════════════════════════════════════════
+  console.log('\n  Pilas de compost')
+
+  const [unaPila] = await conSesion(planta, (tx) =>
+    tx.consultar<{ id: string; codigo: string }>(
+      "select id, codigo from v_pilas where activo order by codigo limit 1",
+    ),
+  )
+  revisar('el vigilador de la Planta ve sus pilas', Boolean(unaPila?.id))
+
+  const pilasDesdeOtroPunto = await contar(pv, 'select count(*) c from v_pilas')
+  revisar(
+    'un vigilador de punto verde no ve las pilas de la Planta',
+    pilasDesdeOtroPunto === 0,
+    `ve ${pilasDesdeOtroPunto}`,
+  )
+
+  const controlesAntes = await contar(admin, 'select count(*) c from pila_controles')
+  await conSesion(planta, (tx) =>
+    tx.consultar(
+      `insert into pila_controles (pila_id, tipo, registrado_por_id, observacion)
+       values ($1, 'volteo', $2, $3)`,
+      [unaPila.id, planta.perfilId, MARCA],
+    ),
+  )
+  const controlesDespues = await contar(admin, 'select count(*) c from pila_controles')
+  revisar('el vigilador puede anotar un volteo', controlesDespues === controlesAntes + 1)
+
+  await debeFallar(
+    'no puede anotarlo en una pila de otro sitio',
+    pv,
+    `insert into pila_controles (pila_id, tipo, registrado_por_id, observacion)
+     values ($1, 'volteo', $2, $3)`,
+    [unaPila.id, pv.perfilId, MARCA],
+  )
+
+  await debeFallar(
+    'no puede anotar a nombre de otro',
+    planta,
+    `insert into pila_controles (pila_id, tipo, registrado_por_id, observacion)
+     values ($1, 'riego', $2, $3)`,
+    [unaPila.id, admin.perfilId, MARCA],
+  )
+
+  await debeFallar(
+    'una temperatura sin valor se rechaza',
+    planta,
+    `insert into pila_controles (pila_id, tipo, registrado_por_id, observacion)
+     values ($1, 'temperatura', $2, $3)`,
+    [unaPila.id, planta.perfilId, MARCA],
+  )
+
+  // La cadena completa: la composición de una pila sale de los ingresos que la
+  // formaron, no de una declaración. Es lo que vuelve contestable la pregunta
+  // "¿de dónde salió este camión de compost?".
+  const cadena = await conSesion(admin, (tx) =>
+    tx.consultar<{ pila: string; m3: string; procedencias: string | null }>(
+      `select pila, m3_que_la_formaron::text as m3, procedencias
+         from v_trazabilidad_salidas
+        where m3_que_la_formaron > 0 and procedencias is not null
+        limit 1`,
+    ),
+  )
+  revisar(
+    'una salida de compost sabe de qué pila y de qué poda viene',
+    cadena.length === 1,
+    cadena[0] ? `${cadena[0].pila}: ${Number(cadena[0].m3).toFixed(0)} m³ de ${cadena[0].procedencias?.slice(0, 40)}…` : '',
   )
 
   // Lo cargado por esta verificación queda anulado, no borrado. Y la entidad de

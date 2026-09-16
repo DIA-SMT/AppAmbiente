@@ -6,7 +6,8 @@
 import 'server-only'
 import { conSesion, consultarConSesion, type Sesion } from '@db/sesion'
 import type {
-  DestinoAFormalizar, Entidad, FilaResumen, FilaValorizacion, FilaVecinos, FiltrosMovimientos,
+  ControlDePila, DestinoAFormalizar, Entidad, EstadoPila, FilaComposicion, FilaPila,
+  FilaResumen, FilaValorizacion, FilaVecinos, FiltrosMovimientos, TipoControl, TrazaDeSalida,
   ItemListado, ListasDelFormulario,
   Material, MovimientoListado, MovimientoNuevo, Persona, Sitio, TipoMovimiento,
   Unidad, Vehiculo, Flujo,
@@ -188,15 +189,15 @@ export async function crearMovimiento(
            origen_clase, origen_sitio_id, origen_entidad_id, origen_vecino_id, origen_detalle,
            destino_clase, destino_sitio_id, destino_entidad_id, destino_vecino_id, destino_detalle,
            vehiculo_id, chofer_id, autorizado_por_id, vigilador_id,
-           tipo_valorizacion, vecino_sin_datos, observaciones,
+           tipo_valorizacion, vecino_sin_datos, observaciones, pila_id,
            cargado_por_id, client_uuid
          ) values (
            $1, $2, $3, $4,
            $5, $6, $7, $8, $9,
            $10, $11, $12, $13, $14,
            $15, $16, $17, $18,
-           $19, $20, $21,
-           $22, $23
+           $19, $20, $21, $22,
+           $23, $24
          ) returning id, numero`,
         [
           datos.flujo, datos.tipo, sitioId, datos.ocurrido_en,
@@ -208,6 +209,7 @@ export async function crearMovimiento(
           datos.autorizado_por_id ?? null, datos.vigilador_id ?? null,
           datos.tipo_valorizacion ?? null, datos.vecino?.sin_datos ?? datos.vecino_sin_datos ?? false,
           datos.observaciones?.trim() || null,
+          datos.pila_id ?? null,
           sesion.perfilId, datos.client_uuid,
         ],
       )
@@ -512,4 +514,130 @@ export async function destinosAFormalizar(sesion: Sesion): Promise<DestinoAForma
     sesion,
     'select * from v_destinos_a_formalizar order by veces desc, ultima_vez desc',
   )
+}
+
+// ── Pilas de compost ────────────────────────────────────────────────────
+
+/**
+ * El estado de las pilas.
+ *
+ * Es la respuesta a "el control operativo de las pilas", que la Secretaría
+ * nombró como una de las dos cosas que hoy le piden y no puede contestar.
+ */
+export async function pilas(
+  sesion: Sesion,
+  opciones: { sitioId?: string; estado?: EstadoPila; incluirBajas?: boolean } = {},
+): Promise<FilaPila[]> {
+  const valores: unknown[] = []
+  const par = (v: unknown) => `$${valores.push(v)}`
+  const cond: string[] = []
+  if (!opciones.incluirBajas) cond.push('activo')
+  if (opciones.sitioId) cond.push(`sitio_id = ${par(opciones.sitioId)}`)
+  if (opciones.estado)  cond.push(`estado = ${par(opciones.estado)}`)
+
+  return consultarConSesion<FilaPila>(
+    sesion,
+    `select * from v_pilas
+      ${cond.length ? `where ${cond.join(' and ')}` : ''}
+      order by estado, codigo`,
+    valores,
+  )
+}
+
+/** Las que todavía reciben material. Es lo que ofrece el formulario del celular. */
+export async function pilasEnFormacion(sesion: Sesion): Promise<FilaPila[]> {
+  return consultarConSesion<FilaPila>(
+    sesion,
+    "select * from v_pilas where activo and estado = 'en_formacion' order by codigo",
+  )
+}
+
+/** Las que ya pueden despacharse. */
+export async function pilasParaDespachar(sesion: Sesion): Promise<FilaPila[]> {
+  return consultarConSesion<FilaPila>(
+    sesion,
+    "select * from v_pilas where activo and estado in ('madurando', 'lista') order by madurez nulls last, codigo",
+  )
+}
+
+/**
+ * La ficha completa de una pila: de qué está hecha, cómo se la trató y qué
+ * salió de ella. Las tres puntas de la cadena en una sola consulta.
+ */
+export async function pilaPorId(sesion: Sesion, id: string) {
+  return conSesion(sesion, async (tx) => {
+    const [pila] = await tx.consultar<FilaPila>('select * from v_pilas where id = $1', [id])
+    if (!pila) return null
+
+    const composicion = await tx.consultar<FilaComposicion>(
+      'select * from v_pila_composicion where pila_id = $1 order by m3 desc',
+      [id],
+    )
+    const controles = await tx.consultar<ControlDePila>(
+      `select c.id, c.pila_id, c.tipo, c.ocurrido_en, c.valor, c.observacion, p.nombre as registrado_por
+         from pila_controles c
+         left join perfiles p on p.id = c.registrado_por_id
+        where c.pila_id = $1
+        order by c.ocurrido_en desc`,
+      [id],
+    )
+    const salidas = await tx.consultar<TrazaDeSalida>(
+      'select * from v_trazabilidad_salidas where pila_id = $1 order by ocurrido_en desc',
+      [id],
+    )
+    return { pila, composicion, controles, salidas }
+  })
+}
+
+/** De dónde salió este camión. */
+export async function trazaDeSalida(sesion: Sesion, movimientoId: string): Promise<TrazaDeSalida | null> {
+  const filas = await consultarConSesion<TrazaDeSalida>(
+    sesion,
+    'select * from v_trazabilidad_salidas where movimiento_id = $1',
+    [movimientoId],
+  )
+  return filas[0] ?? null
+}
+
+/** Salidas con pila declarada, para el listado de trazabilidad. */
+export async function trazabilidadDeSalidas(
+  sesion: Sesion,
+  opciones: { desde?: string; limite?: number } = {},
+): Promise<TrazaDeSalida[]> {
+  const valores: unknown[] = [opciones.desde ?? '2000-01-01']
+  return consultarConSesion<TrazaDeSalida>(
+    sesion,
+    `select * from v_trazabilidad_salidas
+      where ocurrido_en >= $1::timestamptz
+      order by ocurrido_en desc
+      limit ${Math.min(Math.max(opciones.limite ?? 100, 1), 500)}`,
+    valores,
+  )
+}
+
+export async function registrarControl(
+  sesion: Sesion,
+  datos: { pila_id: string; tipo: TipoControl; valor?: number | null; observacion?: string | null; ocurrido_en?: string },
+): Promise<{ ok: boolean; error?: string }> {
+  if ((datos.tipo === 'temperatura' || datos.tipo === 'humedad') && !Number.isFinite(Number(datos.valor))) {
+    return { ok: false, error: 'Falta el valor: una temperatura o una humedad sin número no dice nada.' }
+  }
+  try {
+    await consultarConSesion(
+      sesion,
+      `insert into pila_controles (pila_id, tipo, valor, observacion, ocurrido_en, registrado_por_id)
+       values ($1, $2, $3, $4, coalesce($5::timestamptz, now()), $6)`,
+      [
+        datos.pila_id,
+        datos.tipo,
+        datos.valor ?? null,
+        datos.observacion?.trim() || null,
+        datos.ocurrido_en ?? null,
+        sesion.perfilId,
+      ],
+    )
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: mensajeDeError(e) }
+  }
 }

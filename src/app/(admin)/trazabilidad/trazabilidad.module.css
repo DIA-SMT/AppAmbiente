@@ -1,0 +1,60 @@
+/* Lo propio de la pantalla de trazabilidad. Todo lo demás sale de globals.css. */
+
+/* Los dos campos y el botón: uno abajo del otro en el celular, en fila cuando
+   hay lugar. El botón se alinea con el borde de abajo de los campos. */
+.periodo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+/* Reusa .sugerencias de globals para la fila, pero acá los atajos son enlaces
+   —la pantalla no tiene JavaScript propio— y hay que darles forma y estado. */
+.atajos a {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 1 auto;
+  min-height: var(--toque);
+  padding: 0 16px;
+  border: 2px solid var(--linea);
+  border-radius: var(--r-chico);
+  background: var(--panel-2);
+  color: var(--texto);
+  font-size: .84rem;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.atajos a[aria-current] {
+  background: var(--azul);
+  border-color: var(--azul);
+  color: var(--panel);
+}
+
+.indicadores {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.cifra {
+  font-variant-numeric: tabular-nums;
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--tinta);
+  line-height: 1.05;
+}
+
+/* Las salidas sin pila no son un detalle: son las que todavía no se pueden
+   trazar. */
+.atencion { border-left: 4px solid var(--salida); }
+
+/* Sin techo, una pila formada por seis cuadrillas estira la fila y empuja todo
+   lo demás fuera de la pantalla. */
+.procedencias {
+  min-width: 170px;
+  max-width: 280px;
+  color: var(--gris);
+}

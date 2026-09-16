@@ -9,6 +9,8 @@ import { contarPendientes } from './revisiones/acciones'
 const SECCIONES = [
   { destino: '/tablero', rotulo: 'Tablero' },
   { destino: '/movimientos', rotulo: 'Movimientos' },
+  { destino: '/pilas', rotulo: 'Pilas' },
+  { destino: '/trazabilidad', rotulo: 'Trazabilidad' },
   { destino: '/listas', rotulo: 'Listas' },
   { destino: '/revisiones', rotulo: 'Revisiones' },
   { destino: '/vecinos', rotulo: 'Vecinos' },

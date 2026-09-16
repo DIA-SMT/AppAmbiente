@@ -7,8 +7,9 @@ Reemplaza los Google Forms que hoy se comparten por WhatsApp para registrar lo q
 entra y sale de la Planta de Valorización de Residuos Verdes, los ocho puntos verdes
 y los retiros pactados con grandes generadores.
 
-**Fases 1 y 2 entregadas:** la Planta de Valorización y los ocho Puntos Verdes.
-Grandes generadores y la importación del Excel de pesos son la fase 3.
+**Entregado:** la Planta de Valorización, los ocho Puntos Verdes, y el seguimiento
+de las pilas de compost con la trazabilidad del camión. Falta el conteo diario
+simplificado, el recambio de contenedores y la importación del Excel de pesos.
 
 El documento de validación con el modelo completo, las decisiones de diseño y las
 preguntas abiertas está en [`docs/fase-0-validacion.html`](docs/fase-0-validacion.html).
@@ -77,7 +78,7 @@ los días.
 npm run db:verificar
 ```
 
-Veinticinco comprobaciones contra la base real, y es repetible: limpia sus propios
+Treinta y tres comprobaciones contra la base real, y es repetible: limpia sus propios
 rastros antes de empezar, así correrla dos veces da lo mismo. que un vigilador de otro punto no vea
 los movimientos de la Planta, que no lea la tabla `entidades` (pero sí la vista sin
 CUIT ni teléfono), que no lea vecinos ni la auditoría, que no pueda cargar a nombre de
@@ -117,7 +118,7 @@ el que se conecta la app tiene que ser miembro de `authenticated`.
 
 ```
 db/
-  migrations/        15 migraciones SQL, en orden. Es la fuente de verdad del modelo.
+  migrations/        16 migraciones SQL, en orden. Es la fuente de verdad del modelo.
   client.ts          conexión: PGlite o postgres-js según DATABASE_URL
   sesion.ts          conSesion() pone la identidad en la base antes de consultar
   credenciales.ts    hasheo de PIN con scrypt
@@ -128,8 +129,8 @@ src/
   app/
     ingresar/        pantalla de acceso
     (vigilador)/     turno, carga de ingreso y salida, listo, lo de hoy
-    (admin)/         tablero (planta y puntos verdes), movimientos, listas,
-                     revisiones, vecinos, usuarios, auditoría
+    (admin)/         tablero (planta y puntos verdes), movimientos, trazabilidad,
+                     pilas, listas, revisiones, vecinos, usuarios, auditoría
     api/             exportar a Excel, sincronizar la cola offline
 docs/                documento de validación de fase 0
 assets/marca/        identidad institucional (logos y plantilla de referencia)
@@ -173,6 +174,36 @@ Los dos supuestos que más pesaban quedaron resueltos con el relevamiento (exped
 - **No existe una lista formal de destinos habilitados.** El destino es un campo
   abierto y lo escrito a mano se formaliza desde **Revisiones**, que al convertirlo
   reapunta los movimientos anteriores.
+
+## La cadena del compost
+
+A la pregunta de qué les piden y hoy no pueden responder, la Secretaría contestó dos
+cosas: la trazabilidad de los camiones de compost y el control operativo de las
+pilas. Son la misma cadena mirada desde dos puntas.
+
+    poda que entró  →  pila  →  compost que salió  →  destino
+
+Cada ingreso a la Planta declara a qué pila va y cada salida de compost, triturado o
+leña declara de cuál sale. Con eso, la ficha de un movimiento contesta la pregunta
+en una frase:
+
+> Este compost salió de la pila P-15, que se armó entre el 15/07 y el 02/08 con
+> 87 m³ de las cuadrillas Centro, Zona Este y Zona Norte. Se volteó 3 veces y
+> maduró 40 días. **Salió antes de la madurez estimada, que caía el 02/12.**
+
+**La composición no se declara, se calcula.** Sale de los ingresos que realmente
+entraron a esa pila, con material y procedencia: es lo que convierte “compost” en
+“compost de poda de la cuadrilla Norte levantada en abril”. Queda igual un campo de
+texto para lo que no pasa por un movimiento —tierra, estiércol, restos de la huerta.
+
+**El volteo atrasado** marca una pila madurando que hace más de tres semanas que no
+se voltea, que es cuando se compacta y se pierde. No marca las que ya están listas:
+una pila terminada no se voltea más, y un indicador que se enciende de gusto enseña
+a ignorarlo.
+
+En `/trazabilidad` está el listado completo, con un dato que conviene mirar primero:
+cuántas salidas del período declaran pila y cuántas no. Si la mayoría no declara, el
+indicador todavía no sirve y hay que saberlo antes de sacar conclusiones.
 
 ## Cómo funcionan los Puntos Verdes
 

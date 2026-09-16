@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { consultarConSesion } from '@db/sesion'
-import { listasDelFormulario, movimientosDelTurno } from '@/lib/datos'
+import { contenedoresDelSitio, listasDelFormulario, movimientosDelTurno } from '@/lib/datos'
 import { diaSemana } from '@/lib/formato'
 import { sesionActual } from '@/lib/sesion'
 import SelectorVigilador, { AvisoPendientes } from './SelectorVigilador'
@@ -41,6 +41,20 @@ function Palitos() {
   )
 }
 
+/** El contenedor del punto: tapa, cuerpo y ruedas. */
+function Contenedor() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2.5 6.5h19" />
+      <path d="M4.5 6.5 6 18h12l1.5-11.5" />
+      <path d="M9.5 4.5h5" />
+      <path d="M8 21h.01" />
+      <path d="M16 21h.01" />
+    </svg>
+  )
+}
+
 /** Dar vuelta la pila: dos flechas que giran. */
 function Voltear() {
   return (
@@ -62,7 +76,7 @@ export default async function InicioDeTurno() {
   // sola consulta trae todo lo del sitio. El flujo que se pasa acá solo cambia
   // qué materiales y qué entidades vuelven, y esta pantalla no usa ninguno de
   // los dos: el tipo de sitio sale de la misma respuesta.
-  const [listas, movimientos, sitios] = await Promise.all([
+  const [listas, movimientos, sitios, contenedores] = await Promise.all([
     listasDelFormulario(sesion, 'planta', 'ingreso'),
     movimientosDelTurno(sesion, 100),
     // `carga_detallada` no viene en las listas del formulario y acá decide el
@@ -72,6 +86,10 @@ export default async function InicioDeTurno() {
           sesion, `select carga_detallada from sitios where id = $1`, [sesion.sitioId],
         )
       : Promise.resolve([]),
+    // Cada contenedor trae su pedido abierto si lo tiene: contarlos es lo que
+    // hace que el botón diga cuántos están esperando, y ese número es lo que
+    // hace que entren.
+    contenedoresDelSitio(sesion),
   ])
 
   const esPuntoVerde = listas.sitio?.tipo === 'punto_verde'
@@ -94,6 +112,36 @@ export default async function InicioDeTurno() {
   const ingresos = vigentes.filter((m) => m.tipo === 'ingreso').length
   const salidas = vigentes.filter((m) => m.tipo === 'salida').length
   const dia = diaSemana(new Date())
+
+  const esperando = contenedores.filter((c) => c.pedido_abierto_id).length
+
+  // Los contenedores son de los puntos verdes: en la Planta no hay ninguno que
+  // recambiar. Cuando hay pedidos abiertos el rótulo los cuenta, porque en un
+  // punto donde esto es lo único que se hace con el sistema, ese número es la
+  // pantalla entera.
+  const accesoRecambio = esPuntoVerde && (
+    <Link
+      href="/contenedores"
+      className="boton-accion"
+      style={{ borderColor: 'color-mix(in srgb, var(--celeste) 50%, transparent)' }}
+    >
+      <span className="icono" style={{ background: 'var(--celeste)' }}><Contenedor /></span>
+      <span>
+        <span className="rotulo">
+          {esperando === 0
+            ? 'Pedir recambio de contenedor'
+            : esperando === 1
+              ? '1 contenedor esperando recambio'
+              : `${esperando} contenedores esperando recambio`}
+        </span>
+        <span className="detalle">
+          {esperando === 0
+            ? 'Cuando uno está lleno o desbordando'
+            : 'Mirá cómo va, o pedí el de otra corriente'}
+        </span>
+      </span>
+    </Link>
+  )
 
   // En la Planta no hay vecinos que contar: el conteo no existe.
   const accesoConteo = esPuntoVerde && (
@@ -131,6 +179,10 @@ export default async function InicioDeTurno() {
         <>
           {accesoConteo}
 
+          {/* Donde no se carga movimiento por movimiento, pedir el recambio es
+              lo otro que se hace con el sistema: va arriba, no abajo. */}
+          {accesoRecambio}
+
           <p className="menor gris" style={{ margin: '4px 0 0' }}>
             Si igual llegás a registrar algo en el momento:
           </p>
@@ -164,6 +216,8 @@ export default async function InicioDeTurno() {
           {/* Tercero y a propósito: acá se carga de a un vecino, y el conteo es
               para el día que no se pudo usar el celular. */}
           {accesoConteo}
+
+          {accesoRecambio}
 
           {/* Las pilas son de la Planta: un punto verde no tiene ninguna. */}
           {!esPuntoVerde && (

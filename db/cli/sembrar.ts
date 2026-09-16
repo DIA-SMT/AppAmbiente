@@ -243,6 +243,24 @@ async function sembrar() {
        on conflict (codigo) do nothing`,
     )
 
+    // ── Contenedores de los puntos verdes ────────────────────────────────
+    // No tienen numeración física: un contenedor es el par punto + corriente,
+    // "el de cartón de Italia". Se arman desde las corrientes de la pizarra.
+    await tx.consultar(
+      `insert into contenedores (codigo, tipo, capacidad_m3, sitio_actual_id, material_id, estado)
+       select s.codigo || ' · ' || m.nombre, 'contenedor', 6, s.id, m.id, 'en_sitio'
+         from sitios s
+         cross join materiales m
+        where s.tipo = 'punto_verde' and s.activo and m.activo
+          -- Las cinco corrientes de la pizarra de seguimiento, que son las que
+          -- tienen contenedor. Los retazos de tela y los recortes de madera
+          -- pasan por los puntos pero vienen de grandes generadores y se
+          -- retiran de otra forma.
+          and m.nombre in ('Plástico', 'Cartón', 'Vidrio y metal',
+                           'Residuos de poda', 'RSU')
+       on conflict (codigo) do nothing`,
+    )
+
     // ── Usuarios ─────────────────────────────────────────────────────────
     // CREDENCIALES DE DESARROLLO. Cambiar antes de cualquier despliegue.
     //

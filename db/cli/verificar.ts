@@ -62,6 +62,7 @@ async function limpiarRastros() {
     await tx.consultar('delete from movimientos where observaciones = $1', [MARCA])
     await tx.consultar('delete from pila_controles where observacion = $1', [MARCA])
     await tx.consultar('delete from conteos_diarios where observaciones = $1', [MARCA])
+    await tx.consultar('delete from pedidos_recambio where observaciones = $1', [MARCA])
     await tx.consultar(
       'delete from vecinos where app.normalizar_telefono(telefono) = any($1::text[])',
       [TELEFONOS_PRUEBA],
@@ -546,6 +547,91 @@ async function main() {
       where sitio_codigo <> 'PV-03' and identificados > 0`,
   )
   revisar('los puntos que cargan en detalle sí identifican vecinos', conDetalle > 0)
+
+  // ═══ Recambio de contenedores ═════════════════════════════════════════
+  console.log('\n  Recambio de contenedores')
+
+  const [contenedor] = await conSesion(pv, (tx) =>
+    tx.consultar<{ id: string; codigo: string }>(
+      'select id, codigo from contenedores where sitio_actual_id = $1 and activo limit 1',
+      [pv.sitioId],
+    ),
+  )
+  revisar('el vigilador ve los contenedores de su punto', Boolean(contenedor?.id))
+
+  const deOtroPunto = await contar(
+    pv,
+    `select count(*) c from contenedores
+      where activo and sitio_actual_id <> $1 and sitio_actual_id is not null`,
+    [pv.sitioId],
+  )
+  revisar(
+    'y no los de otro punto',
+    deOtroPunto === 0,
+    `ve ${deOtroPunto}`,
+  )
+
+  await conSesion(pv, (tx) =>
+    tx.consultar(
+      `insert into pedidos_recambio
+         (sitio_id, contenedor_id, pedido_por_id, observaciones)
+       values ($1, $2, $3, $4)`,
+      [pv.sitioId, contenedor.id, pv.perfilId, MARCA],
+    ),
+  )
+  const [pedido] = await conSesion(admin, (tx) =>
+    tx.consultar<{ id: string; horas_totales: string }>(
+      'select id, horas_totales::text from v_pedidos_recambio where observaciones = $1',
+      [MARCA],
+    ),
+  )
+  revisar('puede pedir un recambio y la espera se empieza a contar', Boolean(pedido?.id))
+
+  // El vigilador de la Planta intentando pedir para un punto verde: son dos
+  // sesiones de sitios distintos, que es lo que hay que probar. `pv` y
+  // `otroPunto` son la misma sesión, así que usarlas acá no probaría nada.
+  await debeFallar(
+    'no puede pedir para otro punto',
+    planta,
+    `insert into pedidos_recambio (sitio_id, contenedor_id, pedido_por_id, observaciones)
+     values ($1, $2, $3, $4)`,
+    [pv.sitioId, contenedor.id, planta.perfilId, MARCA],
+  )
+
+  // Marcar el retiro es de la coordinación: es quien habla con la empresa. Si
+  // el vigilador pudiera cerrarlo, el tiempo de respuesta lo mediría quien más
+  // gana con que sea corto.
+  //
+  // Acá la base tira excepción en vez de no hacer nada, porque la política que
+  // le deja cancelar su propio pedido tiene un WITH CHECK: la fila entra al
+  // filtro pero el valor nuevo no pasa la condición.
+  await debeFallar(
+    'no puede dar por retirado un pedido',
+    pv,
+    "update pedidos_recambio set estado = 'retirado', retirado_en = now() where id = $1",
+    [pedido.id],
+  )
+
+  await conSesion(admin, (tx) =>
+    tx.consultar(
+      `update pedidos_recambio
+          set estado = 'retirado', retirado_en = now(), remito = 'R-VERIFICAR',
+              avisado_en = coalesce(avisado_en, now()), avisado_por_id = $2
+        where id = $1`,
+      [pedido.id, admin.perfilId],
+    ),
+  )
+  const [respuesta] = await conSesion(admin, (tx) =>
+    tx.consultar<{ retirados: string }>(
+      'select retirados::text from v_respuesta_recambio where sitio_id = $1',
+      [pv.sitioId],
+    ),
+  )
+  revisar(
+    'la coordinación sí, y el tiempo de respuesta queda medido',
+    Number(respuesta?.retirados ?? 0) > 0,
+    `${respuesta?.retirados ?? 0} retirados en ese punto`,
+  )
 
   // ═══ Credenciales de fábrica ══════════════════════════════════════════
   //

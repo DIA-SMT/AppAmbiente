@@ -86,7 +86,7 @@ agrega trazabilidad: la auditoría distingue quién hizo cada cosa.
 npm run db:verificar
 ```
 
-Treinta y ocho comprobaciones contra la base real, y es repetible: limpia sus propios
+Cuarenta y cuatro comprobaciones contra la base real, y es repetible: limpia sus propios
 rastros antes de empezar, así correrla dos veces da lo mismo.
 
 **De los permisos:** que un vigilador de otro punto no vea los movimientos de la
@@ -142,7 +142,7 @@ el que se conecta la app tiene que ser miembro de `authenticated`.
 
 ```
 db/
-  migrations/        17 migraciones SQL, en orden. Es la fuente de verdad del modelo.
+  migrations/        18 migraciones SQL, en orden. Es la fuente de verdad del modelo.
   client.ts          conexión: PGlite o postgres-js según DATABASE_URL
   sesion.ts          conSesion() pone la identidad en la base antes de consultar
   credenciales.ts    hasheo de PIN con scrypt
@@ -229,6 +229,33 @@ a ignorarlo.
 En `/trazabilidad` está el listado completo, con un dato que conviene mirar primero:
 cuántas salidas del período declaran pila y cuántas no. Si la mayoría no declara, el
 indicador todavía no sirve y hay que saberlo antes de sacar conclusiones.
+
+## El recambio de contenedores
+
+Hoy el circuito es todo WhatsApp: el vigilador ve un contenedor lleno y escribe al
+grupo de Puntos Verdes; la Coordinación lo retransmite al grupo de choferes de la
+empresa 9 de Julio; la empresa retira y recambia. Funciona, pero no deja rastro —
+nadie puede contestar cuántos días espera un punto por un recambio.
+
+**Esto no reemplaza el WhatsApp con la empresa**: ese canal es de ellos. Reemplaza el
+primer tramo y vuelve medible el resto. Por eso la pantalla de la coordinación tiene
+un botón que **arma el texto para pegar en WhatsApp** en vez de fingir que manda el
+aviso.
+
+La espera se mide en dos tramos y **nunca se suman**:
+
+- cuánto tarda el municipio en avisar (del pedido al aviso)
+- cuánto tarda la empresa en venir (del aviso al retiro)
+
+Son dos problemas distintos y se arreglan distinto: si el alto es el primero, es
+trabajo interno; si es el segundo, es un reclamo a la empresa. Un promedio único los
+tapa a los dos.
+
+Un contenedor no tiene numeración física: es el par punto + corriente, «el de cartón
+de Italia». Pedir dos veces el mismo no crea un segundo pedido — no acelera nada y
+ensuciaría el tiempo de respuesta con esperas duplicadas. Y el **remito** con el que
+se cierra es el enganche con el Excel de fin de mes: con él, lo pedido y lo retirado
+se van a poder cruzar.
 
 ## Dos modalidades de registro
 

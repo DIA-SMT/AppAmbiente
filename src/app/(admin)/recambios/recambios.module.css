@@ -1,0 +1,131 @@
+/* Lo propio de la cola de recambios. Todo lo demás sale de globals.css, y el
+   color siempre de las variables, así que los dos temas salen solos. */
+
+/* La pantalla resuelve tres cosas distintas —el indicador, lo que hay que
+   pasarle a la empresa y lo que le estamos esperando—, y sin una raya en el
+   medio se leen como una sola lista. */
+.seccion { display: flex; flex-direction: column; gap: 12px; }
+.seccion + .seccion { margin-top: 4px; padding-top: 18px; border-top: 1px solid var(--linea); }
+
+/* ── Tiempo de respuesta ──────────────────────────────────────────────── */
+
+/* Los dos tramos se miden distinto y no se suman nunca: la línea que los separa
+   del resto de la tabla es para que no se lean como una sola cifra partida. */
+.tramo { border-left: 1px solid var(--linea-fuerte); }
+
+.codigo { font-weight: 800; color: var(--tinta); }
+
+/* ── La barra del lote ────────────────────────────────────────────────── */
+
+.lote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 15px;
+  border: 1px solid var(--linea);
+  border-radius: var(--r-chico);
+  background: var(--panel-2);
+}
+
+/* Se corre al final de la barra, y en el celular baja sola a su propio renglón. */
+.ayudaLote { flex: 1 1 260px; }
+
+.copiado { color: var(--ingreso); font-weight: 700; }
+
+/* El texto para pegar a mano necesita el ancho entero de la barra. */
+.aMano { flex: 1 1 100%; }
+.aMano textarea { font-family: var(--mono); font-size: .82rem; }
+
+/* ── Cada pedido de la cola ───────────────────────────────────────────── */
+
+.pedido { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+
+/* La casilla se toca con el dedo, así que el área que la enciende es la del
+   dedo y no la del cuadradito. */
+.elegir {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: var(--toque);
+  min-height: var(--toque);
+  margin: -8px -6px -8px -8px;
+  cursor: pointer;
+}
+.elegir input {
+  width: 23px;
+  height: 23px;
+  accent-color: var(--azul);
+  cursor: pointer;
+}
+
+.titulo { font-size: 1.05rem; }
+
+.datos {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: .86rem;
+  color: var(--gris);
+}
+
+.observacion { overflow-wrap: anywhere; }
+
+/* Una debajo de otra: confirmar un retiro y cancelar un pedido no se parecen en
+   nada, y en fila se tocan de más. En pantalla ancha quedan a la derecha. */
+.acciones { display: grid; gap: 8px; flex: 0 1 240px; min-width: 210px; }
+
+/* Un pedido demorado es lo único de la cola que pide explicación. El color no
+   lo dice solo: el chip lo escribe con palabras y con cuántos días lleva.
+   `.lista > li` de globals.css pinta su propio fondo, y hay que ganarle en
+   especificidad para cambiarlo. */
+:global(.lista) > li.demorado {
+  background: var(--salida-bg);
+  box-shadow: inset 4px 0 0 var(--salida);
+}
+
+/* ── Desplegables ─────────────────────────────────────────────────────── */
+/* Se abren dentro de la propia ficha: en esta app no hay modales. El de
+   cancelar funciona sin JavaScript. */
+
+.desplegable summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--toque);
+  padding: 12px 18px;
+  border: 2px solid var(--linea-fuerte);
+  border-radius: var(--r-chico);
+  background: var(--panel);
+  color: var(--tinta);
+  font-size: 1rem;
+  font-weight: 800;
+  text-align: center;
+}
+.desplegable summary::-webkit-details-marker { display: none; }
+.desplegable[open] summary { border-color: var(--azul); color: var(--azul); }
+.peligroso[open] summary { border-color: var(--peligro); color: var(--peligro); }
+
+.cuerpo {
+  margin-top: 8px;
+  padding: 12px 13px;
+  border: 1px solid var(--linea);
+  border-radius: var(--r-chico);
+  background: var(--panel-2);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: .86rem;
+  color: var(--gris);
+}
+.cuerpo p { margin: 0; }
+
+/* En el celular la columna de acciones ya no entra al lado de la ficha: baja
+   entera, con los botones a todo el ancho, que es como se tocan. */
+@media (max-width: 720px) {
+  .acciones { flex: 1 1 100%; min-width: 0; }
+}

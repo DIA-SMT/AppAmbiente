@@ -379,3 +379,70 @@ export interface TrazaDeSalida {
   m3_que_la_formaron: number | null
   procedencias: string | null
 }
+
+// ── Recambio de contenedores ────────────────────────────────────────────
+
+export type EstadoPedido = 'pedido' | 'avisado' | 'retirado' | 'cancelado'
+
+export interface Contenedor {
+  id: string
+  codigo: string
+  tipo: string | null
+  capacidad_m3: number | null
+  sitio_actual_id: string | null
+  sitio_nombre?: string
+  material_id: string | null
+  material?: string
+  material_color?: string
+  estado: string
+  ultima_retirada: string | null
+  activo: boolean
+  /** Si ya hay un pedido abierto, la pantalla no ofrece pedir dos veces. */
+  pedido_abierto_id?: string | null
+}
+
+/** Fila de v_pedidos_recambio. */
+export interface PedidoRecambio {
+  id: string
+  sitio_id: string
+  sitio_codigo: string
+  sitio_nombre: string
+  contenedor_id: string | null
+  material_id: string | null
+  material: string | null
+  material_color: string | null
+  estado: EstadoPedido
+  urgente: boolean
+  observaciones: string | null
+  pedido_en: string
+  /** Para saber si este vigilador es quien lo pidió y puede cancelarlo. */
+  pedido_por_id: string
+  pedido_por: string | null
+  avisado_en: string | null
+  avisado_por: string | null
+  retirado_en: string | null
+  remito: string | null
+  peso_kg: number | null
+  motivo_cierre: string | null
+  /** Del pedido al aviso a la empresa: lo que tarda el municipio. */
+  horas_hasta_aviso: number
+  /** Del aviso al retiro: lo que tarda la empresa. */
+  horas_hasta_retiro: number | null
+  horas_totales: number
+  /** Abierto hace más de tres días. */
+  demorado: boolean
+}
+
+/** Fila de v_respuesta_recambio. */
+export interface RespuestaRecambio {
+  sitio_id: string
+  sitio_codigo: string
+  sitio_nombre: string
+  retirados: number
+  abiertos: number
+  demorados: number
+  promedio_hasta_aviso: number | null
+  promedio_hasta_retiro: number | null
+  promedio_total: number | null
+  pedido_mas_viejo: string | null
+}

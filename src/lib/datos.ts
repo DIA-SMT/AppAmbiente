@@ -6,7 +6,8 @@
 import 'server-only'
 import { conSesion, consultarConSesion, type Sesion } from '@db/sesion'
 import type {
-  ConteoDiario, ControlDePila, DestinoAFormalizar, Entidad, EstadoPila,
+  Contenedor, ConteoDiario, ControlDePila, DestinoAFormalizar, Entidad,
+  EstadoPedido, EstadoPila, PedidoRecambio, RespuestaRecambio,
   FilaComposicion, FilaPila, PuntoSinCarga,
   FilaResumen, FilaValorizacion, FilaVecinos, FiltrosMovimientos, TipoControl, TrazaDeSalida,
   ItemListado, ListasDelFormulario,
@@ -723,4 +724,209 @@ export async function puntosSinCarga(sesion: Sesion): Promise<PuntoSinCarga[]> {
     sesion,
     'select * from v_puntos_sin_carga order by ultima_carga, codigo',
   )
+}
+
+// ── Recambio de contenedores ────────────────────────────────────────────
+
+/**
+ * Los contenedores de un punto, con su pedido abierto si lo tiene.
+ *
+ * Sin numeración física, un contenedor es el par punto + corriente: "el de
+ * cartón de Italia". El pedido abierto viaja con cada uno para que la pantalla
+ * no ofrezca pedir dos veces lo mismo.
+ */
+export async function contenedoresDelSitio(
+  sesion: Sesion,
+  sitioId?: string,
+): Promise<Contenedor[]> {
+  const destino = sesion.rol === 'admin' ? sitioId : sesion.sitioId
+  const valores: unknown[] = []
+  const par = (v: unknown) => `$${valores.push(v)}`
+  const cond = ['c.activo']
+  if (destino) cond.push(`c.sitio_actual_id = ${par(destino)}`)
+
+  return consultarConSesion<Contenedor>(
+    sesion,
+    `select c.id, c.codigo, c.tipo, c.capacidad_m3, c.sitio_actual_id,
+            s.nombre as sitio_nombre, c.material_id, m.nombre as material,
+            m.color as material_color, c.estado, c.ultima_retirada, c.activo,
+            (select p.id from pedidos_recambio p
+              where p.contenedor_id = c.id and p.estado in ('pedido', 'avisado')
+              order by p.pedido_en desc limit 1) as pedido_abierto_id
+       from contenedores c
+       left join sitios s     on s.id = c.sitio_actual_id
+       left join materiales m on m.id = c.material_id
+      where ${cond.join(' and ')}
+      order by s.orden, m.orden`,
+    valores,
+  )
+}
+
+/**
+ * El vigilador pide el recambio. Un toque, sin formulario.
+ *
+ * Si ese contenedor ya tiene un pedido abierto no se crea otro: el segundo no
+ * acelera nada y ensuciaría el tiempo de respuesta con esperas duplicadas.
+ */
+export async function pedirRecambio(
+  sesion: Sesion,
+  datos: { contenedorId: string; urgente?: boolean; observaciones?: string | null },
+): Promise<{ ok: boolean; error?: string; yaPedido?: boolean }> {
+  try {
+    return await conSesion(sesion, async (tx) => {
+      const [cont] = await tx.consultar<{ sitio_actual_id: string; material_id: string | null }>(
+        'select sitio_actual_id, material_id from contenedores where id = $1 and activo',
+        [datos.contenedorId],
+      )
+      if (!cont) return { ok: false, error: 'Ese contenedor no existe o está dado de baja.' }
+
+      const abierto = await tx.consultar<{ id: string }>(
+        `select id from pedidos_recambio
+          where contenedor_id = $1 and estado in ('pedido', 'avisado') limit 1`,
+        [datos.contenedorId],
+      )
+      if (abierto[0]) return { ok: true, yaPedido: true }
+
+      await tx.consultar(
+        `insert into pedidos_recambio
+           (sitio_id, contenedor_id, material_id, urgente, observaciones, pedido_por_id)
+         values ($1, $2, $3, $4, $5, $6)`,
+        [
+          cont.sitio_actual_id,
+          datos.contenedorId,
+          cont.material_id,
+          datos.urgente ?? false,
+          datos.observaciones?.trim() || null,
+          sesion.perfilId,
+        ],
+      )
+      return { ok: true }
+    })
+  } catch (e) {
+    return { ok: false, error: mensajeDeError(e) }
+  }
+}
+
+export async function pedidosDeRecambio(
+  sesion: Sesion,
+  opciones: { estado?: EstadoPedido | 'abiertos' | 'todos'; sitioId?: string; limite?: number } = {},
+): Promise<PedidoRecambio[]> {
+  const valores: unknown[] = []
+  const par = (v: unknown) => `$${valores.push(v)}`
+  const cond: string[] = []
+  const estado = opciones.estado ?? 'abiertos'
+  if (estado === 'abiertos') cond.push("estado in ('pedido', 'avisado')")
+  else if (estado !== 'todos') cond.push(`estado = ${par(estado)}`)
+  if (opciones.sitioId) cond.push(`sitio_id = ${par(opciones.sitioId)}`)
+
+  return consultarConSesion<PedidoRecambio>(
+    sesion,
+    `select * from v_pedidos_recambio
+      ${cond.length ? `where ${cond.join(' and ')}` : ''}
+      order by urgente desc, pedido_en
+      limit ${Math.min(Math.max(opciones.limite ?? 200, 1), 1000)}`,
+    valores,
+  )
+}
+
+/**
+ * Lo que tarda cada punto, del pedido al retiro.
+ *
+ * Es el número que hoy no existe y el que sirve para reclamarle frecuencia a la
+ * empresa. Viene partido en dos tramos a propósito: cuánto tarda el municipio
+ * en avisar y cuánto tarda la empresa en venir son dos problemas distintos y
+ * se arreglan de maneras distintas.
+ */
+export async function respuestaDeRecambio(sesion: Sesion): Promise<RespuestaRecambio[]> {
+  return consultarConSesion<RespuestaRecambio>(
+    sesion,
+    'select * from v_respuesta_recambio order by demorados desc, promedio_total desc nulls last',
+  )
+}
+
+/** La coordinación avisó a la empresa: el tramo que hoy no queda registrado. */
+export async function marcarAvisado(
+  sesion: Sesion,
+  ids: string[],
+): Promise<{ ok: boolean; cuantos?: number; error?: string }> {
+  if (!ids.length) return { ok: false, error: 'No elegiste ningún pedido.' }
+  try {
+    const filas = await consultarConSesion<{ id: string }>(
+      sesion,
+      `update pedidos_recambio
+          set estado = 'avisado', avisado_en = now(), avisado_por_id = $2
+        where id = any($1::uuid[]) and estado = 'pedido'
+        returning id`,
+      [ids, sesion.perfilId],
+    )
+    return { ok: true, cuantos: filas.length }
+  } catch (e) {
+    return { ok: false, error: mensajeDeError(e) }
+  }
+}
+
+/**
+ * Se confirma el retiro. El remito es el enganche con el Excel que la empresa
+ * manda a fin de mes: con él, lo que se pidió y lo que se retiró se pueden
+ * cruzar, que es lo que hoy no se puede hacer.
+ */
+export async function confirmarRetiro(
+  sesion: Sesion,
+  datos: { id: string; retirado_en?: string; remito?: string | null; peso_kg?: number | null },
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const filas = await consultarConSesion<{ id: string }>(
+      sesion,
+      `update pedidos_recambio
+          set estado = 'retirado',
+              retirado_en = coalesce($2::timestamptz, now()),
+              remito = $3,
+              peso_kg = $4,
+              avisado_en = coalesce(avisado_en, now()),
+              avisado_por_id = coalesce(avisado_por_id, $5)
+        where id = $1 and estado in ('pedido', 'avisado')
+        returning id`,
+      [
+        datos.id,
+        datos.retirado_en ?? null,
+        datos.remito?.trim() || null,
+        datos.peso_kg ?? null,
+        sesion.perfilId,
+      ],
+    )
+    if (!filas.length) return { ok: false, error: 'Ese pedido ya estaba cerrado.' }
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: mensajeDeError(e) }
+  }
+}
+
+export async function cancelarPedido(
+  sesion: Sesion,
+  id: string,
+  motivo: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const limpio = motivo.trim()
+  if (limpio.length < 3) return { ok: false, error: 'Decí por qué se cancela.' }
+  try {
+    const filas = await consultarConSesion<{ id: string }>(
+      sesion,
+      `update pedidos_recambio
+          set estado = 'cancelado', motivo_cierre = $2
+        where id = $1 and estado in ('pedido', 'avisado')
+        returning id`,
+      [id, limpio],
+    )
+    if (!filas.length) {
+      return {
+        ok: false,
+        error: sesion.rol === 'admin'
+          ? 'Ese pedido ya estaba cerrado.'
+          : 'Ya no lo podés cancelar: pasaron más de 24 horas o la coordinación ya lo avisó.',
+      }
+    }
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: mensajeDeError(e) }
+  }
 }

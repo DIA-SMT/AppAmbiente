@@ -2,7 +2,6 @@ import Image from 'next/image'
 import { redirect } from 'next/navigation'
 import { sitiosParaIngreso } from '@/lib/acceso'
 import { sesionActual } from '@/lib/sesion'
-import FondoVideo from './FondoVideo'
 import FormularioIngreso from './FormularioIngreso'
 import css from './ingresar.module.css'
 
@@ -16,12 +15,6 @@ export default async function PantallaIngreso() {
 
   return (
     <main className={css.pantalla}>
-      {/*
-        El video solo se monta en escritorio: en el celular el vigilador paga
-        sus propios datos. El póster se pinta siempre desde el CSS y es el
-        cuadro 0 del bucle, así que en escritorio no hay salto cuando arranca.
-      */}
-      <FondoVideo className={css.fondo} />
       <div className={css.velo} />
 
       <div className={css.capa}>

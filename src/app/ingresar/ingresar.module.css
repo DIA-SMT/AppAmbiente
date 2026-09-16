@@ -1,5 +1,5 @@
 /*
- * Pantalla de ingreso con el video de la chipeadora de fondo.
+ * Pantalla de ingreso, con la chipeadora de fondo.
  *
  * Esta pantalla se compromete con el modo oscuro aunque el celular esté en
  * claro: es una imagen fotográfica a pantalla completa, y la mitad de la paleta
@@ -12,30 +12,17 @@
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  /* El póster va siempre: en el celular es lo único que se ve, y en escritorio
-     tapa el hueco hasta que el video arranca. Son 110 KB. */
-  background: #060d0a url('/video/trituradora-bucle.jpg') center 58% / cover no-repeat;
+  /* Una imagen, no un video. Los vigiladores cargan desde sus celulares
+     personales, con sus propios datos y mala señal en casi todos los puntos:
+     59 KB una vez y nunca más, contra 1,58 MB del video. */
+  background: #060d0a url('/fondo/chipeadora.jpg') center 58% / cover no-repeat;
   overflow: hidden;
 }
 
-.fondo {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  /* Encuadre sobre la máquina y el chorro; el cielo de arriba no aporta nada. */
-  object-position: 50% 62%;
-  z-index: 0;
-}
-@media (max-width: 880px) {
-  .fondo { object-position: 38% 58%; }
-}
-
 /*
- * Está filmado a mediodía con cielo abierto: sobre el video crudo no se lee
- * nada. Este velo oscurece de arriba hacia abajo, deja respirar el chorro de
- * astillas en el medio, y cierra abajo para que el pie institucional se lea.
+ * Está tomada a mediodía con cielo abierto: sobre la foto cruda no se lee nada.
+ * Este velo oscurece de arriba hacia abajo, deja respirar el chorro de astillas
+ * en el medio, y cierra abajo para que el pie institucional se lea.
  */
 .velo {
   position: absolute;
@@ -80,7 +67,7 @@
 
 .centro { flex: 1; display: flex; align-items: center; padding: 26px 0; }
 
-/* El formulario sobre vidrio: es lo que lo despega del video sin taparlo. */
+/* El formulario sobre vidrio: es lo que lo despega del fondo sin taparlo. */
 .panel {
   width: 100%;
   max-width: 460px;
@@ -156,11 +143,9 @@
   color: #ffd9d9;
 }
 
-/*
- * El video no se monta en el celular —eso lo decide FondoVideo.tsx, porque
- * esconderlo con CSS no evita que el navegador lo descargue— así que acá solo
- * queda el encuadre del póster, que en vertical necesita otro centro.
- */
+/* En vertical el encuadre necesita otro centro: la máquina está a la izquierda. */
 @media (max-width: 880px) {
   .pantalla { background-position: 38% 58%; }
 }
+
+/* Sin animación que desactivar: la pantalla ya es una imagen fija. */

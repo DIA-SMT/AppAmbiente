@@ -77,6 +77,7 @@ agrega trazabilidad: la auditoría distingue quién hizo cada cosa.
 | Permisos | Row Level Security de Postgres | Las reglas viven en la base, no en el código de pantalla. Un vigilador con el token de su celular no puede leer un movimiento de otro punto ni la lista de vecinos, aunque consulte la API directo. |
 | Sesión | JWT firmado en cookie httpOnly | Un usuario por sitio con PIN. La sesión del vigilador no vence; la de la coordinadora sí. |
 | Excel | ExcelJS | Exportar cualquier vista, e importar el archivo de pesos con mapeo de columnas. |
+| Pantalla de ingreso | Una imagen, no un video | Los vigiladores cargan desde sus celulares personales, con sus propios datos y mala señal en casi todos los puntos. La pantalla pesa unos 175 KB la primera vez y nada después. |
 
 ### Comprobar los permisos
 

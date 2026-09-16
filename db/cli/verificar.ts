@@ -40,6 +40,31 @@ async function contar(sesion: Sesion, sql: string, params: unknown[] = []): Prom
   return Number(filas[0]?.c ?? 0)
 }
 
+/**
+ * Si un rol de Postgres puede hacer algo, sin dejar rastro.
+ *
+ * Deshace siempre: varias de estas consultas —truncate, delete— tendrían efecto
+ * de verdad si la base las aceptara, y justamente lo que se está probando es si
+ * las acepta.
+ *
+ * Va sin claims a propósito. Lo que se mira acá no son las políticas sino el
+ * permiso de abajo: RLS no interviene en un TRUNCATE, ni en una vista que no es
+ * security_invoker.
+ */
+async function puede(rol: 'authenticated' | 'anon', sql: string): Promise<boolean> {
+  const CORTE = '__deshacer__'
+  try {
+    await comoServicio(async (tx) => {
+      await tx.consultar(`set local role ${rol}`)
+      await tx.consultar(sql)
+      throw new Error(CORTE)
+    })
+    return true
+  } catch (e) {
+    return (e as Error).message === CORTE
+  }
+}
+
 const MARCA = 'Generado por db:verificar'
 const TELEFONOS_PRUEBA = ['3814569988']
 /** La que crea esta verificación para tener algo con CUIT y teléfono que leer. */
@@ -685,6 +710,41 @@ async function main() {
   // base local; en un servidor son una puerta abierta. Esto no falla la
   // verificación cuando se corre contra PGlite —ahí es lo esperado— pero sí
   // contra un Postgres de verdad, que es donde importa.
+  // ═══ Lo que el proveedor abre por su cuenta ═══════════════════════════
+  // Supabase crea cada tabla de `public` con TODOS los permisos para anon y
+  // authenticated. Las migraciones hasta la 0018 daban por sentado lo contrario
+  // —que un permiso existe sólo si alguien lo otorgó—, que es como se porta
+  // PGlite. La diferencia no da error en ningún lado: queda abierto y la app
+  // anda igual, así que si esto no se prueba, no se ve. La 0019 lo cierra.
+  console.log('\n  Permisos de fábrica del proveedor')
+
+  revisar(
+    'nadie puede truncar movimientos (TRUNCATE no pasa por las políticas)',
+    !(await puede('authenticated', 'truncate movimientos cascade')),
+  )
+  revisar(
+    'no se pueden borrar entidades por la vista pública',
+    !(await puede('authenticated', 'delete from entidades_publicas')),
+  )
+  revisar(
+    'ni personas',
+    !(await puede('authenticated', 'delete from personas_publicas')),
+  )
+  revisar(
+    'ni cambiarles el nombre',
+    !(await puede('authenticated', "update entidades_publicas set nombre = 'alterado'")),
+  )
+  // anon es el rol de la API REST pública del proveedor. Esta app no lo usa
+  // nunca, así que no tiene por qué llegar a nada.
+  revisar(
+    'anon no lee la lista de personas',
+    !(await puede('anon', 'select count(*) from personas_publicas')),
+  )
+  revisar(
+    'anon no lee los movimientos',
+    !(await puede('anon', 'select count(*) from movimientos')),
+  )
+
   console.log('\n  Credenciales')
 
   const DE_FABRICA: Array<[string, string]> = [

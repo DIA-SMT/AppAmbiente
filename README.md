@@ -88,7 +88,7 @@ agrega trazabilidad: la auditoría distingue quién hizo cada cosa.
 npm run db:verificar
 ```
 
-Cuarenta y cuatro comprobaciones contra la base real, y es repetible: limpia sus propios
+Cincuenta comprobaciones contra la base real, y es repetible: limpia sus propios
 rastros antes de empezar, así correrla dos veces da lo mismo. Sirve igual contra una
 base recién creada: se arma las filas que necesita —una entidad con CUIT, un
 movimiento, una pila— porque una comprobación sobre la nada engaña en las dos
@@ -114,6 +114,11 @@ mayúsculas— sin perder la trazabilidad de lo que ya salió.
 solo pueda anotar controles en su propio sitio y a su nombre, que una temperatura sin
 valor se rechace, y que una salida de compost sepa de qué pila y de qué poda viene.
 
+**De lo que el proveedor abre por su cuenta:** que nadie pueda truncar `movimientos`
+—TRUNCATE no pasa por las políticas—, que no se pueda borrar ni renombrar entidades y
+personas a través de las vistas públicas, y que `anon`, el rol de la API REST de
+Supabase, no llegue a nada. Ver la migración 0019.
+
 **Del conteo diario:** que corregir el conteo de un día no duplique la fila, que no se
 pueda cargar el de otro punto ni uno de hace meses, y —lo que hace que el indicador no
 mienta— que un punto que solo cuenta sume visitas pero **no** vecinos identificados.
@@ -132,6 +137,15 @@ desarrollo**. La app pone la identidad del usuario en `request.jwt.claims` antes
 cada consulta, que es exactamente el mecanismo de Supabase con PostgREST; las
 políticas de `db/migrations/0010_rls.sql` se evalúan igual en los dos lados. Probar
 que un vigilador no ve lo que no tiene que ver no requiere desplegar nada.
+
+Con un límite que costó encontrar: PGlite arranca **limpio**, y Supabase no. Un
+proyecto nuevo de Supabase trae `alter default privileges in schema public grant all
+on tables to anon, authenticated`, así que cada tabla nace con todo abierto. Las
+migraciones hasta la 0018 daban por sentado que un permiso existe sólo si alguien lo
+otorgó —que es lo que pasa en PGlite—, y la diferencia no da error en ningún lado:
+simplemente queda abierto y la app anda igual. La 0019 deja explícito ese estado, y
+`db:verificar` ahora lo comprueba. Lo que hay que recordar es el patrón: **lo que el
+proveedor hace de más no se ve corriendo la app**, y por eso se prueba a mano.
 
 ### Poner la base en producción
 
@@ -231,7 +245,7 @@ coordinación.
 
 ```
 db/
-  migrations/        18 migraciones SQL, en orden. Es la fuente de verdad del modelo.
+  migrations/        19 migraciones SQL, en orden. Es la fuente de verdad del modelo.
   client.ts          conexión: PGlite o postgres-js según DATABASE_URL
   sesion.ts          conSesion() pone la identidad en la base antes de consultar
   credenciales.ts    hasheo de PIN con scrypt
@@ -260,7 +274,8 @@ assets/marca/        identidad institucional (logos y plantilla de referencia)
 | `npm run db:migrar` | Aplica las migraciones pendientes |
 | `npm run db:sembrar` | Datos base. En la base local, además, datos de ejemplo (idempotente) |
 | `npm run db:sembrar -- --sin-ejemplos` | Solo los datos base, aunque sea la base local |
-| `npm run db:sql` | Escribe db/produccion.sql para pegar en el editor del proveedor |
+| `npm run db:sql` | Escribe db/produccion.sql: una base nueva, de cero |
+| `npm run db:sql -- --desde 0019` | Escribe db/actualizacion.sql: sólo de esa migración en adelante |
 | `npm run db:reset` | Borra la base local y la rehace desde cero |
 | `npm run db:verificar` | Comprueba que las políticas de seguridad hagan lo que dicen |
 | `npm run typecheck` | Chequeo de tipos |

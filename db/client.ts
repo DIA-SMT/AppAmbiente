@@ -114,9 +114,30 @@ async function crearPostgres(url: string): Promise<Base> {
 // del servidor de desarrollo de Next.
 const cache = globalThis as unknown as { __baseAmbiente?: Promise<Base> }
 
+/** Vercel, Lambda y compañía: disco de solo lectura y efímero. */
+function esServerless(): boolean {
+  return Boolean(
+    process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY,
+  )
+}
+
 export function obtenerBase(): Promise<Base> {
   if (!cache.__baseAmbiente) {
     const url = process.env.DATABASE_URL?.trim()
+
+    // Sin DATABASE_URL se cae a PGlite, que escribe en ./.data. En una función
+    // serverless eso no puede funcionar: el disco es de solo lectura, y aunque
+    // no lo fuera cada instancia tendría su propia base vacía. Lo que se ve sin
+    // esto es un ENOENT del mkdir, que no dice nada; en el navegador, ni eso:
+    // Next esconde los errores de servidor detrás de un digest.
+    if (!url && esServerless()) {
+      throw new Error(
+        'Falta DATABASE_URL. Cargarla en Vercel → Settings → Environment Variables, ' +
+          'marcando el entorno Production, y volver a desplegar. Va la cadena del ' +
+          'pooler en modo transacción (Supabase: puerto 6543).',
+      )
+    }
+
     cache.__baseAmbiente = url ? crearPostgres(url) : crearPglite()
   }
   return cache.__baseAmbiente

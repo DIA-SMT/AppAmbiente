@@ -1,6 +1,7 @@
 import { Fragment, type CSSProperties } from 'react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { consultarConSesion } from '@db/sesion'
 import {
   buscarMovimientos, entidadesPendientes, resumenValorizacion, resumenVecinos, sitiosVisibles,
 } from '@/lib/datos'
@@ -68,21 +69,35 @@ function restarMeses(clave: string, meses: number): string {
 
 // ── Acumuladores ────────────────────────────────────────────────────────
 
-interface Trio { visitas: number; sinDatos: number; identificados: number }
-const enCero = (): Trio => ({ visitas: 0, sinDatos: 0, identificados: 0 })
+/**
+ * Las cuatro cuentas de un punto en un período. No se suman entre sí:
+ * `contadas` es la parte de `visitas` que viene de un conteo diario, e
+ * `identificados` son personas y no visitas.
+ */
+interface Cuentas { visitas: number; sinDatos: number; identificados: number; contadas: number }
+const enCero = (): Cuentas => ({ visitas: 0, sinDatos: 0, identificados: 0, contadas: 0 })
 
-function acumular(destino: Trio, origen: Trio) {
+function acumular(destino: Cuentas, origen: Cuentas) {
   destino.visitas += origen.visitas
   destino.sinDatos += origen.sinDatos
   destino.identificados += origen.identificados
+  destino.contadas += origen.contadas
 }
 
 interface FilaPunto {
   id: string
   codigo: string
   nombre: string
-  porPeriodo: Map<string, Trio>
-  total: Trio
+  /** No puede usar el celular en la jornada: solo se espera el conteo diario. */
+  soloConteo: boolean
+  porPeriodo: Map<string, Cuentas>
+  total: Cuentas
+}
+
+/** "PV-03", "PV-03 y PV-07", "PV-01, PV-03 y PV-07". */
+function enumerar(nombres: string[]): string {
+  if (nombres.length <= 1) return nombres[0] ?? ''
+  return `${nombres.slice(0, -1).join(', ')} y ${nombres[nombres.length - 1]}`
 }
 
 interface MaterialValorizado {
@@ -226,15 +241,29 @@ export default async function TableroPuntosVerdes({
 
   // ── Vecinos por punto ─────────────────────────────────────────────────
 
-  const filasVecinos = await resumenVecinos(sesion, { periodo, desde })
+  // La modalidad no viene con los sitios, y hace falta también para los puntos
+  // que no tienen ni una fila en el período: un punto que solo cuenta y no
+  // cargó nada es justo el que no hay que leer como un punto sin gente.
+  const [filasVecinos, modalidades] = await Promise.all([
+    resumenVecinos(sesion, { periodo, desde }),
+    consultarConSesion<{ id: string; carga_detallada: boolean }>(
+      sesion,
+      "select id, carga_detallada from sitios where tipo = 'punto_verde'",
+    ),
+  ])
+  const soloCuenta = new Map(modalidades.map((s) => [s.id, !s.carga_detallada]))
 
   const porPunto = new Map<string, FilaPunto>(
     puntos.map((s) => [
       s.id,
-      { id: s.id, codigo: s.codigo, nombre: s.nombre, porPeriodo: new Map(), total: enCero() },
+      {
+        id: s.id, codigo: s.codigo, nombre: s.nombre,
+        soloConteo: soloCuenta.get(s.id) ?? false,
+        porPeriodo: new Map(), total: enCero(),
+      },
     ]),
   )
-  const totalPorPeriodo = new Map<string, Trio>(claves.map((c) => [c, enCero()]))
+  const totalPorPeriodo = new Map<string, Cuentas>(claves.map((c) => [c, enCero()]))
   const totalGeneral = enCero()
 
   for (const f of filasVecinos) {
@@ -249,15 +278,17 @@ export default async function TableroPuntosVerdes({
       // Un punto dado de baja que igual tiene historia: se muestra, no se esconde.
       punto = {
         id: f.sitio_id, codigo: f.sitio_codigo, nombre: f.sitio_nombre,
+        soloConteo: !f.carga_detallada,
         porPeriodo: new Map(), total: enCero(),
       }
       porPunto.set(f.sitio_id, punto)
     }
 
-    const valores: Trio = {
+    const valores: Cuentas = {
       visitas: Number(f.visitas) || 0,
       sinDatos: Number(f.sin_datos) || 0,
       identificados: Number(f.identificados) || 0,
+      contadas: Number(f.contadas) || 0,
     }
     const celda = punto.porPeriodo.get(clave) ?? enCero()
     acumular(celda, valores)
@@ -272,8 +303,9 @@ export default async function TableroPuntosVerdes({
   const datosGrafico: PuntoGrafico[] = filasPuntos.map((p) => {
     const t = p.porPeriodo.get(enCurso) ?? enCero()
     return {
-      id: p.id, codigo: p.codigo, nombre: p.nombre,
+      id: p.id, codigo: p.codigo, nombre: p.nombre, soloConteo: p.soloConteo,
       visitas: t.visitas, sinDatos: t.sinDatos, identificados: t.identificados,
+      contadas: t.contadas,
     }
   })
 
@@ -281,8 +313,19 @@ export default async function TableroPuntosVerdes({
   const previo = (anterior && totalPorPeriodo.get(anterior)) || enCero()
   const sinActividad = datosGrafico.filter((p) => p.visitas === 0)
   const conActividad = datosGrafico.length - sinActividad.length
-  const porcentajeSinDatos = actual.visitas > 0 ? Math.round((actual.sinDatos / actual.visitas) * 100) : 0
   const rotuloAnterior = periodo === 'semana' ? 'Semana anterior completa' : 'Mes anterior completo'
+
+  // El porcentaje sin datos se mide contra las visitas del modo detallado, que
+  // son las únicas donde hubo alguien a quien preguntarle. Si se midiera contra
+  // el total, cada conteo diario bajaría el porcentaje como si esa gente sí
+  // hubiera dejado sus datos.
+  const visitasConDetalle = Math.max(actual.visitas - actual.contadas, 0)
+  const porcentajeSinDatos = visitasConDetalle > 0
+    ? Math.round((actual.sinDatos / visitasConDetalle) * 100)
+    : 0
+
+  const puntosQueCuentan = filasPuntos.filter((p) => (p.porPeriodo.get(enCurso)?.contadas ?? 0) > 0)
+  const calladosQueCuentan = sinActividad.filter((p) => p.soloConteo)
 
   // ── Valorización ──────────────────────────────────────────────────────
 
@@ -385,13 +428,17 @@ export default async function TableroPuntosVerdes({
           />
           <Indicador
             rotulo={`Visitas sin datos · ${rotulo(enCurso)}`}
-            valor={actual.visitas > 0 ? `${numero(porcentajeSinDatos)}%` : '—'}
+            valor={visitasConDetalle > 0 ? `${numero(porcentajeSinDatos)}%` : '—'}
             detalle={
-              actual.visitas > 0
-                ? `${numero(actual.sinDatos)} de ${numero(actual.visitas)} visitas no dejaron datos`
-                : 'todavía no hubo visitas en el período'
+              visitasConDetalle > 0
+                ? `${numero(actual.sinDatos)} de ${numero(visitasConDetalle)} visitas con detalle no dejaron datos`
+                : 'todavía no hubo visitas con detalle en el período'
             }
-            nota="Cuanto más alto, menos se puede seguir a quién vuelve."
+            nota={
+              actual.contadas > 0
+                ? 'Las visitas que vienen del conteo diario quedan afuera de esta cuenta: ahí no se le preguntó a nadie.'
+                : 'Cuanto más alto, menos se puede seguir a quién vuelve.'
+            }
           />
           <Indicador
             rotulo="Puntos con ingresos"
@@ -405,6 +452,26 @@ export default async function TableroPuntosVerdes({
             alerta={sinActividad.length > 0}
           />
         </div>
+        {actual.contadas > 0 && (
+          <p className="menor gris" style={{ margin: 0 }}>
+            De las {numero(actual.visitas)} visitas de {nombreDe(enCurso)},{' '}
+            <span className="fuerte">{numero(actual.contadas)} vienen del conteo diario</span> de{' '}
+            {enumerar(puntosQueCuentan.map((p) => p.nombre))}: gente que vino y se contó en papel al
+            cerrar la jornada, sin detalle de quién. Por eso esas visitas no aparecen en
+            identificados.
+          </p>
+        )}
+        {calladosQueCuentan.length > 0 && (
+          <p className="menor gris" style={{ margin: 0 }}>
+            <span className="fuerte">
+              {enumerar(calladosQueCuentan.map((p) => p.codigo))}{' '}
+              {calladosQueCuentan.length === 1 ? 'no registró' : 'no registraron'} ni una visita en{' '}
+              {nombreDe(enCurso)}
+            </span>, y {calladosQueCuentan.length === 1 ? 'lleva' : 'llevan'} el conteo en papel: ese
+            cero puede ser que no vino nadie o que nadie lo cargó, y son dos cosas distintas.{' '}
+            <Link href="/conteos">Ver quién está cargando</Link>.
+          </p>
+        )}
         <p className="menor gris" style={{ margin: 0 }}>
           {periodo === 'semana' ? 'La semana' : 'El mes'} en curso todavía no terminó. Por eso
           debajo de las visitas y de los identificados va el {periodo} anterior entero en vez de un
@@ -426,22 +493,24 @@ export default async function TableroPuntosVerdes({
         <div className="desplazable">
           <table className="datos">
             <caption className="sr-solo">
-              Visitas, vecinos identificados y visitas sin datos, por punto y por {periodo}.
+              Visitas, visitas que vienen de un conteo diario, vecinos identificados y visitas sin
+              datos, por punto y por {periodo}.
             </caption>
             <thead>
               <tr>
                 <th rowSpan={2} style={fijaCabecera}>Punto</th>
                 {claves.map((clave) => (
-                  <th key={clave} colSpan={3} className="centrado" style={separa}>
+                  <th key={clave} colSpan={4} className="centrado" style={separa}>
                     {rotulo(clave)}
                   </th>
                 ))}
-                <th colSpan={3} className="centrado" style={separa}>Total</th>
+                <th colSpan={4} className="centrado" style={separa}>Total</th>
               </tr>
               <tr>
                 {[...claves, 'total'].map((clave) => (
                   <Fragment key={clave}>
                     <th style={{ ...separa, ...derecha }}>Visitas</th>
+                    <th style={derecha}>De conteo</th>
                     <th style={derecha}>Identificados</th>
                     <th style={derecha}>Sin datos</th>
                   </Fragment>
@@ -455,6 +524,7 @@ export default async function TableroPuntosVerdes({
                     <span className="fila" style={{ gap: 8, flexWrap: 'nowrap' }}>
                       <span className="mono fuerte">{punto.codigo}</span>
                       <span className="gris menor">{punto.nombre}</span>
+                      {punto.soloConteo && <span className="chip diferida">solo conteo diario</span>}
                     </span>
                   </th>
                   {claves.map((clave) => {
@@ -462,14 +532,20 @@ export default async function TableroPuntosVerdes({
                     return (
                       <Fragment key={clave}>
                         <td className="numero" style={separa}>{celda(t.visitas)}</td>
-                        <td className="numero">{celda(t.identificados)}</td>
-                        <td className="numero">{celda(t.sinDatos)}</td>
+                        <td className="numero">{celda(t.contadas)}</td>
+                        <SinDetalle soloConteo={punto.soloConteo}>
+                          <td className="numero">{celda(t.identificados)}</td>
+                          <td className="numero">{celda(t.sinDatos)}</td>
+                        </SinDetalle>
                       </Fragment>
                     )
                   })}
                   <td className="numero fuerte" style={separa}>{celda(punto.total.visitas)}</td>
-                  <td className="numero fuerte">{celda(punto.total.identificados)}</td>
-                  <td className="numero fuerte">{celda(punto.total.sinDatos)}</td>
+                  <td className="numero fuerte">{celda(punto.total.contadas)}</td>
+                  <SinDetalle soloConteo={punto.soloConteo}>
+                    <td className="numero fuerte">{celda(punto.total.identificados)}</td>
+                    <td className="numero fuerte">{celda(punto.total.sinDatos)}</td>
+                  </SinDetalle>
                 </tr>
               ))}
             </tbody>
@@ -481,12 +557,14 @@ export default async function TableroPuntosVerdes({
                   return (
                     <Fragment key={clave}>
                       <td className="numero" style={separa}>{celda(t.visitas)}</td>
+                      <td className="numero">{celda(t.contadas)}</td>
                       <td className="numero">{celda(t.identificados)}</td>
                       <td className="numero">{celda(t.sinDatos)}</td>
                     </Fragment>
                   )
                 })}
                 <td className="numero" style={separa}>{celda(totalGeneral.visitas)}</td>
+                <td className="numero">{celda(totalGeneral.contadas)}</td>
                 <td className="numero">{celda(totalGeneral.identificados)}</td>
                 <td className="numero">{celda(totalGeneral.sinDatos)}</td>
               </tr>
@@ -494,11 +572,21 @@ export default async function TableroPuntosVerdes({
           </table>
         </div>
         <p className="menor gris" style={{ margin: 0 }}>
-          Las tres columnas cuentan cosas distintas y no se suman entre sí:{' '}
+          Las cuatro columnas cuentan cosas distintas y no se suman entre sí:{' '}
           <span className="fuerte">visitas</span> es cada vez que alguien trajo material,{' '}
+          <span className="fuerte">de conteo</span> es la parte de esas visitas que viene de un
+          conteo diario en papel —se sabe cuántos vinieron, no quiénes—,{' '}
           <span className="fuerte">identificados</span> son las personas distintas que dejaron su
           teléfono y <span className="fuerte">sin datos</span> son las visitas de quien prefirió no
           dejarlos.
+        </p>
+        <p className="menor gris" style={{ margin: 0 }}>
+          Los puntos marcados con <span className="chip diferida">solo conteo diario</span> no
+          pueden usar el celular durante la jornada: ahí todas las visitas salen del papel, y por
+          eso en identificados y en sin datos no va un cero sino «no se sabe quién vino». Un cero
+          ahí se leería como el peor punto de todos, y lo que pasa es que esa modalidad no puede
+          registrar a nadie. Que un punto cuente en papel no es un problema; que no cargue, sí:{' '}
+          <Link href="/conteos">Conteos</Link> muestra cuál está mandando y cuál no.
         </p>
         <p className="menor gris" style={{ margin: 0 }}>
           En identificados, el total suma cada {periodo}: quien vino en dos{' '}
@@ -625,6 +713,29 @@ export default async function TableroPuntosVerdes({
         )}
       </section>
     </div>
+  )
+}
+
+/**
+ * Las dos celdas del modo detallado, o el motivo por el que no hay número.
+ *
+ * En un punto que solo cuenta, identificados y sin datos son cero siempre, y no
+ * porque no haya venido nadie: el conteo diario no sabe quién vino. Mostrar el
+ * cero lo dejaría último en la única columna que la coordinadora usa para
+ * comparar puntos, así que en su lugar va el motivo, ahí mismo, en vez de una
+ * nota al pie que nadie lee.
+ */
+function SinDetalle({ soloConteo, children }: { soloConteo: boolean; children: React.ReactNode }) {
+  if (!soloConteo) return <>{children}</>
+  return (
+    <td
+      colSpan={2}
+      className="menor gris"
+      style={{ whiteSpace: 'nowrap' }}
+      title="El conteo diario registra cuánta gente vino, no quién: no es que no hubo vecinos identificados, es que esta modalidad no puede identificarlos."
+    >
+      no se sabe quién vino
+    </td>
   )
 }
 

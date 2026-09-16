@@ -3,9 +3,11 @@
  * Todo el resto del alto de pantalla es para lo que el vigilador tiene que
  * tocar.
  */
+import Image from 'next/image'
 import { redirect } from 'next/navigation'
 import { salir } from '@/app/ingresar/acciones'
 import { sesionActual } from '@/lib/sesion'
+import estilos from './MarcoVigilador.module.css'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,30 +17,30 @@ export default async function MarcoVigilador({ children }: { children: React.Rea
   if (sesion.rol === 'admin') redirect('/tablero')
 
   return (
-    <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
-      <header className="franja">
-        <div className="fila-entre">
-          <div className="crecer">
-            <p className="sobretitulo">Registro de residuos</p>
-            <h2 style={{ fontSize: '1.1rem' }}>{sesion.nombre}</h2>
+    <div className={estilos.marco}>
+      <header className={estilos.encabezado}>
+        <div className={estilos.interior}>
+          <div className={estilos.identidad}>
+            <Image
+              src="/marca/logo-muni-iso.png"
+              alt="Municipalidad de San Miguel de Tucumán"
+              width={256}
+              height={256}
+              priority
+            />
+            <div className="crecer">
+              <p>Registro de residuos</p>
+              <h2>{sesion.nombre}</h2>
+            </div>
           </div>
           <form action={salir}>
-            <button
-              type="submit"
-              className="boton fantasma chico"
-              style={{ color: '#fff', border: '1px solid rgba(255,255,255,.35)' }}
-            >
-              Salir
-            </button>
+            <button type="submit" className={estilos.salir}>Salir</button>
           </form>
         </div>
       </header>
-      <div className="regla" />
+      <div className={estilos.regla} />
 
-      <main
-        className="contenido angosto"
-        style={{ width: '100%', flex: '1 1 auto', paddingBottom: 'calc(24px + env(safe-area-inset-bottom))' }}
-      >
+      <main className={`contenido angosto ${estilos.contenido}`}>
         {children}
       </main>
     </div>

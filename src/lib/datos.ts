@@ -6,7 +6,8 @@
 import 'server-only'
 import { conSesion, consultarConSesion, type Sesion } from '@db/sesion'
 import type {
-  ControlDePila, DestinoAFormalizar, Entidad, EstadoPila, FilaComposicion, FilaPila,
+  ConteoDiario, ControlDePila, DestinoAFormalizar, Entidad, EstadoPila,
+  FilaComposicion, FilaPila, PuntoSinCarga,
   FilaResumen, FilaValorizacion, FilaVecinos, FiltrosMovimientos, TipoControl, TrazaDeSalida,
   ItemListado, ListasDelFormulario,
   Material, MovimientoListado, MovimientoNuevo, Persona, Sitio, TipoMovimiento,
@@ -454,13 +455,14 @@ export async function resumenVecinos(
 
   return consultarConSesion<FilaVecinos>(
     sesion,
-    `select sitio_id, sitio_nombre, sitio_codigo, semana, mes,
+    `select sitio_id, sitio_nombre, sitio_codigo, carga_detallada, semana, mes,
             sum(visitas)::int       as visitas,
             sum(sin_datos)::int     as sin_datos,
-            sum(identificados)::int as identificados
+            sum(identificados)::int as identificados,
+            sum(contadas)::int      as contadas
        from v_vecinos_por_periodo
       where ${cond.join(' and ')}
-      group by sitio_id, sitio_nombre, sitio_codigo, semana, mes
+      group by sitio_id, sitio_nombre, sitio_codigo, carga_detallada, semana, mes
       order by ${periodo} desc, sitio_codigo`,
     valores,
   )
@@ -640,4 +642,85 @@ export async function registrarControl(
   } catch (e) {
     return { ok: false, error: mensajeDeError(e) }
   }
+}
+
+// ── Conteo diario de vecinos ────────────────────────────────────────────
+
+/**
+ * El total de vecinos de un día en un punto.
+ *
+ * Donde no se puede usar el celular durante la jornada, el conteo se lleva en
+ * papel y se carga una sola vez al cerrar. Es idempotente por (sitio, fecha):
+ * volver a cargar el mismo día corrige, no duplica — dos filas para el mismo
+ * día serían dos verdades distintas sobre lo mismo.
+ */
+export async function guardarConteo(
+  sesion: Sesion,
+  datos: { fecha: string; vecinos: number; observaciones?: string | null; sitioId?: string },
+): Promise<{ ok: boolean; error?: string; corregido?: boolean }> {
+  const sitioId = sesion.rol === 'admin' ? datos.sitioId : sesion.sitioId
+  if (!sitioId) return { ok: false, error: 'Falta indicar el punto.' }
+
+  const cuantos = Math.trunc(Number(datos.vecinos))
+  if (!Number.isFinite(cuantos) || cuantos < 0) {
+    return { ok: false, error: 'La cantidad de vecinos tiene que ser un número de cero para arriba.' }
+  }
+  if (cuantos > 5000) {
+    return { ok: false, error: 'Ese número es demasiado alto. Revisá el conteo.' }
+  }
+
+  try {
+    const filas = await consultarConSesion<{ corregido: boolean }>(
+      sesion,
+      `insert into conteos_diarios (sitio_id, fecha, vecinos, observaciones, cargado_por_id)
+       values ($1, $2::date, $3, $4, $5)
+       on conflict (sitio_id, fecha) do update
+         set vecinos = excluded.vecinos,
+             observaciones = excluded.observaciones,
+             cargado_por_id = excluded.cargado_por_id
+       returning (xmax <> 0) as corregido`,
+      [sitioId, datos.fecha, cuantos, datos.observaciones?.trim() || null, sesion.perfilId],
+    )
+    return { ok: true, corregido: filas[0]?.corregido ?? false }
+  } catch (e) {
+    return { ok: false, error: mensajeDeError(e) }
+  }
+}
+
+/** Los últimos conteos del punto, para ver qué días ya se cargaron. */
+export async function conteosRecientes(
+  sesion: Sesion,
+  opciones: { sitioId?: string; dias?: number } = {},
+): Promise<ConteoDiario[]> {
+  const dias = Math.min(Math.max(opciones.dias ?? 14, 1), 120)
+  const valores: unknown[] = []
+  const par = (v: unknown) => `$${valores.push(v)}`
+  const cond = [`c.fecha >= current_date - ${dias}`]
+  const sitioId = sesion.rol === 'admin' ? opciones.sitioId : sesion.sitioId
+  if (sitioId) cond.push(`c.sitio_id = ${par(sitioId)}`)
+
+  return consultarConSesion<ConteoDiario>(
+    sesion,
+    `select c.id, c.sitio_id, s.nombre as sitio_nombre, c.fecha, c.vecinos,
+            c.observaciones, p.nombre as cargado_por, c.creado_en, c.actualizado_en
+       from conteos_diarios c
+       join sitios s on s.id = c.sitio_id
+       left join perfiles p on p.id = c.cargado_por_id
+      where ${cond.join(' and ')}
+      order by c.fecha desc, s.codigo`,
+    valores,
+  )
+}
+
+/**
+ * Hace cuánto que cada punto no carga nada.
+ *
+ * Un punto callado no es un punto sin gente: puede ser que el vigilador dejó de
+ * cargar. Distinguirlo es la diferencia entre un indicador y una suposición.
+ */
+export async function puntosSinCarga(sesion: Sesion): Promise<PuntoSinCarga[]> {
+  return consultarConSesion<PuntoSinCarga>(
+    sesion,
+    'select * from v_puntos_sin_carga order by ultima_carga, codigo',
+  )
 }

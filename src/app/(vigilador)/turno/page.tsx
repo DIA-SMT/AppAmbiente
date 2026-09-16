@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { consultarConSesion } from '@db/sesion'
 import { listasDelFormulario, movimientosDelTurno } from '@/lib/datos'
 import { diaSemana } from '@/lib/formato'
 import { sesionActual } from '@/lib/sesion'
@@ -27,6 +28,19 @@ function FlechaArriba() {
   )
 }
 
+/** El conteo en papel: los palitos que se anotan durante la jornada. */
+function Palitos() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M6 5v14" />
+      <path d="M11 5v14" />
+      <path d="M16 5v14" />
+      <path d="M3 18.5 19 5.5" />
+    </svg>
+  )
+}
+
 /** Dar vuelta la pila: dos flechas que giran. */
 function Voltear() {
   return (
@@ -48,12 +62,24 @@ export default async function InicioDeTurno() {
   // sola consulta trae todo lo del sitio. El flujo que se pasa acá solo cambia
   // qué materiales y qué entidades vuelven, y esta pantalla no usa ninguno de
   // los dos: el tipo de sitio sale de la misma respuesta.
-  const [listas, movimientos] = await Promise.all([
+  const [listas, movimientos, sitios] = await Promise.all([
     listasDelFormulario(sesion, 'planta', 'ingreso'),
     movimientosDelTurno(sesion, 100),
+    // `carga_detallada` no viene en las listas del formulario y acá decide el
+    // orden de los botones: una fila más, en paralelo con todo lo demás.
+    sesion.sitioId
+      ? consultarConSesion<{ carga_detallada: boolean }>(
+          sesion, `select carga_detallada from sitios where id = $1`, [sesion.sitioId],
+        )
+      : Promise.resolve([]),
   ])
 
   const esPuntoVerde = listas.sitio?.tipo === 'punto_verde'
+
+  // Donde no se puede usar el celular durante la jornada, el conteo diario no es
+  // una opción secundaria: es la forma de cargar, y va primero. Ante la duda
+  // manda el modo detallado, que es el de siempre.
+  const soloConteo = esPuntoVerde && sitios[0]?.carga_detallada === false
   const textos = esPuntoVerde
     ? {
         ingreso: { rotulo: 'Registrar lo que trae un vecino', detalle: 'Alguien deja material' },
@@ -69,6 +95,25 @@ export default async function InicioDeTurno() {
   const salidas = vigentes.filter((m) => m.tipo === 'salida').length
   const dia = diaSemana(new Date())
 
+  // En la Planta no hay vecinos que contar: el conteo no existe.
+  const accesoConteo = esPuntoVerde && (
+    <Link
+      href="/conteo"
+      className="boton-accion"
+      style={{ borderColor: 'color-mix(in srgb, var(--azul) 40%, transparent)' }}
+    >
+      <span className="icono" style={{ background: 'var(--azul)' }}><Palitos /></span>
+      <span>
+        <span className="rotulo">Cargar el conteo del día</span>
+        <span className="detalle">
+          {soloConteo
+            ? 'Cuántos vecinos vinieron, en un solo número'
+            : 'Para el día que no se pudo cargar de a uno'}
+        </span>
+      </span>
+    </Link>
+  )
+
   return (
     <div className="pila">
       <div>
@@ -80,35 +125,61 @@ export default async function InicioDeTurno() {
 
       <AvisoPendientes />
 
-      <Link href="/cargar/ingreso" className="boton-accion ingreso">
-        <span className="icono"><FlechaAbajo /></span>
-        <span>
-          <span className="rotulo">{textos.ingreso.rotulo}</span>
-          <span className="detalle">{textos.ingreso.detalle}</span>
-        </span>
-      </Link>
+      {soloConteo ? (
+        // Este vigilador no registra vecino por vecino: lo suyo es el número del
+        // día. Ingreso y salida quedan abajo, para lo que igual llegue a cargar.
+        <>
+          {accesoConteo}
 
-      <Link href="/cargar/salida" className="boton-accion salida">
-        <span className="icono"><FlechaArriba /></span>
-        <span>
-          <span className="rotulo">{textos.salida.rotulo}</span>
-          <span className="detalle">{textos.salida.detalle}</span>
-        </span>
-      </Link>
+          <p className="menor gris" style={{ margin: '4px 0 0' }}>
+            Si igual llegás a registrar algo en el momento:
+          </p>
 
-      {/* Las pilas son de la Planta: un punto verde no tiene ninguna. */}
-      {!esPuntoVerde && (
-        <Link
-          href="/pila"
-          className="boton-accion"
-          style={{ borderColor: 'color-mix(in srgb, var(--azul) 40%, transparent)' }}
-        >
-          <span className="icono" style={{ background: 'var(--azul)' }}><Voltear /></span>
-          <span>
-            <span className="rotulo">Anotar volteo o riego</span>
-            <span className="detalle">Control de las pilas</span>
-          </span>
-        </Link>
+          <Link href="/cargar/ingreso" className="boton secundario ancho-total">
+            {textos.ingreso.rotulo}
+          </Link>
+
+          <Link href="/cargar/salida" className="boton secundario ancho-total">
+            {textos.salida.rotulo}
+          </Link>
+        </>
+      ) : (
+        <>
+          <Link href="/cargar/ingreso" className="boton-accion ingreso">
+            <span className="icono"><FlechaAbajo /></span>
+            <span>
+              <span className="rotulo">{textos.ingreso.rotulo}</span>
+              <span className="detalle">{textos.ingreso.detalle}</span>
+            </span>
+          </Link>
+
+          <Link href="/cargar/salida" className="boton-accion salida">
+            <span className="icono"><FlechaArriba /></span>
+            <span>
+              <span className="rotulo">{textos.salida.rotulo}</span>
+              <span className="detalle">{textos.salida.detalle}</span>
+            </span>
+          </Link>
+
+          {/* Tercero y a propósito: acá se carga de a un vecino, y el conteo es
+              para el día que no se pudo usar el celular. */}
+          {accesoConteo}
+
+          {/* Las pilas son de la Planta: un punto verde no tiene ninguna. */}
+          {!esPuntoVerde && (
+            <Link
+              href="/pila"
+              className="boton-accion"
+              style={{ borderColor: 'color-mix(in srgb, var(--azul) 40%, transparent)' }}
+            >
+              <span className="icono" style={{ background: 'var(--azul)' }}><Voltear /></span>
+              <span>
+                <span className="rotulo">Anotar volteo o riego</span>
+                <span className="detalle">Control de las pilas</span>
+              </span>
+            </Link>
+          )}
+        </>
       )}
 
       <div className="tarjeta fila-entre">

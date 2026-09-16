@@ -1,4 +1,4 @@
-import { Fragment } from 'react'
+import { Fragment, type CSSProperties } from 'react'
 import { numero } from '@/lib/formato'
 import estilos from './GraficoVecinos.module.css'
 
@@ -9,6 +9,10 @@ export interface PuntoGrafico {
   visitas: number
   sinDatos: number
   identificados: number
+  /** Parte de las visitas que viene de un conteo diario, sin saber quién vino. */
+  contadas: number
+  /** El punto no puede usar el celular en la jornada: todo lo suyo es conteo. */
+  soloConteo: boolean
 }
 
 const ANCHO = 780
@@ -17,6 +21,29 @@ const MARGEN = { arriba: 24, derecha: 16, abajo: 44, izquierda: 54 }
 
 const ANCHO_TRAMA = ANCHO - MARGEN.izquierda - MARGEN.derecha
 const ALTO_TRAMA = ALTO - MARGEN.arriba - MARGEN.abajo
+
+// La parte contada en papel va con su propia trama y con el borde punteado. El
+// estilo va en línea y no en el módulo porque el módulo no es de esta tarea;
+// el color sale de las variables igual que el resto del gráfico.
+const bordeConteo: CSSProperties = {
+  fill: 'none',
+  stroke: 'var(--celeste)',
+  strokeWidth: 1.5,
+  strokeDasharray: '5 3',
+}
+const fondoConteo: CSSProperties = { fill: 'var(--celeste)', opacity: .16 }
+const puntoConteo: CSSProperties = { fill: 'var(--celeste)', opacity: .9 }
+
+const muestraConteo: CSSProperties = {
+  width: 13,
+  height: 13,
+  borderRadius: 3,
+  flex: '0 0 auto',
+  border: '1.5px dashed var(--celeste)',
+  background:
+    'radial-gradient(circle at 50% 50%, var(--celeste) 0 1.6px, transparent 1.7px) 0 0 / 5px 5px,'
+    + ' color-mix(in srgb, var(--celeste) 16%, transparent)',
+}
 
 /**
  * Marcas del eje Y en valores redondos que el gráfico efectivamente alcanza:
@@ -36,10 +63,15 @@ function marcasDelEje(maximo: number): number[] {
 }
 
 /**
- * Una barra por punto, partida en las visitas que dejaron datos y las que no.
+ * Una barra por punto, partida en de dónde salió cada visita.
  *
- * La barra entera son visitas: esas dos partes sí suman. Los vecinos
- * identificados son personas, no visitas, y por eso no se apilan acá — irían
+ * La barra entera son visitas: las tres partes sí suman. Lo que no es
+ * comparable entre puntos es la parte contada en papel —se sabe cuántos
+ * vinieron, no quiénes—, y por eso va con trama de puntos y borde punteado: un
+ * punto que solo cuenta tiene toda su barra así, y no se lo puede leer al lado
+ * de los demás como si midieran lo mismo.
+ *
+ * Los vecinos identificados son personas, no visitas, y no se apilan acá: irían
  * en otra unidad y la altura dejaría de querer decir algo. Van en la etiqueta
  * de cada barra y en la tabla de abajo.
  */
@@ -51,12 +83,14 @@ export default function GraficoVecinos({
   periodo: string
 }) {
   const maximo = Math.max(0, ...puntos.map((p) => p.visitas))
+  const hayConteo = puntos.some((p) => p.contadas > 0)
 
   if (!(maximo > 0)) {
     return (
       <div className="aviso atencion">
         En {periodo} todavía no se registró ningún ingreso de vecinos. Si algún punto estuvo
-        abierto, revisá con el vigilador que esté cargando desde el celular.
+        abierto, revisá con el vigilador que esté cargando desde el celular; si es de los que
+        llevan el conteo en papel, el total del día se carga en Conteos.
       </div>
     )
   }
@@ -75,7 +109,10 @@ export default function GraficoVecinos({
         className={estilos.marco}
         viewBox={`0 0 ${ANCHO} ${ALTO}`}
         role="img"
-        aria-label={`Visitas por punto verde en ${periodo}, separando las que dejaron datos de las que no`}
+        aria-label={
+          `Visitas por punto verde en ${periodo}, separando las que dejaron datos, las que no `
+          + 'y las que vienen de un conteo diario en papel'
+        }
       >
         <defs>
           <pattern
@@ -87,6 +124,11 @@ export default function GraficoVecinos({
           >
             <rect width="6" height="6" className={estilos.tramaFondo} />
             <line x1="0" y1="0" x2="0" y2="6" className={estilos.tramaLinea} />
+          </pattern>
+
+          <pattern id="trama-conteo" width="6" height="6" patternUnits="userSpaceOnUse">
+            <rect width="6" height="6" style={fondoConteo} />
+            <circle cx="3" cy="3" r="1.5" style={puntoConteo} />
           </pattern>
         </defs>
 
@@ -114,23 +156,36 @@ export default function GraficoVecinos({
         {puntos.map((punto, i) => {
           const centro = MARGEN.izquierda + grupo * (i + 0.5)
           const x = centro - anchoBarra / 2
-          // sin_datos son visitas, así que nunca puede pasarse del total; si la
-          // base devolviera algo raro, la barra se recorta en vez de romperse.
-          const sinDatos = Math.max(0, Math.min(punto.sinDatos, punto.visitas))
-          const conDatos = punto.visitas - sinDatos
+          // Las partes nunca pueden pasarse del total; si la base devolviera
+          // algo raro, la barra se recorta en vez de romperse.
+          const contadas = Math.max(0, Math.min(punto.contadas, punto.visitas))
+          const detalladas = punto.visitas - contadas
+          const sinDatos = Math.max(0, Math.min(punto.sinDatos, detalladas))
+          const conDatos = detalladas - sinDatos
+
           const base = MARGEN.arriba + ALTO_TRAMA
-          const altoTotal = (punto.visitas / tope) * ALTO_TRAMA
-          const altoSinDatos = (sinDatos / tope) * ALTO_TRAMA
-          const altoConDatos = altoTotal - altoSinDatos
+          const alto = (valor: number) => (valor / tope) * ALTO_TRAMA
+          const altoTotal = alto(punto.visitas)
+          const altoConDatos = alto(conDatos)
+          const altoSinDatos = alto(sinDatos)
+          const altoContadas = Math.max(2, alto(contadas))
+
+          const partes = [
+            conDatos > 0 ? `${numero(conDatos)} dejaron datos` : '',
+            sinDatos > 0 ? `${numero(sinDatos)} no dejaron datos` : '',
+            contadas > 0 ? `${numero(contadas)} vienen del conteo diario, sin saber quién` : '',
+          ].filter(Boolean)
 
           return (
             <Fragment key={punto.id}>
               {punto.visitas > 0 && (
                 <g>
                   <title>
-                    {`${punto.codigo} · ${punto.nombre}: ${numero(punto.visitas)} visitas en ${periodo}, `}
-                    {`${numero(conDatos)} dejaron datos y ${numero(sinDatos)} no. `}
-                    {`${numero(punto.identificados)} vecinos identificados.`}
+                    {`${punto.codigo} · ${punto.nombre}: ${numero(punto.visitas)} visitas en ${periodo}. `}
+                    {`${partes.join('; ')}. `}
+                    {punto.soloConteo
+                      ? 'Este punto solo lleva el conteo diario: no registra vecinos identificados.'
+                      : `${numero(punto.identificados)} vecinos identificados.`}
                   </title>
                   {conDatos > 0 && (
                     <rect
@@ -144,11 +199,29 @@ export default function GraficoVecinos({
                   {sinDatos > 0 && (
                     <rect
                       x={x}
-                      y={base - altoTotal}
+                      y={base - altoConDatos - Math.max(2, altoSinDatos)}
                       width={anchoBarra}
                       height={Math.max(2, altoSinDatos)}
                       fill="url(#trama-sin-datos)"
                     />
+                  )}
+                  {contadas > 0 && (
+                    <>
+                      <rect
+                        x={x}
+                        y={base - altoTotal}
+                        width={anchoBarra}
+                        height={altoContadas}
+                        fill="url(#trama-conteo)"
+                      />
+                      <rect
+                        x={x + 0.75}
+                        y={base - altoTotal + 0.75}
+                        width={anchoBarra - 1.5}
+                        height={Math.max(1, altoContadas - 1.5)}
+                        style={bordeConteo}
+                      />
+                    </>
                   )}
                   <text x={centro} y={base - altoTotal - 8} textAnchor="middle" className={estilos.cifraBarra}>
                     {numero(punto.visitas)}
@@ -170,11 +243,23 @@ export default function GraficoVecinos({
         <span className={estilos.clave}>
           <span className={estilos.muestraTrama} /> Sin datos
         </span>
+        <span className={estilos.clave}>
+          <span style={muestraConteo} /> Contadas en papel
+        </span>
         <span className="gris">
-          Cada barra es el total de visitas del período. Los vecinos identificados se cuentan
-          aparte: son personas, no visitas.
+          Cada barra es el total de visitas del período. La parte punteada viene del conteo diario:
+          se sabe cuánta gente vino, no quién, así que en esa parte no hay vecinos identificados que
+          comparar. Los identificados se cuentan aparte: son personas, no visitas.
         </span>
       </div>
+
+      {hayConteo && (
+        <p className="menor gris" style={{ margin: 0 }}>
+          Un punto con la barra entera punteada lleva el conteo en papel porque no puede usar el
+          celular durante la jornada. Su altura sí se compara con la de los demás —son visitas—;
+          lo que no se puede comparar es cuánta gente identificó.
+        </p>
+      )}
     </div>
   )
 }

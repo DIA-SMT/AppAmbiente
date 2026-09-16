@@ -61,6 +61,7 @@ async function limpiarRastros() {
     )
     await tx.consultar('delete from movimientos where observaciones = $1', [MARCA])
     await tx.consultar('delete from pila_controles where observacion = $1', [MARCA])
+    await tx.consultar('delete from conteos_diarios where observaciones = $1', [MARCA])
     await tx.consultar(
       'delete from vecinos where app.normalizar_telefono(telefono) = any($1::text[])',
       [TELEFONOS_PRUEBA],
@@ -466,6 +467,85 @@ async function main() {
         where nombre in ('Carrero de prueba', 'Productor de prueba verificar')`,
     )
   })
+
+  // ═══ Conteo diario ════════════════════════════════════════════════════
+  console.log('\n  Conteo diario de vecinos')
+
+  const [andes] = await comoServicio((tx) =>
+    tx.consultar<{ id: string; sitio_id: string }>(
+      "select id, sitio_id from perfiles where usuario = 'pv03'",
+    ),
+  )
+  const sesionAndes: Sesion = {
+    perfilId: andes.id, rol: 'vigilador', sitioId: andes.sitio_id, nombre: 'Paso de los Andes',
+  }
+
+  const antesConteo = await contar(admin, 'select count(*) c from conteos_diarios')
+  for (const cuantos of [15, 18]) {
+    await conSesion(sesionAndes, (tx) =>
+      tx.consultar(
+        `insert into conteos_diarios (sitio_id, fecha, vecinos, observaciones, cargado_por_id)
+         values ($1, current_date, $2, $3, $4)
+         on conflict (sitio_id, fecha) do update
+           set vecinos = excluded.vecinos, observaciones = excluded.observaciones`,
+        [sesionAndes.sitioId, cuantos, MARCA, sesionAndes.perfilId],
+      ),
+    )
+  }
+  const despuesConteo = await contar(admin, 'select count(*) c from conteos_diarios')
+  const valorFinal = await contar(
+    admin,
+    'select vecinos c from conteos_diarios where sitio_id = $1 and fecha = current_date',
+    [sesionAndes.sitioId],
+  )
+  revisar(
+    'corregir el conteo del día no duplica la fila',
+    despuesConteo - antesConteo <= 1 && valorFinal === 18,
+    `${despuesConteo - antesConteo} filas nuevas, quedó en ${valorFinal}`,
+  )
+
+  await debeFallar(
+    'no se puede cargar el conteo de otro punto',
+    pv,
+    `insert into conteos_diarios (sitio_id, fecha, vecinos, observaciones, cargado_por_id)
+     values ($1, current_date, 99, $2, $3)`,
+    [sesionAndes.sitioId, MARCA, pv.perfilId],
+  )
+
+  await debeFallar(
+    'no se puede cargar un conteo de hace meses',
+    sesionAndes,
+    `insert into conteos_diarios (sitio_id, fecha, vecinos, observaciones, cargado_por_id)
+     values ($1, current_date - 90, 10, $2, $3)`,
+    [sesionAndes.sitioId, MARCA, sesionAndes.perfilId],
+  )
+
+  // Lo que hace que el indicador no mienta: un punto que solo cuenta suma
+  // visitas pero no aporta vecinos identificados, porque el conteo no sabe
+  // quién vino. Mezclarlos inventaría personas que nadie registró.
+  const [mezcla] = await conSesion(admin, (tx) =>
+    tx.consultar<{ visitas: string; identificados: string; contadas: string }>(
+      `select coalesce(sum(visitas), 0)::text as visitas,
+              coalesce(sum(identificados), 0)::text as identificados,
+              coalesce(sum(contadas), 0)::text as contadas
+         from v_vecinos_por_periodo
+        where sitio_codigo = 'PV-03'`,
+    ),
+  )
+  revisar(
+    'un punto que solo cuenta suma visitas pero no vecinos identificados',
+    Number(mezcla.visitas) > 0 &&
+      Number(mezcla.identificados) === 0 &&
+      Number(mezcla.contadas) === Number(mezcla.visitas),
+    `${mezcla.visitas} visitas · ${mezcla.identificados} identificados · ${mezcla.contadas} de conteo`,
+  )
+
+  const conDetalle = await contar(
+    admin,
+    `select count(*) c from v_vecinos_por_periodo
+      where sitio_codigo <> 'PV-03' and identificados > 0`,
+  )
+  revisar('los puntos que cargan en detalle sí identifican vecinos', conDetalle > 0)
 
   // ═══ Credenciales de fábrica ══════════════════════════════════════════
   //

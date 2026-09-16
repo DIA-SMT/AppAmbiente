@@ -1,0 +1,74 @@
+/* Lo propio de la pantalla de conteos. Todo lo demás sale de globals.css y el
+   color siempre de las variables, así que los dos temas salen solos. */
+
+/* ── Quién está cargando ───────────────────────────────────────────────── */
+
+.filaPunto {
+  display: flex;
+  align-items: center;
+  gap: 6px 12px;
+  flex-wrap: wrap;
+  min-height: 28px;
+}
+
+.codigo {
+  font-family: var(--mono);
+  font-weight: 800;
+  color: var(--tinta);
+}
+
+/* Empuja la antigüedad al otro extremo de la fila; si no entra, baja sola. */
+.silencio {
+  margin-left: auto;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Un punto callado no es un punto sin gente: es lo único de esta pantalla que
+   pide hacer algo, así que salta a la vista. `.lista > li` de globals.css pinta
+   su propio fondo, y hay que ganarle en especificidad para cambiarlo. */
+:global(.lista) > li.callado {
+  background: var(--salida-bg);
+  box-shadow: inset 4px 0 0 var(--salida);
+}
+
+/* ── Formulario de carga y corrección ──────────────────────────────────── */
+
+.formulario {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.entero { grid-column: 1 / -1; }
+
+.pieFormulario {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+/* ── Conteos cargados, agrupados por día ───────────────────────────────── */
+
+/* La fila que abre cada día. Va en el tbody, así que no hereda el sticky ni las
+   mayúsculas de `table.datos thead th`. */
+.grupo th[scope='colgroup'] {
+  background: var(--panel-2);
+  color: var(--tinta);
+  font-size: .86rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: none;
+  border-top: 2px solid var(--linea-fuerte);
+}
+
+.grupo:first-of-type th[scope='colgroup'] { border-top: 0; }
+
+.observacion {
+  display: block;
+  max-width: 42ch;
+  color: var(--gris);
+  font-size: .84rem;
+}

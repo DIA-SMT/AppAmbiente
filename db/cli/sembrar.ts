@@ -144,6 +144,14 @@ async function sembrar() {
       )
     }
 
+    // Paso de los Andes no carga desde el celular: el personal es de otra
+    // Secretaría. La migración 0017 también lo marca, pero ahí el sitio todavía
+    // no existe —una migración que actualiza datos corre sobre una tabla vacía
+    // en una base nueva—, así que el valor real se fija acá.
+    await tx.consultar(
+      "update sitios set carga_detallada = false where codigo = 'PV-03'",
+    )
+
     // ── Unidades ─────────────────────────────────────────────────────────
     for (const [codigo, nombre, plural, decimales, factor, orden] of UNIDADES) {
       await tx.consultar(
@@ -424,7 +432,7 @@ async function sembrar() {
                    (select p.id from perfiles p
                      where p.sitio_id = s.id order by p.usuario limit 1) as perfil_id
               from sitios s
-             where s.tipo = 'punto_verde' and s.activo
+             where s.tipo = 'punto_verde' and s.activo and s.carga_detallada
              order by s.orden
             offset (n % greatest(1, (select count(*) from sitios
                                       where tipo = 'punto_verde' and activo)))
@@ -443,7 +451,7 @@ async function sembrar() {
           join lateral (
             select p.id from perfiles p where p.sitio_id = s.id order by p.usuario limit 1
           ) pf on true
-         where s.tipo = 'punto_verde' and s.activo
+         where s.tipo = 'punto_verde' and s.activo and s.carga_detallada
       ),
       vigiladores as (
         select p.id, (row_number() over (order by p.nombre)) - 1 as rn,
@@ -590,6 +598,38 @@ async function sembrar() {
       `select count(*)::text as total from movimientos where flujo = 'punto_verde'`,
     )
     console.log(`  ${creados} movimientos de puntos verdes generados (últimos 4 meses).`)
+  })
+
+  // ── Conteo diario en Paso de los Andes ──────────────────────────────────
+  // Ese punto no carga desde el celular: el personal es de otra Secretaría.
+  // Sin estos conteos aparece en cero y el tablero informa una caída que no
+  // existe, que es justamente lo que hay que poder distinguir.
+  await comoServicio(async (tx) => {
+    const [{ ya }] = await tx.consultar<{ ya: string }>(
+      'select count(*)::text as ya from conteos_diarios',
+    )
+    if (Number(ya) > 0) {
+      console.log('  Los conteos diarios ya están cargados: no se tocan.')
+      return
+    }
+    await tx.consultar(`
+      insert into conteos_diarios (sitio_id, fecha, vecinos, cargado_por_id)
+      select
+        s.id,
+        d::date,
+        -- Entre 6 y 25 por día, más los fines de semana, que es cuando la gente
+        -- puede acercarse. Algunos días sin carga: nadie anota todos los días.
+        6 + (('x' || substr(md5(d::text || s.codigo), 1, 4))::bit(16)::int % 20)
+          + case when extract(isodow from d) >= 6 then 8 else 0 end,
+        (select id from perfiles where usuario = 'pv03')
+      from sitios s,
+           generate_series(current_date - 119, current_date, interval '1 day') d
+      where s.codigo = 'PV-03'
+        and (('x' || substr(md5(d::text || 'carga'), 1, 4))::bit(16)::int % 10) < 8
+      on conflict (sitio_id, fecha) do nothing
+    `)
+    const [{ c }] = await tx.consultar<{ c: string }>('select count(*)::text as c from conteos_diarios')
+    console.log(`  ${c} conteos diarios cargados en Paso de los Andes.`)
   })
 
   // ── La cadena del compost ───────────────────────────────────────────────

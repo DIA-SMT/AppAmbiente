@@ -85,13 +85,38 @@ export interface FilaVecinos {
   sitio_id: string
   sitio_nombre: string
   sitio_codigo: string
+  /** Falso donde no se puede usar el celular y solo se espera el conteo diario. */
+  carga_detallada: boolean
   semana: string
   mes: string
-  /** Cuánta gente vino. Si alguien vino cuatro veces, son cuatro visitas. */
+  /** Cuánta gente vino, por cualquiera de las dos modalidades. */
   visitas: number
   sin_datos: number
-  /** Personas distintas que dejaron teléfono. No se pueden sumar con visitas. */
+  /** Personas distintas que dejaron teléfono. Solo del modo detallado. */
   identificados: number
+  /** Parte de las visitas que viene de un conteo diario, sin detalle de quién. */
+  contadas: number
+}
+
+export interface ConteoDiario {
+  id: string
+  sitio_id: string
+  sitio_nombre?: string
+  fecha: string
+  vecinos: number
+  observaciones: string | null
+  cargado_por?: string | null
+  creado_en: string
+  actualizado_en: string
+}
+
+/** Fila de v_puntos_sin_carga. */
+export interface PuntoSinCarga {
+  sitio_id: string
+  codigo: string
+  nombre: string
+  carga_detallada: boolean
+  ultima_carga: string
 }
 
 /** Una fila de v_valorizacion. */

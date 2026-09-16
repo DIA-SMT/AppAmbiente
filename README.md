@@ -7,9 +7,10 @@ Reemplaza los Google Forms que hoy se comparten por WhatsApp para registrar lo q
 entra y sale de la Planta de Valorización de Residuos Verdes, los ocho puntos verdes
 y los retiros pactados con grandes generadores.
 
-**Entregado:** la Planta de Valorización, los ocho Puntos Verdes, y el seguimiento
-de las pilas de compost con la trazabilidad del camión. Falta el conteo diario
-simplificado, el recambio de contenedores y la importación del Excel de pesos.
+**Entregado:** la Planta de Valorización, los ocho Puntos Verdes, el seguimiento de
+las pilas de compost con la trazabilidad del camión, y el conteo diario simplificado
+para los puntos donde no se puede usar el celular. Falta el recambio de contenedores
+y la importación del Excel de pesos de la 9 de Julio.
 
 El documento de validación con el modelo completo, las decisiones de diseño y las
 preguntas abiertas está en [`docs/fase-0-validacion.html`](docs/fase-0-validacion.html).
@@ -85,19 +86,31 @@ agrega trazabilidad: la auditoría distingue quién hizo cada cosa.
 npm run db:verificar
 ```
 
-Treinta y tres comprobaciones contra la base real, y es repetible: limpia sus propios
-rastros antes de empezar, así correrla dos veces da lo mismo. que un vigilador de otro punto no vea
-los movimientos de la Planta, que no lea la tabla `entidades` (pero sí la vista sin
-CUIT ni teléfono), que no lea vecinos ni la auditoría, que no pueda cargar a nombre de
-otro ni con fecha de hace una semana, que nadie pueda borrar, y que cargar un
-movimiento deje rastro con nombre en la auditoría.
+Treinta y ocho comprobaciones contra la base real, y es repetible: limpia sus propios
+rastros antes de empezar, así correrla dos veces da lo mismo.
 
-De la fase 2: que cuatro formas de escribir el mismo teléfono den un solo vecino, que
-dos visitas de la misma persona no la dupliquen, que el tablero distinga visitas de
-vecinos identificados, que el vigilador pueda dar de alta un carrero pero no una
-empresa ni una dependencia municipal, y que formalizar un destino escrito a mano
-reapunte los movimientos que ya lo usaban —incluidos los escritos con otras
+**De los permisos:** que un vigilador de otro punto no vea los movimientos de la
+Planta, que no lea la tabla `entidades` (pero sí la vista sin CUIT ni teléfono), que
+no lea vecinos ni la auditoría, que no pueda cargar a nombre de otro ni con fecha de
+hace una semana, que nadie pueda borrar, y que cargar un movimiento deje rastro con
+nombre en la auditoría. Además, que **toda tabla del esquema** tenga permiso de
+lectura para la app: una tabla nueva sin `GRANT` falla con «permission denied» antes
+de que las políticas siquiera se evalúen, y ya pasó una vez.
+
+**De los Puntos Verdes:** que cuatro formas de escribir el mismo teléfono den un solo
+vecino, que dos visitas de la misma persona no la dupliquen, que el tablero distinga
+visitas de vecinos identificados, que el vigilador pueda dar de alta un carrero pero
+no una empresa ni una dependencia municipal, y que formalizar un destino escrito a
+mano reapunte los movimientos que ya lo usaban —incluidos los escritos con otras
 mayúsculas— sin perder la trazabilidad de lo que ya salió.
+
+**De las pilas:** que un vigilador de punto verde no vea las pilas de la Planta, que
+solo pueda anotar controles en su propio sitio y a su nombre, que una temperatura sin
+valor se rechace, y que una salida de compost sepa de qué pila y de qué poda viene.
+
+**Del conteo diario:** que corregir el conteo de un día no duplique la fila, que no se
+pueda cargar el de otro punto ni uno de hace meses, y —lo que hace que el indicador no
+mienta— que un punto que solo cuenta sume visitas pero **no** vecinos identificados.
 
 Conviene correrlo después de tocar `db/migrations/0010_rls.sql` y antes de desplegar.
 
@@ -129,7 +142,7 @@ el que se conecta la app tiene que ser miembro de `authenticated`.
 
 ```
 db/
-  migrations/        16 migraciones SQL, en orden. Es la fuente de verdad del modelo.
+  migrations/        17 migraciones SQL, en orden. Es la fuente de verdad del modelo.
   client.ts          conexión: PGlite o postgres-js según DATABASE_URL
   sesion.ts          conSesion() pone la identidad en la base antes de consultar
   credenciales.ts    hasheo de PIN con scrypt
@@ -139,9 +152,10 @@ src/
   lib/               tipos, capa de datos, sesión, formato argentino
   app/
     ingresar/        pantalla de acceso
-    (vigilador)/     turno, carga de ingreso y salida, listo, lo de hoy
+    (vigilador)/     turno, carga de ingreso y salida, conteo diario, control de
+                     pilas, listo, lo de hoy
     (admin)/         tablero (planta y puntos verdes), movimientos, trazabilidad,
-                     pilas, listas, revisiones, vecinos, usuarios, auditoría
+                     pilas, conteos, listas, revisiones, vecinos, usuarios, auditoría
     api/             exportar a Excel, sincronizar la cola offline
 docs/                documento de validación de fase 0
 assets/marca/        identidad institucional (logos y plantilla de referencia)
@@ -215,6 +229,29 @@ a ignorarlo.
 En `/trazabilidad` está el listado completo, con un dato que conviene mirar primero:
 cuántas salidas del período declaran pila y cuántas no. Si la mayoría no declara, el
 indicador todavía no sirve y hay que saberlo antes de sacar conclusiones.
+
+## Dos modalidades de registro
+
+En algunos puntos no se puede usar el celular durante la jornada: en Paso de los
+Andes el personal es de otra Secretaría y no carga, y en otros sacar el teléfono es
+riesgo de seguridad. Para esos casos el conteo se lleva en papel y se carga una sola
+vez al cerrar: «Paso de los Andes – 15/09/2026 – 15 vecinos».
+
+Un conteo **no** es un movimiento. Un movimiento es material que va de un lugar a
+otro, con cantidad y unidad; un conteo es cuánta gente vino. Meterlo en `movimientos`
+obligaría a inventar un material y una cantidad falsos y ensuciaría todos los metros
+cúbicos del tablero, así que vive en su propia tabla.
+
+`sitios.carga_detallada` no cambia lo que se **puede** cargar —el conteo está
+disponible en todos lados, porque cualquier punto puede tener un día malo— sino cómo
+se lee un cero. Sin esa bandera, un punto sin registros detallados es indistinguible
+de un punto donde no vino nadie, y el tablero informaría una caída que no existe.
+
+Por eso el tablero muestra las visitas que vienen de un conteo en columna aparte, y
+en esos puntos no escribe un cero en «identificados»: escribe que no se sabe quién
+vino. Y el porcentaje de visitas sin datos se mide contra las visitas del modo
+detallado, no contra el total — medido contra el total, cada conteo diario bajaría el
+porcentaje como si esa gente sí hubiera dejado sus datos.
 
 ## Cómo funcionan los Puntos Verdes
 

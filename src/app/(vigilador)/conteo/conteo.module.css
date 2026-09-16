@@ -1,0 +1,76 @@
+/* Lo propio de la pantalla del conteo. Todo lo demás sale de globals.css. */
+
+/* Qué día se está cargando: es el dato que más se equivoca alguien que cierra
+   el punto un día y recién carga al otro. Va grande y arriba de todo. */
+.cuando {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--tinta);
+}
+
+/* El selector está para la excepción —cargar un día que quedó pendiente— y no
+   tiene que competir con el título. Ancho al contenido, alto de dedo igual. */
+.selectorDia {
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 48px;
+  padding: 8px 38px 8px 12px;
+  font-size: .92rem;
+}
+
+/* Menos, el número, más. Los dos botones son de 56 px porque el conteo se
+   termina de ajustar con el pulgar, sin abrir el teclado: el número que se
+   carga es bajo y se llega tocando. */
+.contador {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+.paso {
+  flex: 0 0 56px;
+  width: 56px;
+  min-height: 56px;
+  padding: 0;
+}
+.numero {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 72px;
+  padding: 4px 6px;
+  font-size: 2.6rem;
+  font-weight: 800;
+  text-align: center;
+  letter-spacing: -.02em;
+}
+
+/* Cada día de la semana ocupa el ancho entero de su fila: se toca sin apuntar. */
+.dia {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 46px;
+  padding: 0;
+  background: none;
+  border: 0;
+  font-family: inherit;
+  font-size: 1rem;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.rotuloDia {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+/* Un día sin cargar no es un error —el punto pudo estar cerrado— así que se
+   marca en gris y no con el ámbar de las alarmas. El elegido, en azul.
+   El orden importa: con las dos clases puestas, gana el azul. */
+li.sinCargar { box-shadow: inset 3px 0 0 var(--linea-fuerte); }
+li.elegido   { box-shadow: inset 3px 0 0 var(--azul); }

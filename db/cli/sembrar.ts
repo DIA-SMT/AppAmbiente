@@ -237,7 +237,14 @@ async function sembrar() {
 
     // ── Usuarios ─────────────────────────────────────────────────────────
     // CREDENCIALES DE DESARROLLO. Cambiar antes de cualquier despliegue.
+    //
+    // No hay un rol por encima de 'admin': el modelo tiene dos roles y admin ya
+    // puede todo —los tres flujos, las listas maestras, anular movimientos, los
+    // datos de vecinos y la auditoría—. El acceso de la Dirección de IA es un
+    // admin más, para poder entrar sin usar la cuenta de la coordinación y que
+    // la auditoría distinga quién hizo qué.
     const usuarios: Array<[string, string, 'admin' | 'vigilador', string | null, string, number | null]> = [
+      ['direccionia', 'Dirección de Inteligencia Artificial', 'admin', null, '123456', 12],
       ['coordinacion', 'Coordinación de Ambiente', 'admin', null, 'ambiente2026', 12],
       ['planta', 'Planta de Valorización — turno', 'vigilador', 'PVRV', '1234', null],
     ]

@@ -46,6 +46,7 @@ ejemplo.
 
 | Quién | Usuario | Clave | Qué ve |
 |---|---|---|---|
+| Dirección de IA | `direccionia` | `123456` | Todo. Es un admin más, para entrar sin usar la cuenta de la coordinación |
 | Coordinadora | `coordinacion` | `ambiente2026` | Todo: tablero, listados, listas maestras, auditoría |
 | Planta | `planta` | PIN `1234` | Solo carga movimientos de la Planta |
 | Puntos verdes | `pv01` … `pv08` | PIN `1234` | Solo su propio punto |
@@ -53,6 +54,11 @@ ejemplo.
 Para entrar como coordinadora hay que tocar **“Entrar como coordinación”** abajo del
 formulario: la pantalla por defecto es la del vigilador, que es quien la usa todos
 los días.
+
+No hay un rol por encima de `admin`: el sistema tiene dos roles y `admin` ya puede
+todo —los tres flujos, las listas maestras, anular movimientos, los datos de vecinos
+y la auditoría—. Tener una cuenta propia para la Dirección de IA no agrega permisos,
+agrega trazabilidad: la auditoría distingue quién hizo cada cosa.
 
 > **Estas credenciales son de desarrollo y están publicadas en este repositorio.**
 > Sirven para la base local de PGlite, que vive en tu máquina. Antes de desplegar
@@ -93,6 +99,10 @@ reapunte los movimientos que ya lo usaban —incluidos los escritos con otras
 mayúsculas— sin perder la trazabilidad de lo que ya salió.
 
 Conviene correrlo después de tocar `db/migrations/0010_rls.sql` y antes de desplegar.
+
+Corriendo con `DATABASE_URL` apuntando a un Postgres real, además **falla** si algún
+usuario conserva la clave de fábrica. Contra la base local solo avisa, porque ahí es
+lo esperado.
 
 ### Por qué PGlite y no Supabase local
 

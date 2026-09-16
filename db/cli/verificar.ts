@@ -467,6 +467,47 @@ async function main() {
     )
   })
 
+  // ═══ Credenciales de fábrica ══════════════════════════════════════════
+  //
+  // Las claves de la siembra están publicadas en el repositorio. Sirven para la
+  // base local; en un servidor son una puerta abierta. Esto no falla la
+  // verificación cuando se corre contra PGlite —ahí es lo esperado— pero sí
+  // contra un Postgres de verdad, que es donde importa.
+  console.log('\n  Credenciales')
+
+  const DE_FABRICA: Array<[string, string]> = [
+    ['direccionia', '123456'],
+    ['coordinacion', 'ambiente2026'],
+    ['planta', '1234'],
+    ['pv01', '1234'],
+  ]
+  const { verificarCredencial } = await import('../credenciales')
+  const guardadas = await comoServicio((tx) =>
+    tx.consultar<{ usuario: string; credencial_hash: string }>(
+      'select usuario, credencial_hash from perfiles where activo',
+    ),
+  )
+  const sinCambiar = DE_FABRICA.filter(([usuario, clave]) => {
+    const p = guardadas.find((g) => g.usuario.toLowerCase() === usuario)
+    return p ? verificarCredencial(clave, p.credencial_hash) : false
+  }).map(([usuario]) => usuario)
+
+  const enProduccion = Boolean(process.env.DATABASE_URL?.trim())
+  if (enProduccion) {
+    revisar(
+      'ningún usuario conserva la clave de fábrica',
+      sinCambiar.length === 0,
+      sinCambiar.join(', '),
+    )
+  } else {
+    console.log(
+      sinCambiar.length
+        ? `  · ${sinCambiar.length} usuarios con la clave de fábrica (${sinCambiar.join(', ')}).\n` +
+          '    Es lo esperado en la base local. Contra un Postgres real, esto falla.'
+        : '  ✓ ningún usuario conserva la clave de fábrica',
+    )
+  }
+
   console.log(`\n  ${pasaron} bien · ${fallaron} mal\n`)
   await (await obtenerBase()).cerrar()
   process.exit(fallaron === 0 ? 0 : 1)

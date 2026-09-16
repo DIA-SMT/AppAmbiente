@@ -1,6 +1,18 @@
 /* La capacidad del vehículo no es una sugerencia más: es el único número que
    el vigilador no tiene que estimar a ojo, así que se ve distinta. */
-.capacidad {
+/* Con solo .capacidad el borde no se veía: globals.css pone el atajo `border`
+   en `.sugerencias button`, que gana por especificidad. Hace falta nombrar las
+   dos clases para ganarle. */
+:global(.sugerencias) button.capacidad {
   border-color: var(--celeste);
   box-shadow: inset 0 0 0 1px var(--celeste);
+}
+
+/* Los recipientes son palabras y no cifras: con el ancho repartido en partes
+   iguales "contenedor" y "batea larga" parten en dos renglones. */
+div.recipientes button {
+  flex: 0 1 auto;
+  padding: 0 14px;
+  font-size: .95rem;
+  white-space: nowrap;
 }

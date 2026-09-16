@@ -77,7 +77,8 @@ los días.
 npm run db:verificar
 ```
 
-Veintiuna comprobaciones contra la base real: que un vigilador de otro punto no vea
+Veinticinco comprobaciones contra la base real, y es repetible: limpia sus propios
+rastros antes de empezar, así correrla dos veces da lo mismo. que un vigilador de otro punto no vea
 los movimientos de la Planta, que no lea la tabla `entidades` (pero sí la vista sin
 CUIT ni teléfono), que no lea vecinos ni la auditoría, que no pueda cargar a nombre de
 otro ni con fecha de hace una semana, que nadie pueda borrar, y que cargar un
@@ -85,8 +86,10 @@ movimiento deje rastro con nombre en la auditoría.
 
 De la fase 2: que cuatro formas de escribir el mismo teléfono den un solo vecino, que
 dos visitas de la misma persona no la dupliquen, que el tablero distinga visitas de
-vecinos identificados, y que el vigilador pueda dar de alta un carrero pero no una
-empresa ni una dependencia municipal.
+vecinos identificados, que el vigilador pueda dar de alta un carrero pero no una
+empresa ni una dependencia municipal, y que formalizar un destino escrito a mano
+reapunte los movimientos que ya lo usaban —incluidos los escritos con otras
+mayúsculas— sin perder la trazabilidad de lo que ya salió.
 
 Conviene correrlo después de tocar `db/migrations/0010_rls.sql` y antes de desplegar.
 
@@ -114,7 +117,7 @@ el que se conecta la app tiene que ser miembro de `authenticated`.
 
 ```
 db/
-  migrations/        14 migraciones SQL, en orden. Es la fuente de verdad del modelo.
+  migrations/        15 migraciones SQL, en orden. Es la fuente de verdad del modelo.
   client.ts          conexión: PGlite o postgres-js según DATABASE_URL
   sesion.ts          conSesion() pone la identidad en la base antes de consultar
   credenciales.ts    hasheo de PIN con scrypt
@@ -152,15 +155,24 @@ assets/marca/        identidad institucional (logos y plantilla de referencia)
 Están todos anotados en el código con la palabra `SUPUESTO` y explicados en
 `docs/fase-0-validacion.html`. Los tres que más pesan:
 
-1. **La unidad de cada material.** Todavía no está definido si un camión se anota
-   como “1 camión” o en metros cúbicos estimados. Por eso la unidad es un atributo
-   del material, editable desde la pantalla de listas maestras, y `unidades.factor_m3`
-   guarda una equivalencia estimada para poder comparar en el tablero.
-2. **Un usuario por sitio con PIN**, más un selector de “vigilador a cargo” que se
-   elige al empezar el turno. La rotación de personal no genera altas ni bajas de
-   cuentas y cada movimiento igual queda con nombre.
-3. **48 horas de carga retroactiva** para el vigilador, marcada como carga diferida.
+1. **48 horas de carga retroactiva** para el vigilador, marcada como carga diferida.
    La coordinadora no tiene ese límite.
+2. **Diez minutos para deshacer** un movimiento por cuenta propia; después hay que
+   pedirle la anulación a la coordinadora.
+
+Los dos supuestos que más pesaban quedaron resueltos con el relevamiento (expediente
+190941/26) y hoy son dato, no suposición:
+
+- **Todo se estima en metros cúbicos**, porque no hay balanza. Los recipientes tienen
+  capacidad declarada —tambor 0,2 · carro de delfi 4 · camión 6 · contenedor 6 ·
+  batea 20 · batea alargada 30— y el vigilador elige con cuál está estimando. La app
+  muestra la cuenta hecha: “2 camiones = 12 m³”.
+- **Un usuario por punto**, no por persona: son unos 67 vigiladores con rotación
+  permanente y sin asignación fija. El selector de quién está de turno quedó opcional
+  justamente por eso.
+- **No existe una lista formal de destinos habilitados.** El destino es un campo
+  abierto y lo escrito a mano se formaliza desde **Revisiones**, que al convertirlo
+  reapunta los movimientos anteriores.
 
 ## Cómo funcionan los Puntos Verdes
 

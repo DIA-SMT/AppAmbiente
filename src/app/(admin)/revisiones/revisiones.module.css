@@ -1,5 +1,10 @@
 /* Lo propio de la pantalla de revisiones. Todo lo demás sale de globals.css. */
 
+/* La pantalla resuelve dos cosas distintas —altas de la calle y destinos
+   escritos a mano—, y sin una raya en el medio se leen como una sola lista. */
+.seccion { display: flex; flex-direction: column; gap: 12px; }
+.seccion + .seccion { margin-top: 4px; padding-top: 18px; border-top: 1px solid var(--linea); }
+
 .fichas {
   list-style: none;
   margin: 0;
@@ -26,6 +31,18 @@
 /* Una debajo de otra: con guantes o en una tablet, tres botones en fila se
    tocan mal y el peligroso queda pegado al de confirmar. */
 .acciones { display: grid; gap: 8px; }
+
+/* ── Destinos escritos a mano ─────────────────────────────────────────── */
+
+.destino { display: flex; flex-direction: column; gap: 10px; }
+
+/* El texto tal cual lo tipearon en el celular: se muestra sin tocar, porque es
+   lo que hay que reconocer y corregir al formalizarlo. */
+.escrito { font-size: 1.1rem; overflow-wrap: anywhere; }
+
+/* El desplegable no necesita el ancho de la fila entera en una pantalla grande;
+   el formulario que se abre adentro tampoco. */
+.formalizar { max-width: 420px; }
 
 /* ── Desplegables ─────────────────────────────────────────────────────── */
 /* Se abren dentro de la propia ficha: en esta app no hay modales. Funcionan

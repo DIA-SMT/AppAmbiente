@@ -39,8 +39,38 @@ async function contar(sesion: Sesion, sql: string, params: unknown[] = []): Prom
   return Number(filas[0]?.c ?? 0)
 }
 
+const MARCA = 'Generado por db:verificar'
+const TELEFONOS_PRUEBA = ['3814569988']
+const ENTIDADES_PRUEBA = ['Carrero de prueba', 'Productor de prueba verificar']
+
+/**
+ * Borra lo que dejó una corrida anterior, para que correr esto dos veces dé el
+ * mismo resultado.
+ *
+ * Es el único lugar del proyecto que borra de verdad, y lo hace fuera de las
+ * políticas a propósito: la app no puede borrar —el permiso está revocado para
+ * todos los roles— pero un banco de pruebas que ensucia la base deja de servir
+ * a la segunda corrida. Solo toca filas que creó esta misma verificación.
+ */
+async function limpiarRastros() {
+  await comoServicio(async (tx) => {
+    await tx.consultar(
+      `delete from movimiento_items
+        where movimiento_id in (select id from movimientos where observaciones = $1)`,
+      [MARCA],
+    )
+    await tx.consultar('delete from movimientos where observaciones = $1', [MARCA])
+    await tx.consultar(
+      'delete from vecinos where app.normalizar_telefono(telefono) = any($1::text[])',
+      [TELEFONOS_PRUEBA],
+    )
+    await tx.consultar('delete from entidades where nombre = any($1::text[])', [ENTIDADES_PRUEBA])
+  })
+}
+
 async function main() {
   console.log(`\n  Verificación de permisos · ${describirMotor()}\n`)
+  await limpiarRastros()
 
   const perfiles = await comoServicio((tx) =>
     tx.consultar<{ id: string; usuario: string; rol: 'admin' | 'vigilador'; sitio_id: string | null; nombre: string }>(
@@ -67,7 +97,7 @@ async function main() {
   // justamente lo que pasa desde que existe el flujo de Puntos Verdes.
   const plantaDesdeOtroPunto = await contar(
     otroPunto,
-    `select count(*) c from movimientos where sitio_id = (select id from sitios where codigo = 'PLANTA')`,
+    `select count(*) c from movimientos where sitio_id = (select id from sitios where codigo = 'PVRV')`,
   )
   revisar(
     'un vigilador no ve movimientos de otro sitio',
@@ -96,8 +126,8 @@ async function main() {
     otroPunto,
     `insert into movimientos (flujo, tipo, sitio_id, origen_clase, origen_detalle,
                               destino_clase, destino_sitio_id, cargado_por_id)
-     values ('planta', 'ingreso', (select id from sitios where codigo = 'PLANTA'),
-             'texto', 'prueba', 'sitio', (select id from sitios where codigo = 'PLANTA'), $1)`,
+     values ('planta', 'ingreso', (select id from sitios where codigo = 'PVRV'),
+             'texto', 'prueba', 'sitio', (select id from sitios where codigo = 'PVRV'), $1)`,
     [otroPunto.perfilId],
   )
   await debeFallar(
@@ -248,7 +278,7 @@ async function main() {
   const marcada = await contar(
     admin,
     `select count(*) c from entidades
-      where nombre = 'Carrero de prueba' and pendiente_revision and not habilitada_origen`,
+      where nombre in ('Carrero de prueba', 'Productor de prueba verificar') and pendiente_revision and not habilitada_origen`,
   )
   revisar('queda pendiente de revisión y solo como destino', marcada === 1)
 
@@ -264,6 +294,73 @@ async function main() {
     )
   }
 
+  console.log('\n  Puntos Verdes · destinos escritos a mano')
+
+  // Dos salidas al mismo destino escrito a mano, una con otras mayúsculas.
+  const TEXTO = 'Productor de prueba verificar'
+  for (const escrito of [TEXTO, TEXTO.toUpperCase()]) {
+    await conSesion(pv, async (tx) => {
+      const [mov] = await tx.consultar<{ id: string }>(
+        `insert into movimientos (flujo, tipo, sitio_id, origen_clase, origen_sitio_id,
+                                  destino_clase, destino_detalle, cargado_por_id, observaciones)
+         values ('punto_verde', 'salida', $1, 'sitio', $1, 'texto', $2, $3,
+                 'Generado por db:verificar')
+         returning id`,
+        [pv.sitioId, escrito, pv.perfilId],
+      )
+      await tx.consultar(
+        `insert into movimiento_items (movimiento_id, material_id, cantidad, unidad_id)
+         values ($1, $2, 1, $3)`,
+        [mov.id, material.id, material.unidad_default_id],
+      )
+    })
+  }
+
+  // Dos grupos, no uno: la vista agrupa respetando mayúsculas, para que la
+  // coordinadora vea cómo lo escribieron de verdad. La función que formaliza,
+  // en cambio, compara en minúsculas y se lleva las dos variantes.
+  const aparece = await contar(
+    admin,
+    'select count(*) c from v_destinos_a_formalizar where lower(destino) = lower($1)',
+    [TEXTO],
+  )
+  revisar(
+    'un destino escrito a mano aparece para formalizar',
+    aparece === 2,
+    `${aparece} variantes (se escribió de dos formas)`,
+  )
+
+  await conSesion(admin, (tx) =>
+    tx.consultar('select app.formalizar_destino($1, $2, $3, $4)', [
+      TEXTO, 'Productor de prueba verificar', 'otro', 'punto_verde',
+    ]),
+  )
+
+  const reapuntados = await contar(
+    admin,
+    `select count(*) c from movimientos m
+       join entidades e on e.id = m.destino_entidad_id
+      where e.nombre = 'Productor de prueba verificar' and m.destino_clase = 'entidad'`,
+  )
+  revisar(
+    'formalizarlo reapunta los movimientos que ya lo usaban',
+    reapuntados === 2,
+    `${reapuntados} de 2 (incluye el escrito en mayúsculas)`,
+  )
+
+  const sigueSuelto = await contar(
+    admin,
+    'select count(*) c from v_destinos_a_formalizar where lower(destino) = lower($1)',
+    [TEXTO],
+  )
+  revisar('y deja de figurar como pendiente', sigueSuelto === 0)
+
+  await debeFallar(
+    'un vigilador no puede formalizar destinos',
+    pv,
+    "select app.formalizar_destino('x', 'Trucha', 'empresa', 'punto_verde')",
+  )
+
   // Lo cargado por esta verificación queda anulado, no borrado. Y la entidad de
   // prueba se da de baja, para que no aparezca en la bandeja de revisiones de la
   // coordinadora cada vez que alguien corre esto.
@@ -277,7 +374,7 @@ async function main() {
     )
     await tx.consultar(
       `update entidades set activo = false, pendiente_revision = false
-        where nombre = 'Carrero de prueba'`,
+        where nombre in ('Carrero de prueba', 'Productor de prueba verificar')`,
     )
   })
 

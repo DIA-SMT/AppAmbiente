@@ -6,7 +6,7 @@
 import 'server-only'
 import { conSesion, consultarConSesion, type Sesion } from '@db/sesion'
 import type {
-  Entidad, FilaResumen, FilaValorizacion, FilaVecinos, FiltrosMovimientos,
+  DestinoAFormalizar, Entidad, FilaResumen, FilaValorizacion, FilaVecinos, FiltrosMovimientos,
   ItemListado, ListasDelFormulario,
   Material, MovimientoListado, MovimientoNuevo, Persona, Sitio, TipoMovimiento,
   Unidad, Vehiculo, Flujo,
@@ -44,8 +44,8 @@ export async function listasDelFormulario(
     const porUnidad = new Map(unidades.map((u) => [u.id, u]))
 
     const materialesCrudos = await tx.consultar<Material>(
-      `select id, nombre, categoria, flujos, tipos, unidad_default_id, sugerencias,
-              color, orden, activo
+      `select id, nombre, categoria, flujos, tipos, unidad_default_id,
+              unidades_permitidas, sugerencias, color, orden, activo
          from materiales
         where activo
           and (cardinality(flujos) = 0 or $1 = any(flujos))
@@ -53,11 +53,21 @@ export async function listasDelFormulario(
         order by orden, nombre`,
       [flujo, tipo],
     )
-    const materiales = materialesCrudos.map((m) => ({
-      ...m,
-      sugerencias: (m.sugerencias ?? []).map(Number),
-      unidad: porUnidad.get(m.unidad_default_id),
-    }))
+    const materiales = materialesCrudos.map((m) => {
+      const permitidas = (m.unidades_permitidas ?? [])
+        .map((id) => porUnidad.get(id))
+        .filter((u): u is Unidad => Boolean(u))
+      return {
+        ...m,
+        sugerencias: (m.sugerencias ?? []).map(Number),
+        unidad: porUnidad.get(m.unidad_default_id),
+        // Si un material no declara recipientes, queda al menos el suyo: el
+        // formulario nunca puede quedarse sin ninguno para ofrecer.
+        recipientes: permitidas.length
+          ? permitidas
+          : [porUnidad.get(m.unidad_default_id)].filter((u): u is Unidad => Boolean(u)),
+      }
+    })
 
     // Vista pública: sin CUIT ni teléfono.
     const entidades = await tx.consultar<Entidad>(
@@ -487,5 +497,19 @@ export async function entidadesPendientes(sesion: Sesion) {
        left join perfiles p on p.id = e.creado_por_id
       where e.pendiente_revision and e.activo
       order by e.creado_en desc`,
+  )
+}
+
+/**
+ * Los destinos que el vigilador tuvo que escribir porque no estaban en la lista.
+ *
+ * No existe hoy una lista formal de destinos habilitados: el chofer le dice al
+ * portero adónde lleva el material. Esta consulta es la materia prima para
+ * formalizarla de a poco — si un destino aparece diez veces, merece ser opción.
+ */
+export async function destinosAFormalizar(sesion: Sesion): Promise<DestinoAFormalizar[]> {
+  return consultarConSesion<DestinoAFormalizar>(
+    sesion,
+    'select * from v_destinos_a_formalizar order by veces desc, ultima_vez desc',
   )
 }

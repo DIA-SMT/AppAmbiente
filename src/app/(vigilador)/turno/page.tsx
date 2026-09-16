@@ -65,7 +65,6 @@ export default async function InicioDeTurno() {
         </p>
       </div>
 
-      <SelectorVigilador sitioId={listas.sitio?.id ?? ''} vigiladores={listas.vigiladores} />
       <AvisoPendientes />
 
       <Link href="/cargar/ingreso" className="boton-accion ingreso">
@@ -101,6 +100,10 @@ export default async function InicioDeTurno() {
         </div>
         <Link href="/hoy" className="boton secundario chico">Ver lo de hoy</Link>
       </div>
+
+      {/* Abajo y a propósito: el vigilador entra a esta pantalla a registrar un
+          movimiento, y decir quién está de turno es opcional. */}
+      <SelectorVigilador sitioId={listas.sitio?.id ?? ''} vigiladores={listas.vigiladores} />
     </div>
   )
 }

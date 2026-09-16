@@ -35,12 +35,29 @@ export interface Material {
   flujos: Flujo[]
   tipos: Array<'ingreso' | 'salida'>
   unidad_default_id: string
+  unidades_permitidas: string[]
   sugerencias: number[]
   color: string
   orden: number
   activo: boolean
   /** Resuelta por la consulta, para no pedir la unidad aparte. */
   unidad?: Unidad
+  /**
+   * Los recipientes con los que se puede estimar este material. No hay balanza:
+   * el vigilador elige recipiente y cuántos, y la app guarda el equivalente en
+   * m³ usando la capacidad de cada uno.
+   */
+  recipientes?: Unidad[]
+}
+
+/** Una fila de v_destinos_a_formalizar. */
+export interface DestinoAFormalizar {
+  destino: string
+  veces: number
+  primera_vez: string
+  ultima_vez: string
+  sitios: string[]
+  flujos: Flujo[]
 }
 
 export interface Entidad {

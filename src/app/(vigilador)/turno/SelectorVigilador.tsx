@@ -30,6 +30,11 @@ function useCola() {
 
 // ── Quién está de turno ─────────────────────────────────────────────────
 
+/**
+ * Son unos 67 y rotan sin asignación fija a cada punto, así que la lista nunca
+ * va a estar al día. Por eso elegir el nombre es opcional y no interrumpe: sirve
+ * para saber quién cargó cada movimiento, no para habilitar el turno.
+ */
 export default function SelectorVigilador({
   sitioId,
   vigiladores,
@@ -51,6 +56,10 @@ export default function SelectorVigilador({
   }, [sitioId, vigiladores])
 
   if (!montado) return null
+
+  // Si el punto no tiene gente cargada no hay nada que elegir, y avisarlo sería
+  // pedirle al vigilador que resuelva algo que no está en sus manos.
+  if (vigiladores.length === 0) return null
 
   const nombre = vigiladores.find((v) => v.id === elegido)?.nombre
 
@@ -74,30 +83,23 @@ export default function SelectorVigilador({
   }
 
   return (
-    <div className="aviso atencion pila-chica">
-      <label className="etiqueta" htmlFor="vigilador-turno">¿Quién está de turno?</label>
-      {vigiladores.length === 0 ? (
-        <p style={{ margin: 0 }}>
-          Todavía no hay vigiladores cargados para este punto. Pedile a la coordinadora que te agregue.
-        </p>
-      ) : (
-        <>
-          <select
-            id="vigilador-turno"
-            className="control"
-            value={elegido}
-            onChange={(e) => elegir(e.target.value)}
-          >
-            <option value="">Elegí tu nombre…</option>
-            {vigiladores.map((v) => (
-              <option key={v.id} value={v.id}>{v.nombre}</option>
-            ))}
-          </select>
-          <p className="menor gris" style={{ margin: 0 }}>
-            Queda guardado en este celular hasta que lo cambies.
-          </p>
-        </>
-      )}
+    <div className="campo">
+      <label htmlFor="vigilador-turno">¿Quién está de turno? (opcional)</label>
+      <select
+        id="vigilador-turno"
+        className="control"
+        value={elegido}
+        onChange={(e) => elegir(e.target.value)}
+      >
+        <option value="">Sin indicar</option>
+        {vigiladores.map((v) => (
+          <option key={v.id} value={v.id}>{v.nombre}</option>
+        ))}
+      </select>
+      <span className="ayuda">
+        Sirve para saber quién cargó cada movimiento. No hace falta elegirlo: los movimientos se
+        registran igual. Queda guardado en este celular hasta que lo cambies.
+      </span>
     </div>
   )
 }

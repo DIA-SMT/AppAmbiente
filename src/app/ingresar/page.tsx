@@ -2,6 +2,7 @@ import Image from 'next/image'
 import { redirect } from 'next/navigation'
 import { sitiosParaIngreso } from '@/lib/acceso'
 import { sesionActual } from '@/lib/sesion'
+import FondoVideo from './FondoVideo'
 import FormularioIngreso from './FormularioIngreso'
 import css from './ingresar.module.css'
 
@@ -16,28 +17,11 @@ export default async function PantallaIngreso() {
   return (
     <main className={css.pantalla}>
       {/*
-        El póster se pinta al instante y el video entra encima cuando termina de
-        bajar: nadie se queda mirando un rectángulo negro con mala señal. Es el
-        cuadro 0 del propio bucle, así que al arrancar el video no salta nada.
-        Muteado y playsInline porque es la única forma de que los celulares
-        dejen arrancar un video solo.
-
-        El archivo trae el cruce horneado adentro (el final se funde con el
-        principio), así que loop alcanza: no hace falta ni un segundo video ni
-        JavaScript para disimular el empalme.
+        El video solo se monta en escritorio: en el celular el vigilador paga
+        sus propios datos. El póster se pinta siempre desde el CSS y es el
+        cuadro 0 del bucle, así que en escritorio no hay salto cuando arranca.
       */}
-      <video
-        className={css.fondo}
-        poster="/video/trituradora-bucle.jpg"
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="auto"
-        aria-hidden="true"
-      >
-        <source src="/video/trituradora-bucle.mp4" type="video/mp4" />
-      </video>
+      <FondoVideo className={css.fondo} />
       <div className={css.velo} />
 
       <div className={css.capa}>

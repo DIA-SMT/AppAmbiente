@@ -21,7 +21,7 @@ import {
   ETIQUETA_ENTIDAD, ETIQUETA_TIPO, ETIQUETA_VALORIZACION,
   cantidad, desdeInputFechaHora, fechaHora, numero, paraInputFechaHora,
 } from '@/lib/formato'
-import type { Flujo, ListasDelFormulario, Material, TipoValorizacion } from '@/lib/tipos'
+import type { Flujo, ListasDelFormulario, Material, TipoValorizacion, Unidad } from '@/lib/tipos'
 import BloqueVecino, {
   VECINO_VACIO, recordarBarrio, vecinoSinDatos, type DatosVecino,
 } from './BloqueVecino'
@@ -29,6 +29,7 @@ import { registrarMovimiento, type EstadoAlta } from './acciones'
 import estilos from './FormularioMovimiento.module.css'
 
 const OTRA = 'otra'
+const OTRO_DESTINO = 'otro-destino'
 const VECINO = 'vecino'
 const NUEVA = 'nueva'
 
@@ -38,17 +39,109 @@ const VALORIZACIONES: TipoValorizacion[] = ['reutilizacion', 'venta', 'emprendim
 const TIPOS_ENTIDAD = ['carrero', 'emprendimiento', 'organizacion', 'otro'] as const
 type TipoEntidadNueva = (typeof TIPOS_ENTIDAD)[number]
 
+/**
+ * El nombre corto del recipiente, el que entra en un botón. El largo —"tambor
+ * de 200 L", "batea alargada"— va en el title y en el aria-label.
+ */
+const ETIQUETA_RECIPIENTE: Record<string, string> = {
+  m3: 'm³',
+  tambor_200: 'tambor',
+  carro_delfi: 'carro',
+  camion: 'camión',
+  contenedor: 'contenedor',
+  batea: 'batea',
+  batea_larga: 'batea larga',
+  kg: 'kg',
+}
+
+/** A partir de este tamaño nadie descarga veinte de una: se cuentan de a uno. */
+const RECIPIENTE_GRANDE_M3 = 4
+
 interface Fila {
   material: string
   /** Como lo escribió o lo tocó el vigilador: puede venir con coma. */
   cantidad: string
   otro: boolean
+  /** Con qué se está estimando: el id del recipiente elegido. */
+  unidad: string
 }
+
+const FILA_VACIA: Fila = { material: '', cantidad: '', otro: false, unidad: '' }
 
 /** Acepta coma decimal, que es lo que muestra el teclado del celular. */
 function aNumero(texto: string): number | null {
   const n = Number(texto.replace(',', '.').trim())
   return Number.isFinite(n) && n > 0 ? n : null
+}
+
+/**
+ * El recipiente que viene puesto al elegir el material. Si el por defecto no
+ * está entre los que se pueden usar, vale el primero: nunca queda un recipiente
+ * elegido que no se ve en la fila de botones.
+ */
+function recipientePorDefecto(material: Material | undefined): string {
+  if (!material) return ''
+  const recipientes = material.recipientes ?? []
+  if (recipientes.some((u) => u.id === material.unidad_default_id)) return material.unidad_default_id
+  return recipientes[0]?.id ?? material.unidad_default_id
+}
+
+/**
+ * "¿Cuántos camiones?", "¿Cuántas bateas?". El género no está en la base: en
+ * castellano el plural femenino termina en -as y con eso alcanza para los
+ * recipientes que existen.
+ */
+function rotuloCuantos(unidad: Unidad | undefined): string {
+  if (!unidad) return 'Cantidad'
+  const plural = unidad.nombre_plural || unidad.nombre
+  const femenino = /as$/i.test(plural.split(' ')[0] ?? '')
+  return `¿${femenino ? 'Cuántas' : 'Cuántos'} ${plural}?`
+}
+
+/**
+ * "2 camiones = 12 m³". Es la cuenta que hoy se hace de cabeza en la portería
+ * y es donde se equivocan. Sin factor —el kg— no hay nada que mostrar, y con
+ * factor 1 —el m³— la cuenta diría dos veces lo mismo.
+ */
+function equivalenteEnM3(
+  cuantos: number | null,
+  unidad: Unidad | undefined,
+  unidadM3: Unidad | undefined,
+): string | null {
+  const factor = unidad?.factor_m3
+  if (!unidad || cuantos === null || factor === null || factor === undefined || factor === 1) {
+    return null
+  }
+  const m3 = unidadM3 ?? { nombre: 'm³', nombre_plural: 'm³', decimales: 1 }
+  return `${cantidad(cuantos, unidad)} = ${cantidad(cuantos * factor, m3)}`
+}
+
+// ── Destinos escritos a mano en este celular ────────────────────────────
+// No hay lista formal de destinos: el mismo lugar termina escrito de cinco
+// formas distintas y después no se puede agrupar por nada. Lo último tipeado
+// acá vuelve como sugerencia del propio celular.
+
+const CLAVE_DESTINOS = 'ambiente.destinos'
+const TOPE_DESTINOS = 20
+
+function destinosDelCelular(): string[] {
+  try {
+    const crudo: unknown = JSON.parse(localStorage.getItem(CLAVE_DESTINOS) ?? '[]')
+    return Array.isArray(crudo) ? crudo.filter((d): d is string => typeof d === 'string') : []
+  } catch {
+    return [] // modo privado o basura guardada: se sigue sin sugerencias
+  }
+}
+
+function recordarDestino(destino: string) {
+  const limpio = destino.trim()
+  if (limpio.length < 2) return
+  try {
+    const previos = destinosDelCelular().filter((d) => d.toLowerCase() !== limpio.toLowerCase())
+    localStorage.setItem(CLAVE_DESTINOS, JSON.stringify([limpio, ...previos].slice(0, TOPE_DESTINOS)))
+  } catch {
+    /* modo privado: se pierde la lista de destinos, no el movimiento */
+  }
 }
 
 function nuevoUuid(): string {
@@ -66,6 +159,48 @@ function nuevoUuid(): string {
 function esRedireccion(e: unknown): boolean {
   const digest = (e as { digest?: unknown } | null)?.digest
   return typeof digest === 'string' && digest.startsWith('NEXT_REDIRECT')
+}
+
+/**
+ * El destino escrito a mano, en los dos flujos. No hay lista formal de destinos
+ * habilitados: el chofer le dice al portero adónde lleva el material. Lo que se
+ * escribe acá es la materia prima para formalizar la lista de a poco.
+ */
+function DestinoLibre({
+  valor,
+  sugerencias,
+  error,
+  alCambiar,
+}: {
+  valor: string
+  sugerencias: string[]
+  error?: string
+  alCambiar: (valor: string) => void
+}) {
+  return (
+    <div className="campo">
+      <label htmlFor="destino-texto">¿A dónde va?</label>
+      <input
+        id="destino-texto"
+        className="control"
+        type="text"
+        list="destinos-del-celular"
+        maxLength={200}
+        autoComplete="off"
+        placeholder="Escribilo como lo dirías"
+        value={valor}
+        aria-invalid={error ? true : undefined}
+        onChange={(e) => alCambiar(e.target.value)}
+      />
+      <datalist id="destinos-del-celular">
+        {sugerencias.map((d) => <option key={d} value={d} />)}
+      </datalist>
+      <span className="ayuda">
+        Lo que escribas acá la coordinadora lo puede convertir después en una opción fija de la lista.
+      </span>
+      {error && <span className="error">{error}</span>}
+    </div>
+  )
 }
 
 function BotonRegistrar({ tipo }: { tipo: 'ingreso' | 'salida' }) {
@@ -99,10 +234,12 @@ export default function FormularioMovimiento({
   const [cuando, setCuando] = useState(ahora)
   const [fechaAbierta, setFechaAbierta] = useState(false)
   const [tocoFecha, setTocoFecha] = useState(false)
-  const [filas, setFilas] = useState<Fila[]>([{ material: '', cantidad: '', otro: false }])
+  const [filas, setFilas] = useState<Fila[]>([FILA_VACIA])
   const [origen, setOrigen] = useState('')
   const [origenTexto, setOrigenTexto] = useState('')
   const [destino, setDestino] = useState('')
+  const [destinoTexto, setDestinoTexto] = useState('')
+  const [destinosEscritos, setDestinosEscritos] = useState<string[]>([])
   const [autoriza, setAutoriza] = useState('')
   const [vehiculo, setVehiculo] = useState('')
   const [chofer, setChofer] = useState('')
@@ -120,6 +257,18 @@ export default function FormularioMovimiento({
   const porId = useMemo(
     () => new Map(listas.materiales.map((m) => [m.id, m])),
     [listas.materiales],
+  )
+
+  const unidadPorId = useMemo(
+    () => new Map(listas.unidades.map((u) => [u.id, u])),
+    [listas.unidades],
+  )
+
+  // El m³ es la unidad en la que se informa todo: se usa para mostrar el
+  // equivalente de lo que se está cargando.
+  const unidadM3 = useMemo(
+    () => listas.unidades.find((u) => u.codigo === 'm3'),
+    [listas.unidades],
   )
 
   const capacidad = useMemo(() => {
@@ -144,6 +293,7 @@ export default function FormularioMovimiento({
   // servidor no tiene localStorage.
   useEffect(() => {
     setCuando(paraInputFechaHora())
+    if (tipo === 'salida') setDestinosEscritos(destinosDelCelular())
     if (!sitioId) return
 
     if (tipo === 'ingreso') {
@@ -174,13 +324,24 @@ export default function FormularioMovimiento({
     return filas.filter((f) => f.material && aNumero(f.cantidad))
   }
 
-  function sugerenciasDe(material: Material | undefined) {
+  /**
+   * Las sugerencias son "cuántos recipientes", no "cuántos m³": con el camión
+   * elegido, ofrecer 20 no significa nada. Por eso los recipientes grandes
+   * tienen las suyas y las del material valen solo para m³ y kg.
+   */
+  function sugerenciasDe(material: Material | undefined, unidad: Unidad | undefined) {
     if (!material) return []
+
+    const factor = unidad?.factor_m3
+    if (factor !== null && factor !== undefined && factor >= RECIPIENTE_GRANDE_M3) {
+      return [1, 2, 3].map((valor) => ({ valor, esCapacidad: false }))
+    }
+
     const base = (material.sugerencias ?? [])
       .map(Number)
       .filter((n) => Number.isFinite(n) && n > 0)
-    // La capacidad del vehículo solo sirve si el material se mide en volumen.
-    const cap = material.unidad?.codigo === 'm3' ? capacidad : null
+    // La capacidad del vehículo solo sirve si se está estimando en volumen.
+    const cap = unidad?.codigo === 'm3' ? capacidad : null
     const valores = cap && !base.includes(cap) ? [cap, ...base] : base
     return valores.map((valor) => ({ valor, esCapacidad: valor === cap }))
   }
@@ -209,9 +370,15 @@ export default function FormularioMovimiento({
         if (entidadNombre.trim().length < 2) campos.entidadNombre = 'Escribí el nombre.'
         if (!entidadTipo) campos.entidadTipo = 'Elegí qué es.'
       }
+      if (destino === OTRO_DESTINO && !destinoTexto.trim()) {
+        campos.destinoTexto = 'Escribí a dónde va.'
+      }
       if (!valorizacion) campos.valorizacion = 'Elegí para qué se lo lleva.'
     } else {
       if (!destino) campos.destino = 'Falta a dónde va.'
+      if (destino === OTRO_DESTINO && !destinoTexto.trim()) {
+        campos.destinoTexto = 'Escribí a dónde va.'
+      }
       if (!autoriza) campos.autoriza = 'Falta quién autoriza la salida.'
     }
 
@@ -238,10 +405,12 @@ export default function FormularioMovimiento({
       flujo,
       tipo,
       ocurrido_en: instante.toISOString(),
+      // El recipiente elegido es la unidad del ítem. El equivalente en m³ lo
+      // calcula la base con la capacidad de cada uno: acá no se manda.
       items: cargadas().map((f) => ({
         material_id: f.material,
         cantidad: aNumero(f.cantidad) ?? 0,
-        unidad_id: porId.get(f.material)?.unidad_default_id ?? '',
+        unidad_id: f.unidad || porId.get(f.material)?.unidad_default_id || '',
       })),
       vehiculo_id: llevaTransporte ? vehiculo || null : null,
       chofer_id: llevaTransporte ? chofer || null : null,
@@ -278,8 +447,10 @@ export default function FormularioMovimiento({
         ...comun,
         origen_clase: 'sitio',
         origen_sitio_id: sitioId,
-        destino_clase: destino === VECINO ? 'vecino' : 'entidad',
-        destino_entidad_id: destino === VECINO || destino === NUEVA ? null : destino,
+        destino_clase: destino === VECINO ? 'vecino' : destino === OTRO_DESTINO ? 'texto' : 'entidad',
+        destino_entidad_id:
+          destino === VECINO || destino === NUEVA || destino === OTRO_DESTINO ? null : destino,
+        destino_detalle: destino === OTRO_DESTINO ? destinoTexto.trim() : null,
         vecino: destino === VECINO ? datosDelVecino() : null,
         entidad_nueva: destino === NUEVA && entidadTipo
           ? { nombre: entidadNombre.trim(), tipo: entidadTipo }
@@ -293,10 +464,12 @@ export default function FormularioMovimiento({
       origen_clase: 'sitio',
       origen_sitio_id: sitioId,
       // En la Planta al vecino no se le piden datos: la salida se guarda como
-      // texto y la coordinadora la ve igual en su listado.
-      destino_clase: destino === VECINO ? 'texto' : 'entidad',
-      destino_entidad_id: destino === VECINO ? null : destino,
-      destino_detalle: destino === VECINO ? 'Vecino' : null,
+      // texto y la coordinadora la ve igual en su listado. Lo mismo vale para
+      // el destino escrito a mano, que es de donde sale la lista a formalizar.
+      destino_clase: destino === VECINO || destino === OTRO_DESTINO ? 'texto' : 'entidad',
+      destino_entidad_id: destino === VECINO || destino === OTRO_DESTINO ? null : destino,
+      destino_detalle:
+        destino === VECINO ? 'Vecino' : destino === OTRO_DESTINO ? destinoTexto.trim() : null,
       autorizado_por_id: autoriza || null,
     }
   }
@@ -308,13 +481,15 @@ export default function FormularioMovimiento({
     }
     if (destino === VECINO) return (esPuntoVerde && vecino.nombre.trim()) || 'Vecino'
     if (destino === NUEVA) return entidadNombre.trim()
+    if (destino === OTRO_DESTINO) return destinoTexto.trim()
     return destinoElegido?.nombre
   }
 
   function resumir(): string {
     const partes = cargadas().map((f) => {
       const m = porId.get(f.material)
-      return `${m?.nombre ?? 'Material'} ${cantidad(aNumero(f.cantidad), m?.unidad ?? null)}`
+      const u = unidadPorId.get(f.unidad) ?? m?.unidad ?? null
+      return `${m?.nombre ?? 'Material'} ${cantidad(aNumero(f.cantidad), u)}`
     })
     return [ETIQUETA_TIPO[tipo], partes.join(' + '), quienEs()].filter(Boolean).join(' · ')
   }
@@ -326,10 +501,16 @@ export default function FormularioMovimiento({
       else if (origen && origen !== OTRA) recordar(sitioId, 'procedencia', origen)
     } else if (esPuntoVerde) {
       // "Un vecino" y "agregar a la lista" no son destinos que convenga repetir.
-      if (destino !== VECINO && destino !== NUEVA) recordar(sitioId, 'destino', destino)
+      if (destino !== VECINO && destino !== NUEVA && destino !== OTRO_DESTINO) {
+        recordar(sitioId, 'destino', destino)
+      }
       if (destino === VECINO) recordarBarrio(vecino.barrio)
+      if (destino === OTRO_DESTINO) recordarDestino(destinoTexto)
     } else {
-      if (destino) recordar(sitioId, 'destino', destino)
+      if (destino && destino !== VECINO && destino !== OTRO_DESTINO) {
+        recordar(sitioId, 'destino', destino)
+      }
+      if (destino === OTRO_DESTINO) recordarDestino(destinoTexto)
       if (autoriza) recordar(sitioId, 'autoriza', autoriza)
     }
     if (llevaTransporte) {
@@ -412,9 +593,18 @@ export default function FormularioMovimiento({
       {/* ── Qué y cuánto ───────────────────────────────────────────────── */}
       {filas.map((fila, i) => {
         const material = porId.get(fila.material)
-        const unidad = material?.unidad
-        const sugerencias = sugerenciasDe(material)
+        const unidad = unidadPorId.get(fila.unidad) ?? material?.unidad
+        const recipientes = material?.recipientes ?? []
+        const sugerencias = sugerenciasDe(material, unidad)
         const elegida = aNumero(fila.cantidad)
+        // Al cambiar de recipiente lo escrito se conserva, y puede no coincidir
+        // con ninguna sugerencia. Ahí el campo tiene que verse: si no, se manda
+        // un número que el vigilador no ve.
+        const aMano =
+          fila.otro ||
+          sugerencias.length === 0 ||
+          (fila.cantidad.trim() !== '' && !sugerencias.some((s) => s.valor === elegida))
+        const equivalente = equivalenteEnM3(elegida, unidad, unidadM3)
 
         return (
           <div key={i} className="tarjeta-plana pila" style={{ padding: 14 }}>
@@ -436,7 +626,14 @@ export default function FormularioMovimiento({
                 className="control"
                 value={fila.material}
                 aria-invalid={campos[`material-${i}`] ? true : undefined}
-                onChange={(e) => cambiarFila(i, { material: e.target.value, cantidad: '', otro: false })}
+                onChange={(e) =>
+                  cambiarFila(i, {
+                    material: e.target.value,
+                    cantidad: '',
+                    otro: false,
+                    unidad: recipientePorDefecto(porId.get(e.target.value)),
+                  })
+                }
               >
                 <option value="">Elegí el material…</option>
                 {listas.materiales
@@ -450,8 +647,31 @@ export default function FormularioMovimiento({
 
             <div className="campo">
               <label id={`rotulo-cantidad-${i}`} htmlFor={`cantidad-${i}`}>
-                Cantidad{unidad ? ` en ${unidad.nombre_plural}` : ''}
+                {rotuloCuantos(unidad)}
               </label>
+
+              {/* No hay balanza: el recipiente es la forma de estimar, y el
+                  mismo material entra en tambor y sale en batea. */}
+              {recipientes.length > 1 && (
+                <div
+                  className={`sugerencias ${estilos.recipientes}`}
+                  role="group"
+                  aria-label="Con qué se estima"
+                >
+                  {recipientes.map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      title={r.nombre}
+                      aria-label={r.nombre}
+                      aria-pressed={fila.unidad === r.id}
+                      onClick={() => cambiarFila(i, { unidad: r.id })}
+                    >
+                      {ETIQUETA_RECIPIENTE[r.codigo] ?? r.nombre}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {sugerencias.length > 0 && (
                 <div className="sugerencias" role="group" aria-labelledby={`rotulo-cantidad-${i}`}>
@@ -482,19 +702,23 @@ export default function FormularioMovimiento({
                 </span>
               )}
 
-              {(fila.otro || sugerencias.length === 0) && (
+              {aMano && (
                 <input
                   id={`cantidad-${i}`}
                   className="control"
                   type="text"
                   inputMode="decimal"
                   autoComplete="off"
-                  placeholder={unidad ? `¿Cuántos ${unidad.nombre_plural}?` : 'Cantidad'}
+                  placeholder={rotuloCuantos(unidad)}
                   value={fila.cantidad}
                   aria-invalid={campos[`cantidad-${i}`] ? true : undefined}
                   onChange={(e) => cambiarFila(i, { cantidad: e.target.value })}
                 />
               )}
+
+              {/* La cuenta que hoy se hace de cabeza en la portería. */}
+              {equivalente && <span className="ayuda">{equivalente}</span>}
+
               {campos[`cantidad-${i}`] && <span className="error">{campos[`cantidad-${i}`]}</span>}
             </div>
           </div>
@@ -505,7 +729,7 @@ export default function FormularioMovimiento({
         <button
           type="button"
           className="boton secundario ancho-total"
-          onClick={() => setFilas((p) => [...p, { material: '', cantidad: '', otro: false }])}
+          onClick={() => setFilas((p) => [...p, FILA_VACIA])}
         >
           + Agregar otro material
         </button>
@@ -578,6 +802,7 @@ export default function FormularioMovimiento({
               ))}
               <option value={VECINO}>Un vecino</option>
               <option value={NUEVA}>Agregar a la lista…</option>
+              <option value={OTRO_DESTINO}>Otro destino…</option>
             </select>
             {destinoElegido?.pendiente_revision && (
               <span className="fila">
@@ -631,6 +856,15 @@ export default function FormularioMovimiento({
             </div>
           )}
 
+          {destino === OTRO_DESTINO && (
+            <DestinoLibre
+              valor={destinoTexto}
+              sugerencias={destinosEscritos}
+              error={campos.destinoTexto}
+              alCambiar={setDestinoTexto}
+            />
+          )}
+
           <div className="campo">
             <span className="etiqueta" id="rotulo-valorizacion">Para qué se lo lleva</span>
             <div className="sugerencias" role="group" aria-labelledby="rotulo-valorizacion">
@@ -666,9 +900,19 @@ export default function FormularioMovimiento({
                 <option key={d.id} value={d.id}>{d.nombre}</option>
               ))}
               <option value={VECINO}>Vecino</option>
+              <option value={OTRO_DESTINO}>Otro destino…</option>
             </select>
             {campos.destino && <span className="error">{campos.destino}</span>}
           </div>
+
+          {destino === OTRO_DESTINO && (
+            <DestinoLibre
+              valor={destinoTexto}
+              sugerencias={destinosEscritos}
+              error={campos.destinoTexto}
+              alCambiar={setDestinoTexto}
+            />
+          )}
 
           <div className="campo">
             <label htmlFor="autoriza">Quién autoriza</label>

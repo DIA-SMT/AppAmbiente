@@ -16,47 +16,66 @@ import { obtenerBase } from '../client'
 import { hashearCredencial } from '../credenciales'
 
 const SITIOS = [
-  ['PLANTA', 'Planta de Valorización de Residuos Verdes', 'planta',      'Av. Perón s/n',      1],
-  ['PV-01',  'Punto Verde Plaza Urquiza',                 'punto_verde', 'Plaza Urquiza',      2],
-  ['PV-02',  'Punto Verde Barrio Sur',                    'punto_verde', 'Barrio Sur',         3],
-  ['PV-03',  'Punto Verde Villa Luján',                   'punto_verde', 'Villa Luján',        4],
-  ['PV-04',  'Punto Verde Parque 9 de Julio',             'punto_verde', 'Parque 9 de Julio',  5],
-  ['PV-05',  'Punto Verde Barrio Norte',                  'punto_verde', 'Barrio Norte',       6],
-  ['PV-06',  'Punto Verde Villa 9 de Julio',              'punto_verde', 'Villa 9 de Julio',   7],
-  ['PV-07',  'Punto Verde Ciudadela',                     'punto_verde', 'Ciudadela',          8],
-  ['PV-08',  'Punto Verde Barrio Jardín',                 'punto_verde', 'Barrio Jardín',      9],
+  ['PVRV',  'Planta de Valorización de Residuos Verdes', 'planta',      'Huerta y Vivero Municipal', 1],
+  ['PV-01', 'Punto Verde Huerta',                        'punto_verde', 'Huerta Municipal',          2],
+  ['PV-02', 'Punto Verde Italia',                        'punto_verde', 'Av. Italia',                3],
+  ['PV-03', 'Punto Verde Paso de los Andes',             'punto_verde', 'Paso de los Andes',         4],
+  ['PV-04', 'Punto Verde Colón',                         'punto_verde', 'Av. Colón',                 5],
+  ['PV-05', 'Punto Verde Garcilaso',                     'punto_verde', 'Garcilaso',                 6],
+  ['PV-06', 'Punto Verde Circunvalación',                'punto_verde', 'Av. de Circunvalación',     7],
+  ['PV-07', 'Punto Verde América',                       'punto_verde', 'Av. América',               8],
+  ['PV-08', 'Punto Verde Costanera',                     'punto_verde', 'Costanera',                 9],
 ] as const
 
-// codigo, nombre, plural, decimales, factor_m3 (SUPUESTO), orden
+// Relevado con la Secretaría: no hay balanza y todo se estima en m³. Estos son
+// los recipientes con los que se estima, con su capacidad declarada.
+// codigo, nombre, plural, decimales, factor_m3, orden
 const UNIDADES = [
-  ['m3',     'm³',      'm³',       1, 1,     1],
-  ['camion', 'camión',  'camiones', 0, 12,    2], // SUPUESTO: 12 m³ por camión
-  ['batea',  'batea',   'bateas',   0, 20,    3], // SUPUESTO: 20 m³ por batea
-  ['bolsa',  'bolsa',   'bolsas',   0, 0.05,  4], // SUPUESTO: 50 litros
-  ['kg',     'kg',      'kg',       2, null,  5],
-  ['tn',     'tonelada','toneladas',2, null,  6],
-  ['unidad', 'unidad',  'unidades', 0, null,  7],
+  ['m3',          'm³',              'm³',                1, 1,    1],
+  ['tambor_200',  'tambor de 200 L', 'tambores de 200 L', 0, 0.2,  2],
+  ['carro_delfi', 'carro de delfi',  'carros de delfi',   0, 4,    3],
+  ['camion',      'camión',          'camiones',          0, 6,    4],
+  ['contenedor',  'contenedor',      'contenedores',      0, 6,    5],
+  ['batea',       'batea',           'bateas',            0, 20,   6],
+  ['batea_larga', 'batea alargada',  'bateas alargadas',  0, 30,   7],
+  ['kg',          'kg',              'kg',                2, null, 8],
 ] as const
 
-// nombre, categoria, flujos, tipos, unidad, sugerencias, color, orden
+// Las corrientes que se registran de verdad. En la Planta salieron del
+// relevamiento; en los puntos verdes son las cinco de la pizarra de seguimiento.
+// nombre, categoria, flujos, tipos, unidad por defecto, sugerencias, color, orden
 const MATERIALES: ReadonlyArray<
   readonly [string, string, string[], string[], string, number[], string, number]
 > = [
-  ['Poda',                   'verdes',      ['planta'],                       ['ingreso'],           'm3',     [5, 10, 15, 20], '#25d366', 1],
-  ['Restos de jardinería',   'verdes',      ['planta'],                       ['ingreso'],           'm3',     [2, 5, 10, 15],  '#10b981', 2],
-  ['Tronco y madera gruesa', 'verdes',      ['planta'],                       ['ingreso'],           'm3',     [1, 2, 5],       '#1aa851', 3],
-  ['Chipeo',                 'verdes',      ['planta'],                       ['ingreso', 'salida'], 'camion', [1, 2],          '#3cb4f0', 4],
-  ['Triturado',              'verdes',      ['planta'],                       ['salida'],            'batea',  [1, 2],          '#2589ea', 5],
-  ['Compost',                'verdes',      ['planta'],                       ['salida'],            'm3',     [1, 3, 5, 10],   '#126ff5', 6],
-  ['Cartón',                 'reciclables', ['punto_verde'],                  ['ingreso', 'salida'], 'kg',     [5, 10, 20],     '#f5b81c', 7],
-  ['Papel',                  'reciclables', ['punto_verde'],                  ['ingreso', 'salida'], 'kg',     [5, 10, 20],     '#f59e0b', 8],
-  ['Plástico PET',           'reciclables', ['punto_verde'],                  ['ingreso', 'salida'], 'kg',     [2, 5, 10],      '#28469f', 9],
-  ['Vidrio',                 'reciclables', ['punto_verde'],                  ['ingreso', 'salida'], 'kg',     [5, 10, 20],     '#3cb4f0', 10],
-  ['Metal y latas',          'reciclables', ['punto_verde'],                  ['ingreso', 'salida'], 'kg',     [2, 5, 10],      '#6b7885', 11],
-  ['Aceite vegetal usado',   'especiales',  ['punto_verde'],                  ['ingreso', 'salida'], 'kg',     [1, 3, 5],       '#ef8f16', 12],
-  ['Retazos de tela',        'textil',      ['gran_generador', 'punto_verde'],['ingreso', 'salida'], 'kg',     [10, 25, 50],    '#8b5cf6', 13],
-  ['Recortes de madera',     'madera',      ['gran_generador', 'punto_verde'],['ingreso', 'salida'], 'kg',     [10, 25, 50],    '#a16207', 14],
+  ['Poda',                   'verdes',      ['planta'],      ['ingreso'],           'm3', [4, 6, 20, 30], '#25d366', 1],
+  ['Restos de jardinería',   'verdes',      ['planta'],      ['ingreso'],           'm3', [0.2, 4, 6],    '#10b981', 2],
+  ['Tronco y madera gruesa', 'verdes',      ['planta'],      ['ingreso'],           'm3', [4, 6],         '#1aa851', 3],
+  ['Chipeo',                 'verdes',      ['planta'],      ['ingreso', 'salida'], 'm3', [6, 20, 30],    '#3cb4f0', 4],
+  ['Triturado',              'verdes',      ['planta'],      ['salida'],            'm3', [20, 30],       '#2589ea', 5],
+  ['Compost',                'verdes',      ['planta'],      ['salida'],            'm3', [0.2, 4, 6],    '#126ff5', 6],
+  ['Leña',                   'verdes',      ['planta'],      ['salida'],            'm3', [0.2, 4, 6],    '#a16207', 7],
+  ['Plástico',               'reciclables', ['punto_verde'], ['ingreso', 'salida'], 'm3', [0.2, 6],       '#28469f', 8],
+  ['Cartón',                 'reciclables', ['punto_verde'], ['ingreso', 'salida'], 'm3', [0.2, 6],       '#f5b81c', 9],
+  ['Vidrio y metal',         'reciclables', ['punto_verde'], ['ingreso', 'salida'], 'm3', [0.2, 6],       '#6b7885', 10],
+  ['Residuos de poda',       'verdes',      ['punto_verde'], ['ingreso', 'salida'], 'm3', [0.2, 6],       '#25d366', 11],
+  ['RSU',                    'especiales',  ['punto_verde'], ['ingreso', 'salida'], 'm3', [6],            '#6b7885', 12],
+  ['Retazos de tela',        'textil',      ['gran_generador', 'punto_verde'], ['ingreso', 'salida'], 'kg', [10, 25, 50], '#8b5cf6', 13],
+  ['Recortes de madera',     'madera',      ['gran_generador', 'punto_verde'], ['ingreso', 'salida'], 'kg', [10, 25, 50], '#a16207', 14],
 ]
+
+/**
+ * Qué recipientes se pueden usar para cada material.
+ *
+ * Todo se estima en m³, así que el vigilador elige el recipiente y cuántos. En
+ * los puntos verdes también se usan kilos: el retiro para reutilización se
+ * estima por peso, que es lo que después alimenta el registro del programa
+ * CIRCULA, y el Excel de la 9 de Julio llega en kilos.
+ */
+const RECIPIENTES_POR_FLUJO: Record<string, string[]> = {
+  planta:          ['m3', 'tambor_200', 'carro_delfi', 'camion', 'contenedor', 'batea', 'batea_larga'],
+  punto_verde:     ['m3', 'tambor_200', 'contenedor', 'camion', 'kg'],
+  gran_generador:  ['kg', 'm3', 'camion'],
+}
 
 // nombre, tipo, origen, destino, flujos
 const ENTIDADES: ReadonlyArray<readonly [string, string, boolean, boolean, string[]]> = [
@@ -75,14 +94,14 @@ const ENTIDADES: ReadonlyArray<readonly [string, string, boolean, boolean, strin
   ['Planta de transferencia 9 de Julio','planta_externa',       false, true,  ['punto_verde']],
 ]
 
-// patente, tipo, capacidad_m3
+// patente, tipo, capacidad_m3 — alineadas con los recipientes relevados
 const VEHICULOS: ReadonlyArray<readonly [string, string, number | null]> = [
-  ['AB 123 CD', 'camion',    12],
-  ['AC 456 EF', 'camion',    14],
+  ['AB 123 CD', 'camion',    6],
+  ['AC 456 EF', 'camion',    6],
   ['AD 789 GH', 'batea',     20],
-  ['AE 012 IJ', 'batea',     22],
-  ['AF 345 KL', 'camioneta',  3],
-  ['NPQ 678',   'camion',    10],
+  ['AE 012 IJ', 'batea',     30],
+  ['AF 345 KL', 'camioneta',  4],
+  ['NPQ 678',   'camion',     6],
   ['NRS 901',   'tractor',  null],
 ]
 
@@ -136,13 +155,18 @@ async function sembrar() {
 
     // ── Materiales ───────────────────────────────────────────────────────
     for (const [nombre, categoria, flujos, tipos, unidad, sugerencias, color, orden] of MATERIALES) {
+      // La unión de los recipientes de cada flujo donde aparece el material.
+      const codigos = [...new Set(flujos.flatMap((f) => RECIPIENTES_POR_FLUJO[f] ?? ['m3']))]
       await tx.consultar(
         `insert into materiales
            (nombre, categoria, flujos, tipos, unidad_default_id, unidades_permitidas, sugerencias, color, orden)
-         select $1, $2, $3::text[], $4::text[], u.id, array[u.id], $5::numeric[], $6, $7
-           from unidades u where u.codigo = $8
+         select $1, $2, $3::text[], $4::text[], u.id,
+                (select coalesce(array_agg(x.id order by x.orden), array[u.id])
+                   from unidades x where x.codigo = any($5::text[]) and x.activo),
+                $6::numeric[], $7, $8
+           from unidades u where u.codigo = $9
          on conflict do nothing`,
-        [nombre, categoria, flujos, tipos, sugerencias, color, orden, unidad],
+        [nombre, categoria, flujos, tipos, codigos, sugerencias, color, orden, unidad],
       )
     }
 
@@ -172,7 +196,7 @@ async function sembrar() {
     for (const [nombre, rol] of PERSONAS) {
       await tx.consultar(
         `insert into personas (nombre, rol, sitio_id)
-         select $1, $2, (select id from sitios where codigo = 'PLANTA')
+         select $1, $2, (select id from sitios where codigo = 'PVRV')
          where not exists (select 1 from personas where nombre = $1 and rol = $2)`,
         [nombre, rol],
       )
@@ -192,7 +216,7 @@ async function sembrar() {
     // ── Pilas de compost (creadas, sin pantalla en la fase 1) ────────────
     await tx.consultar(
       `insert into pilas (codigo, sitio_id, estado)
-       select 'P-' || lpad(n::text, 2, '0'), (select id from sitios where codigo = 'PLANTA'), 'madurando'
+       select 'P-' || lpad(n::text, 2, '0'), (select id from sitios where codigo = 'PVRV'), 'madurando'
          from generate_series(1, 17) n
        on conflict (codigo) do nothing`,
     )
@@ -201,7 +225,7 @@ async function sembrar() {
     // CREDENCIALES DE DESARROLLO. Cambiar antes de cualquier despliegue.
     const usuarios: Array<[string, string, 'admin' | 'vigilador', string | null, string, number | null]> = [
       ['coordinacion', 'Coordinación de Ambiente', 'admin', null, 'ambiente2026', 12],
-      ['planta', 'Planta de Valorización — turno', 'vigilador', 'PLANTA', '1234', null],
+      ['planta', 'Planta de Valorización — turno', 'vigilador', 'PVRV', '1234', null],
     ]
     for (const s of SITIOS.slice(1)) {
       usuarios.push([s[0].toLowerCase().replace('-', ''), `${s[1]} — turno`, 'vigilador', s[0], '1234', null])
@@ -231,7 +255,7 @@ async function sembrar() {
 
     await tx.consultar(`
       with cfg as (
-        select (select id from sitios   where codigo = 'PLANTA')          as planta,
+        select (select id from sitios   where codigo = 'PVRV')          as planta,
                (select id from perfiles where usuario = 'planta')         as perfil,
                (select id from personas where rol = 'vigilador' limit 1)  as vigilador
       ),

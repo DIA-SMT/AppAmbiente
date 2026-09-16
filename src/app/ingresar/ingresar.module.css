@@ -12,7 +12,9 @@
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  background: #060d0a;
+  /* El póster va siempre: en el celular es lo único que se ve, y en escritorio
+     tapa el hueco hasta que el video arranca. Son 110 KB. */
+  background: #060d0a url('/video/trituradora-bucle.jpg') center 58% / cover no-repeat;
   overflow: hidden;
 }
 
@@ -154,10 +156,11 @@
   color: #ffd9d9;
 }
 
-/* Sin animación: se queda la imagen fija, que ya cuenta lo mismo. */
-@media (prefers-reduced-motion: reduce) {
-  .fondo { display: none; }
-  .pantalla {
-    background: #060d0a url('/video/trituradora-bucle.jpg') center 62% / cover no-repeat;
-  }
+/*
+ * El video no se monta en el celular —eso lo decide FondoVideo.tsx, porque
+ * esconderlo con CSS no evita que el navegador lo descargue— así que acá solo
+ * queda el encuadre del póster, que en vertical necesita otro centro.
+ */
+@media (max-width: 880px) {
+  .pantalla { background-position: 38% 58%; }
 }

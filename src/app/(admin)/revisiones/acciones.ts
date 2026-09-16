@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { conSesion, consultarConSesion } from '@db/sesion'
 import { mensajeDeError } from '@/lib/datos'
+import { ETIQUETA_ENTIDAD } from '@/lib/formato'
 import { UUID } from '@/lib/recursos'
 import { exigirAdmin } from '@/lib/sesion'
 
@@ -178,12 +179,68 @@ export async function descartar(id: string, _datos?: FormData): Promise<void> {
   volver(aviso, detalle)
 }
 
+// ── Formalizar un destino escrito a mano ────────────────────────────────
+
+export interface EstadoFormalizacion {
+  error?: string
+}
+
+/** Los siete tipos que acepta el CHECK de entidades. */
+const TIPOS_ENTIDAD = new Set(Object.keys(ETIQUETA_ENTIDAD))
+const FLUJOS = new Set(['planta', 'punto_verde', 'gran_generador'])
+
+/**
+ * Promueve a entidad de la lista un destino que el vigilador escribió a mano.
+ *
+ * El trabajo lo hace app.formalizar_destino, y en una sola sentencia: crea la
+ * entidad si no existe y reapunta los movimientos que tenían ese texto. Por eso
+ * formalizar no pierde la trazabilidad de lo que ya salió, que es justamente el
+ * argumento para hacerlo en vez de dejar el texto suelto.
+ */
+export async function formalizarDestino(
+  texto: string,
+  nombre: string,
+  tipo: string,
+  flujo: string,
+): Promise<EstadoFormalizacion> {
+  const sesion = await exigirAdmin().catch(() => null)
+  if (!sesion) redirect('/ingresar')
+
+  const escrito = texto.trim()
+  const limpio = nombre.trim()
+
+  if (!escrito) return { error: 'No se pudo identificar el destino escrito. Recargá la pantalla.' }
+  if (limpio.length < 2) return { error: 'El nombre tiene que decir algo: al menos dos letras.' }
+  if (limpio.length > 120) return { error: 'El nombre no puede pasar de 120 caracteres.' }
+  if (!TIPOS_ENTIDAD.has(tipo)) return { error: 'Elegí qué tipo de destino es.' }
+  if (!FLUJOS.has(flujo)) return { error: 'Elegí en qué flujo se va a ofrecer.' }
+
+  try {
+    await consultarConSesion(
+      sesion,
+      'select app.formalizar_destino($1, $2, $3, $4) as id',
+      [escrito, limpio, tipo, flujo],
+    )
+  } catch (e) {
+    return { error: mensajeDeError(e) }
+  }
+
+  refrescar()
+  volver('formalizado', `«${escrito}» → ${limpio}`)
+}
+
 // ── Conteo para la barra de navegación ──────────────────────────────────
 
 /**
  * El número que va al lado de "Revisiones" en la barra. Vive acá y no en el
  * layout porque la barra es un componente de cliente y el layout no se toca:
  * la llama al montarse y cada vez que se cambia de sección.
+ *
+ * Cuenta solo las altas de la calle. Desde que la pantalla también muestra los
+ * destinos escritos a mano hay dos clases de pendiente, pero el rótulo que la
+ * barra le pone al número dice "altas sin revisar" y Navegacion.tsx no se toca
+ * en este cambio: sumar acá los destinos daría un número que miente. Cuando se
+ * toque la barra, sumar v_destinos_a_formalizar y cambiar ese texto.
  */
 export async function contarPendientes(): Promise<number> {
   const sesion = await exigirAdmin().catch(() => null)

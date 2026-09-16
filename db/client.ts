@@ -64,11 +64,28 @@ async function crearPglite(): Promise<Base> {
 
 async function crearPostgres(url: string): Promise<Base> {
   const { default: postgres } = await import('postgres')
+  const local = url.includes('localhost') || url.includes('127.0.0.1')
+
   const sql = postgres(url, {
-    max: 10,
+    /*
+     * En Vercel cada función corre en su propia instancia y abre su propio
+     * pool: diez conexiones por instancia agotan un Postgres chico apenas hay
+     * algo de tráfico. Con una por instancia y el pooler del proveedor del otro
+     * lado, el que reparte es el pooler, que es para lo que está.
+     *
+     * Fuera de serverless —un servidor propio, los comandos de db/cli— un pool
+     * de verdad sí sirve.
+     */
+    max: process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME ? 1 : 10,
+    /*
+     * Las sentencias preparadas no sobreviven a un pooler en modo transacción,
+     * que es como vienen Supabase y Neon por defecto.
+     */
     prepare: false,
-    // Supabase por pooler necesita SSL; local no.
-    ssl: url.includes('localhost') || url.includes('127.0.0.1') ? false : 'require',
+    // Cualquier Postgres remoto va por TLS; el local no lo tiene.
+    ssl: local ? false : 'require',
+    // Una función serverless no puede quedarse esperando una conexión colgada.
+    connect_timeout: 10,
   })
 
   const envolver = (c: typeof sql): Conexion => ({

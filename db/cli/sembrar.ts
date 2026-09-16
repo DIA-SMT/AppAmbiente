@@ -1,13 +1,17 @@
 /**
- * Datos de arranque para poder probar la app apenas se levanta.
+ * Datos de arranque.
  *
- *     npm run db:sembrar
+ *     npm run db:sembrar                  base + ejemplos (PGlite local)
+ *     npm run db:sembrar -- --sin-ejemplos solo la base
  *
- * TODO ESTO ES DE EJEMPLO y está para que la coordinadora lo reemplace desde
- * la pantalla de listas maestras: los nombres de los puntos verdes, las
- * patentes, los choferes y los destinos habilitados son inventados. Los
- * materiales y las unidades son los que sí salieron del relevamiento, pero la
- * unidad de cada material es un supuesto marcado (pregunta 1).
+ * La BASE es lo que salió del relevamiento y no depende de nadie: los nueve
+ * sitios, los recipientes con su capacidad, las catorce corrientes, los
+ * contenedores de los puntos verdes y los usuarios para entrar.
+ *
+ * Lo demás —choferes, patentes, destinos habilitados, pilas y movimientos—
+ * es INVENTADO. Sirve para mirar la app con algo adentro; en una base de
+ * verdad lo carga la coordinadora desde Listas maestras, y los destinos se
+ * formalizan desde lo que los vigiladores escriben.
  *
  * Es idempotente: correrlo dos veces no duplica nada.
  */
@@ -133,7 +137,23 @@ const VIGILADORES_POR_PUNTO: ReadonlyArray<readonly [string, readonly string[]]>
   ['PV-08', ['Patricia Leiva', 'Marcos Figueroa']],
 ]
 
+/**
+ * Los datos inventados se generan solo si se piden.
+ *
+ * Contra la base local sí, porque un tablero vacío no se puede mirar. Contra
+ * un Postgres de verdad NO: dos mil movimientos falsos en la base de la
+ * Secretaría no se distinguen después de los reales, y borrarlos no se puede
+ * —en este sistema nada se borra—, así que habría que empezar de cero.
+ */
+function quiereEjemplos(): boolean {
+  if (process.argv.includes('--ejemplos')) return true
+  if (process.argv.includes('--sin-ejemplos')) return false
+  return !process.env.DATABASE_URL?.trim()
+}
+
 async function sembrar() {
+  const conEjemplos = quiereEjemplos()
+
   await comoServicio(async (tx) => {
     // ── Sitios ───────────────────────────────────────────────────────────
     for (const [codigo, nombre, tipo, direccion, orden] of SITIOS) {
@@ -178,6 +198,75 @@ async function sembrar() {
       )
     }
 
+    // ── Contenedores de los puntos verdes ────────────────────────────────
+    // No tienen numeración física: un contenedor es el par punto + corriente,
+    // "el de cartón de Italia". Se arman desde las corrientes de la pizarra.
+    await tx.consultar(
+      `insert into contenedores (codigo, tipo, capacidad_m3, sitio_actual_id, material_id, estado)
+       select s.codigo || ' · ' || m.nombre, 'contenedor', 6, s.id, m.id, 'en_sitio'
+         from sitios s
+         cross join materiales m
+        where s.tipo = 'punto_verde' and s.activo and m.activo
+          -- Las cinco corrientes de la pizarra de seguimiento, que son las que
+          -- tienen contenedor. Los retazos de tela y los recortes de madera
+          -- pasan por los puntos pero vienen de grandes generadores y se
+          -- retiran de otra forma.
+          and m.nombre in ('Plástico', 'Cartón', 'Vidrio y metal',
+                           'Residuos de poda', 'RSU')
+       on conflict (codigo) do nothing`,
+    )
+
+    // ── Usuarios ─────────────────────────────────────────────────────────
+    // CREDENCIALES DE DESARROLLO. Cambiar antes de cualquier despliegue.
+    //
+    // No hay un rol por encima de 'admin': el modelo tiene dos roles y admin ya
+    // puede todo —los tres flujos, las listas maestras, anular movimientos, los
+    // datos de vecinos y la auditoría—. El acceso de la Dirección de IA es un
+    // admin más, para poder entrar sin usar la cuenta de la coordinación y que
+    // la auditoría distinga quién hizo qué.
+    const usuarios: Array<[string, string, 'admin' | 'vigilador', string | null, string, number | null]> = [
+      ['direccionia', 'Dirección de Inteligencia Artificial', 'admin', null, '123456', 12],
+      ['coordinacion', 'Coordinación de Ambiente', 'admin', null, 'ambiente2026', 12],
+      ['planta', 'Planta de Valorización — turno', 'vigilador', 'PVRV', '1234', null],
+    ]
+    for (const s of SITIOS.slice(1)) {
+      usuarios.push([s[0].toLowerCase().replace('-', ''), `${s[1]} — turno`, 'vigilador', s[0], '1234', null])
+    }
+
+    for (const [usuario, nombre, rol, sitioCodigo, credencial, horas] of usuarios) {
+      await tx.consultar(
+        `insert into perfiles (usuario, nombre, rol, sitio_id, credencial_hash, sesion_horas)
+         select $1, $2, $3,
+                case when $4::text is null then null else (select id from sitios where codigo = $4) end,
+                $5, $6
+         where not exists (select 1 from perfiles where lower(usuario) = lower($1))`,
+        [usuario, nombre, rol, sitioCodigo, hashearCredencial(credencial), horas],
+      )
+    }
+  })
+
+  if (!conEjemplos) {
+    console.log(`
+  Base cargada: los 9 sitios, los recipientes, las 14 corrientes, los
+  contenedores de los puntos verdes y los usuarios.
+
+  Nada inventado: ni choferes, ni patentes, ni destinos, ni pilas, ni
+  movimientos. Los choferes y las patentes se cargan desde Listas maestras;
+  los destinos se formalizan en Revisiones desde lo que escriben los
+  vigiladores; las pilas, desde la pantalla de Compost.
+
+  Para cargar los datos de ejemplo igual —solo en una base de prueba—:
+      npm run db:sembrar -- --ejemplos
+`)
+    avisoDeUsuarios()
+    return
+  }
+
+  // ── Listas inventadas ───────────────────────────────────────────────────
+  // Choferes, patentes, destinos y pilas con nombre y apellido. En una base
+  // de verdad los carga la coordinadora desde Listas maestras, y los destinos
+  // se formalizan desde lo que los vigiladores escriben.
+  await comoServicio(async (tx) => {
     // ── Entidades ────────────────────────────────────────────────────────
     for (const [nombre, tipo, origen, destino, flujos] of ENTIDADES) {
       await tx.consultar(
@@ -243,51 +332,6 @@ async function sembrar() {
        on conflict (codigo) do nothing`,
     )
 
-    // ── Contenedores de los puntos verdes ────────────────────────────────
-    // No tienen numeración física: un contenedor es el par punto + corriente,
-    // "el de cartón de Italia". Se arman desde las corrientes de la pizarra.
-    await tx.consultar(
-      `insert into contenedores (codigo, tipo, capacidad_m3, sitio_actual_id, material_id, estado)
-       select s.codigo || ' · ' || m.nombre, 'contenedor', 6, s.id, m.id, 'en_sitio'
-         from sitios s
-         cross join materiales m
-        where s.tipo = 'punto_verde' and s.activo and m.activo
-          -- Las cinco corrientes de la pizarra de seguimiento, que son las que
-          -- tienen contenedor. Los retazos de tela y los recortes de madera
-          -- pasan por los puntos pero vienen de grandes generadores y se
-          -- retiran de otra forma.
-          and m.nombre in ('Plástico', 'Cartón', 'Vidrio y metal',
-                           'Residuos de poda', 'RSU')
-       on conflict (codigo) do nothing`,
-    )
-
-    // ── Usuarios ─────────────────────────────────────────────────────────
-    // CREDENCIALES DE DESARROLLO. Cambiar antes de cualquier despliegue.
-    //
-    // No hay un rol por encima de 'admin': el modelo tiene dos roles y admin ya
-    // puede todo —los tres flujos, las listas maestras, anular movimientos, los
-    // datos de vecinos y la auditoría—. El acceso de la Dirección de IA es un
-    // admin más, para poder entrar sin usar la cuenta de la coordinación y que
-    // la auditoría distinga quién hizo qué.
-    const usuarios: Array<[string, string, 'admin' | 'vigilador', string | null, string, number | null]> = [
-      ['direccionia', 'Dirección de Inteligencia Artificial', 'admin', null, '123456', 12],
-      ['coordinacion', 'Coordinación de Ambiente', 'admin', null, 'ambiente2026', 12],
-      ['planta', 'Planta de Valorización — turno', 'vigilador', 'PVRV', '1234', null],
-    ]
-    for (const s of SITIOS.slice(1)) {
-      usuarios.push([s[0].toLowerCase().replace('-', ''), `${s[1]} — turno`, 'vigilador', s[0], '1234', null])
-    }
-
-    for (const [usuario, nombre, rol, sitioCodigo, credencial, horas] of usuarios) {
-      await tx.consultar(
-        `insert into perfiles (usuario, nombre, rol, sitio_id, credencial_hash, sesion_horas)
-         select $1, $2, $3,
-                case when $4::text is null then null else (select id from sitios where codigo = $4) end,
-                $5, $6
-         where not exists (select 1 from perfiles where lower(usuario) = lower($1))`,
-        [usuario, nombre, rol, sitioCodigo, hashearCredencial(credencial), horas],
-      )
-    }
   })
 
   // ── Movimientos de ejemplo ─────────────────────────────────────────────
@@ -776,16 +820,32 @@ async function sembrar() {
   const porFlujo = (flujo: string) => totales.find((t) => t.flujo === flujo)?.total ?? '0'
 
   console.log(`
-  Listo. Movimientos cargados: ${porFlujo('planta')} de la Planta y ${porFlujo('punto_verde')} de puntos verdes.
+  Listo. Movimientos cargados: ${porFlujo('planta')} de la Planta y ${porFlujo('punto_verde')} de puntos verdes.`)
+  avisoDeUsuarios()
+}
 
-  Usuarios de desarrollo:
+/**
+ * Las credenciales que quedaron puestas. Contra un Postgres de verdad el aviso
+ * es otro: ahí son una puerta abierta, no una comodidad.
+ */
+function avisoDeUsuarios() {
+  console.log(`
+  Usuarios creados:
 
-    Coordinadora   usuario: coordinacion   clave: ambiente2026
-    Planta         usuario: planta         PIN:   1234
-    Puntos verdes  usuario: pv01 … pv08    PIN:   1234
-
-  Cambiar antes de cualquier despliegue.
+    Dirección de IA  usuario: direccionia    clave: 123456
+    Coordinadora     usuario: coordinacion   clave: ambiente2026
+    Planta           usuario: planta         PIN:   1234
+    Puntos verdes    usuario: pv01 … pv08    PIN:   1234
 `)
+  if (process.env.DATABASE_URL?.trim()) {
+    console.log(`
+  ⚠  Esta base no es la local. Esas claves están publicadas en el repositorio:
+     cambialas desde Usuarios antes de darle el link a nadie.
+     npm run db:verificar falla mientras alguna siga puesta.
+`)
+  } else {
+    console.log('  Cambiar antes de cualquier despliegue.')
+  }
 }
 
 const esEntrada = process.argv[1]?.replace(/\\/g, '/').endsWith('db/cli/sembrar.ts')

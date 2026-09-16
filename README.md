@@ -8,9 +8,10 @@ entra y sale de la Planta de Valorización de Residuos Verdes, los ocho puntos v
 y los retiros pactados con grandes generadores.
 
 **Entregado:** la Planta de Valorización, los ocho Puntos Verdes, el seguimiento de
-las pilas de compost con la trazabilidad del camión, y el conteo diario simplificado
-para los puntos donde no se puede usar el celular. Falta el recambio de contenedores
-y la importación del Excel de pesos de la 9 de Julio.
+las pilas de compost con la trazabilidad del camión, el conteo diario simplificado
+para los puntos donde no se puede usar el celular, y el recambio de contenedores.
+Falta la importación del Excel de pesos de la 9 de Julio, que necesita un archivo de
+muestra.
 
 El documento de validación con el modelo completo, las decisiones de diseño y las
 preguntas abiertas está en [`docs/fase-0-validacion.html`](docs/fase-0-validacion.html).
@@ -29,9 +30,10 @@ npm run dev
 
 Y abrir http://localhost:3000
 
-`npm run preparar` aplica las migraciones y carga datos de ejemplo (unos 2.300
-movimientos de los dos flujos repartidos en los últimos cuatro meses, para que el
-tablero y el listado no abran vacíos).
+`npm run preparar` aplica las migraciones y carga los datos base más unos 2.300
+movimientos de ejemplo repartidos en los últimos cuatro meses, para que el tablero y
+el listado no abran vacíos. Los ejemplos se generan **solo** contra la base local:
+ver [Poner la base en producción](#poner-la-base-en-producción).
 
 En realidad con `npm run dev` alcanza: al abrir la conexión, el servidor aplica solo
 las migraciones que falten. `npm run preparar` está para cargar además los datos de
@@ -127,14 +129,49 @@ cada consulta, que es exactamente el mecanismo de Supabase con PostgREST; las
 políticas de `db/migrations/0010_rls.sql` se evalúan igual en los dos lados. Probar
 que un vigilador no ve lo que no tiene que ver no requiere desplegar nada.
 
-### Pasar a Supabase
+### Poner la base en producción
+
+Sirve cualquier Postgres 15 o superior. Supabase y Neon ya traen los roles
+`anon` y `authenticated` que la migración 0001 detecta; en uno propio los crea ella.
+
+Los proveedores dan dos cadenas de conexión y **no son intercambiables**:
+
+| | Cuál | Para qué |
+|---|---|---|
+| **Directa** | Supabase: puerto `5432`. Neon: el host sin `-pooler` | `db:migrar`, `db:sembrar`, `db:verificar` |
+| **Pooler** | Supabase: puerto `6543`. Neon: el host con `-pooler` | La app, o sea `DATABASE_URL` en Vercel |
+
+Las migraciones traen bloques `do $$ ... $$` que no sobreviven a un pooler en modo
+transacción. La app, al revés, abre una conexión por invocación y sin pooler agota
+el servidor.
 
 ```bash
-DATABASE_URL="postgresql://postgres:...@db.<proyecto>.supabase.co:5432/postgres" npm run db:migrar
+# 1 · Estructura: tablas, vistas, funciones y las políticas de seguridad.
+DATABASE_URL="<cadena directa>" npm run db:migrar
+
+# 2 · Datos base: los 9 sitios, los recipientes, las 14 corrientes, los
+#     contenedores y los usuarios. Nada inventado.
+DATABASE_URL="<cadena directa>" npm run db:sembrar
+
+# 3 · Que las políticas hagan lo que dicen, contra la base de verdad.
+DATABASE_URL="<cadena directa>" npm run db:verificar
 ```
 
-Las migraciones son SQL plano y detectan los roles que Supabase ya trae. El rol con
-el que se conecta la app tiene que ser miembro de `authenticated`.
+El paso 2 **no carga movimientos de ejemplo**: fuera de la base local `db:sembrar`
+no los genera. Los datos inventados —choferes, patentes, destinos, pilas y unos
+2.300 movimientos— quedan detrás de `-- --ejemplos`, y en una base de verdad no se
+pueden sacar después: en este sistema nada se borra.
+
+Lo que queda vacío a propósito y carga la coordinadora:
+
+- **Personas y vehículos**, desde *Listas maestras*.
+- **Entidades** (destinos habilitados), desde *Revisiones*: el vigilador escribe a
+  dónde fue el material y la coordinadora lo formaliza, que reapunta también los
+  movimientos anteriores que habían escrito ese mismo destino a mano.
+- **Pilas**, desde *Compost*, a medida que se arman.
+
+El paso 3 **falla** mientras algún usuario conserve la clave de fábrica. Es a
+propósito: están publicadas en este repositorio. Se cambian desde *Usuarios*.
 
 ---
 
@@ -168,7 +205,8 @@ assets/marca/        identidad institucional (logos y plantilla de referencia)
 | `npm run dev` | Servidor de desarrollo |
 | `npm run preparar` | Migrar y sembrar, en un paso |
 | `npm run db:migrar` | Aplica las migraciones pendientes |
-| `npm run db:sembrar` | Carga datos de ejemplo (idempotente) |
+| `npm run db:sembrar` | Datos base. En la base local, además, datos de ejemplo (idempotente) |
+| `npm run db:sembrar -- --sin-ejemplos` | Solo los datos base, aunque sea la base local |
 | `npm run db:reset` | Borra la base local y la rehace desde cero |
 | `npm run db:verificar` | Comprueba que las políticas de seguridad hagan lo que dicen |
 | `npm run typecheck` | Chequeo de tipos |

@@ -1,7 +1,7 @@
 /**
  * Service worker de Residuos SMT.
  *
- * Hace una sola cosa: guardar el armazón de la aplicación (iconos, logos,
+ * Hace una sola cosa: guardar el armazón de la aplicación (el icono, el
  * manifiesto y los archivos con hash de Next) para que abrir la app con mala
  * señal no dependa de bajar de nuevo el CSS y el JavaScript.
  *
@@ -10,16 +10,27 @@
  * avisa que no hay conexión, porque el vigilador no tiene cómo darse cuenta.
  */
 
+// Sacar cosas del armazón no sube la versión a propósito: cambiarle el nombre
+// al cache le borra al vigilador el JavaScript que ya tenía bajado y lo obliga
+// a bajar todo otra vez. Lo que sobra ahí adentro no molesta, ya está.
 const VERSION = 'v1'
 const CACHE = `residuos-smt-armazon-${VERSION}`
 
+/**
+ * Sólo lo que el navegador pide de verdad en la primera visita.
+ *
+ * Los logos no están: en pantalla se dibujan con <Image>, o sea que se piden a
+ * /_next/image y nunca con este nombre. Bajarlos acá eran 100 KB que el
+ * vigilador pagaba en la calle y que después nadie leía. El icono de 512 se lo
+ * pide sólo el instalador del celular, cuando agrega la app a la pantalla de
+ * inicio, y en ese momento hay señal.
+ *
+ * Si alguno hiciera falta igual, el fetch de más abajo lo guarda al pasar: esto
+ * es qué se adelanta, no qué se puede guardar.
+ */
 const ARMAZON = [
   '/manifest.webmanifest',
   '/marca/icono-192.png',
-  '/marca/icono-512.png',
-  '/marca/logo-smt-blanco.png',
-  '/marca/logo-muni-iso.png',
-  '/marca/logo-ia.png',
 ]
 
 self.addEventListener('install', (evento) => {

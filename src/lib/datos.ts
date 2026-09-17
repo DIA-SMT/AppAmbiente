@@ -31,31 +31,56 @@ export async function listasDelFormulario(
   return conSesion(sesion, async (tx) => {
     const sitioId = sesion.rol === 'admin' ? null : sesion.sitioId
 
-    const [sitio] = await tx.consultar<Sitio>(
-      sitioId
-        ? `select id, codigo, nombre, tipo, direccion, orden, activo from sitios where id = $1`
-        : `select id, codigo, nombre, tipo, direccion, orden, activo from sitios
-            where tipo = case when $1::text = 'planta' then 'planta' else 'punto_verde' end
-            order by orden limit 1`,
-      [sitioId ?? flujo],
-    )
+    // Ninguna de las seis usa el resultado de la anterior: los cruces —unidades
+    // contra materiales, sitio contra vigiladores— se hacen abajo en JS. Pedidas
+    // juntas, la transacción las manda de una vez en lugar de esperar seis idas
+    // y vueltas, que es lo que el celular sentía al abrir el formulario.
+    const [
+      [sitio], unidades, materialesCrudos, entidades, vehiculos, personas,
+    ] = await Promise.all([
+      tx.consultar<Sitio>(
+        sitioId
+          ? `select id, codigo, nombre, tipo, direccion, orden, activo, carga_detallada
+               from sitios where id = $1`
+          : `select id, codigo, nombre, tipo, direccion, orden, activo, carga_detallada
+               from sitios
+              where tipo = case when $1::text = 'planta' then 'planta' else 'punto_verde' end
+              order by orden limit 1`,
+        [sitioId ?? flujo],
+      ),
+      tx.consultar<Unidad>(
+        `select id, codigo, nombre, nombre_plural, decimales, factor_m3, orden, activo
+           from unidades where activo order by orden`,
+      ),
+      tx.consultar<Material>(
+        `select id, nombre, categoria, flujos, tipos, unidad_default_id,
+                unidades_permitidas, sugerencias, color, orden, activo
+           from materiales
+          where activo
+            and (cardinality(flujos) = 0 or $1 = any(flujos))
+            and $2 = any(tipos)
+          order by orden, nombre`,
+        [flujo, tipo],
+      ),
+      // Vista pública: sin CUIT ni teléfono.
+      tx.consultar<Entidad>(
+        `select id, nombre, tipo, habilitada_origen, habilitada_destino, flujos,
+                activo, pendiente_revision
+           from entidades_publicas
+          where cardinality(flujos) = 0 or $1 = any(flujos)
+          order by nombre`,
+        [flujo],
+      ),
+      tx.consultar<Vehiculo>(
+        `select id, patente, tipo, capacidad_m3, activo from vehiculos where activo order by patente`,
+      ),
+      tx.consultar<Persona>(
+        `select id, nombre, rol, sitio_id, activo from personas_publicas order by nombre`,
+      ),
+    ])
 
-    const unidades = await tx.consultar<Unidad>(
-      `select id, codigo, nombre, nombre_plural, decimales, factor_m3, orden, activo
-         from unidades where activo order by orden`,
-    )
     const porUnidad = new Map(unidades.map((u) => [u.id, u]))
 
-    const materialesCrudos = await tx.consultar<Material>(
-      `select id, nombre, categoria, flujos, tipos, unidad_default_id,
-              unidades_permitidas, sugerencias, color, orden, activo
-         from materiales
-        where activo
-          and (cardinality(flujos) = 0 or $1 = any(flujos))
-          and $2 = any(tipos)
-        order by orden, nombre`,
-      [flujo, tipo],
-    )
     const materiales = materialesCrudos.map((m) => {
       const permitidas = (m.unidades_permitidas ?? [])
         .map((id) => porUnidad.get(id))
@@ -71,24 +96,6 @@ export async function listasDelFormulario(
           : [porUnidad.get(m.unidad_default_id)].filter((u): u is Unidad => Boolean(u)),
       }
     })
-
-    // Vista pública: sin CUIT ni teléfono.
-    const entidades = await tx.consultar<Entidad>(
-      `select id, nombre, tipo, habilitada_origen, habilitada_destino, flujos,
-              activo, pendiente_revision
-         from entidades_publicas
-        where cardinality(flujos) = 0 or $1 = any(flujos)
-        order by nombre`,
-      [flujo],
-    )
-
-    const vehiculos = await tx.consultar<Vehiculo>(
-      `select id, patente, tipo, capacidad_m3, activo from vehiculos where activo order by patente`,
-    )
-
-    const personas = await tx.consultar<Persona>(
-      `select id, nombre, rol, sitio_id, activo from personas_publicas order by nombre`,
-    )
 
     return {
       sitio,
@@ -216,13 +223,21 @@ export async function crearMovimiento(
         ],
       )
 
-      for (const item of datos.items) {
-        await tx.consultar(
-          `insert into movimiento_items (movimiento_id, material_id, cantidad, unidad_id, observacion)
-           values ($1, $2, $3, $4, $5)`,
-          [mov.id, item.material_id, item.cantidad, item.unidad_id, item.observacion ?? null],
-        )
-      }
+      // Todos los ítems en un solo insert. De a uno eran tantas idas a la base
+      // como materiales cargados, y esta es la única espera que el vigilador
+      // hace parado en la calle. El $1 se repite en cada fila porque el
+      // movimiento es el mismo; el resto se numera solo, como en armarFiltros.
+      const valores: unknown[] = [mov.id]
+      const filas = datos.items.map((item) => {
+        const campos = [item.material_id, item.cantidad, item.unidad_id, item.observacion ?? null]
+          .map((v) => `$${valores.push(v)}`)
+        return `($1, ${campos.join(', ')})`
+      })
+      await tx.consultar(
+        `insert into movimiento_items (movimiento_id, material_id, cantidad, unidad_id, observacion)
+         values ${filas.join(', ')}`,
+        valores,
+      )
 
       return { ok: true, id: mov.id, numero: mov.numero }
     })
@@ -342,15 +357,21 @@ export async function buscarMovimientos(
   const pagina = Math.max(filtros.pagina ?? 1, 1)
 
   return conSesion(sesion, async (tx) => {
-    const [{ total }] = await tx.consultar<{ total: string }>(
-      `select count(*)::text as total from v_movimientos ${where}`, par,
-    )
-    const filas = await tx.consultar<MovimientoListado>(
-      `select ${COLUMNAS_MOV} from v_movimientos ${where}
-        order by ocurrido_en desc, numero desc
-        limit ${porPagina} offset ${(pagina - 1) * porPagina}`,
-      par,
-    )
+    // El offset sale de la página pedida, no del total, así que el conteo no
+    // condiciona al listado y las dos pueden ir juntas. `par` se pasa a las dos:
+    // ni postgres-js ni PGlite escriben sobre el arreglo que reciben (cada uno
+    // se copia los valores antes de serializarlos).
+    const [[{ total }], filas] = await Promise.all([
+      tx.consultar<{ total: string }>(
+        `select count(*)::text as total from v_movimientos ${where}`, par,
+      ),
+      tx.consultar<MovimientoListado>(
+        `select ${COLUMNAS_MOV} from v_movimientos ${where}
+          order by ocurrido_en desc, numero desc
+          limit ${porPagina} offset ${(pagina - 1) * porPagina}`,
+        par,
+      ),
+    ])
     return { filas, total: Number(total) }
   })
 }
@@ -376,13 +397,18 @@ export async function movimientoPorId(
   id: string,
 ): Promise<{ movimiento: MovimientoListado; items: ItemListado[] } | null> {
   return conSesion(sesion, async (tx) => {
-    const [movimiento] = await tx.consultar<MovimientoListado>(
-      `select ${COLUMNAS_MOV} from v_movimientos where id = $1`, [id],
-    )
+    // Los ítems filtran por el id que llega, no por la cabecera: van juntas. Si
+    // el movimiento no aparece, los ítems tampoco —las dos pasan por RLS— y el
+    // resultado se descarta igual.
+    const [[movimiento], items] = await Promise.all([
+      tx.consultar<MovimientoListado>(
+        `select ${COLUMNAS_MOV} from v_movimientos where id = $1`, [id],
+      ),
+      tx.consultar<ItemListado>(
+        `select * from v_movimiento_items where movimiento_id = $1 order by material_nombre`, [id],
+      ),
+    ])
     if (!movimiento) return null
-    const items = await tx.consultar<ItemListado>(
-      `select * from v_movimiento_items where movimiento_id = $1 order by material_nombre`, [id],
-    )
     return { movimiento, items }
   })
 }
@@ -569,25 +595,30 @@ export async function pilasParaDespachar(sesion: Sesion): Promise<FilaPila[]> {
  */
 export async function pilaPorId(sesion: Sesion, id: string) {
   return conSesion(sesion, async (tx) => {
-    const [pila] = await tx.consultar<FilaPila>('select * from v_pilas where id = $1', [id])
+    // Las tres puntas cuelgan del id que llega, no de la fila `pila`: se piden
+    // juntas y recién después se decide si la pila existe. Si no existe, las
+    // otras tampoco devuelven nada —RLS se aplica a cada una— y se descartan.
+    const [[pila], composicion, controles, salidas] = await Promise.all([
+      tx.consultar<FilaPila>('select * from v_pilas where id = $1', [id]),
+      tx.consultar<FilaComposicion>(
+        'select * from v_pila_composicion where pila_id = $1 order by m3 desc',
+        [id],
+      ),
+      tx.consultar<ControlDePila>(
+        `select c.id, c.pila_id, c.tipo, c.ocurrido_en, c.valor, c.observacion, p.nombre as registrado_por
+           from pila_controles c
+           left join perfiles p on p.id = c.registrado_por_id
+          where c.pila_id = $1
+          order by c.ocurrido_en desc`,
+        [id],
+      ),
+      tx.consultar<TrazaDeSalida>(
+        'select * from v_trazabilidad_salidas where pila_id = $1 order by ocurrido_en desc',
+        [id],
+      ),
+    ])
     if (!pila) return null
 
-    const composicion = await tx.consultar<FilaComposicion>(
-      'select * from v_pila_composicion where pila_id = $1 order by m3 desc',
-      [id],
-    )
-    const controles = await tx.consultar<ControlDePila>(
-      `select c.id, c.pila_id, c.tipo, c.ocurrido_en, c.valor, c.observacion, p.nombre as registrado_por
-         from pila_controles c
-         left join perfiles p on p.id = c.registrado_por_id
-        where c.pila_id = $1
-        order by c.ocurrido_en desc`,
-      [id],
-    )
-    const salidas = await tx.consultar<TrazaDeSalida>(
-      'select * from v_trazabilidad_salidas where pila_id = $1 order by ocurrido_en desc',
-      [id],
-    )
     return { pila, composicion, controles, salidas }
   })
 }

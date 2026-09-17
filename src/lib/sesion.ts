@@ -11,6 +11,7 @@
  * acceso a datos personales y al panel completo.
  */
 import 'server-only'
+import { cache } from 'react'
 import { cookies } from 'next/headers'
 import { SignJWT, jwtVerify } from 'jose'
 import { comoServicio } from '@db/sesion'
@@ -67,8 +68,17 @@ export async function cerrarSesion() {
   almacen.delete(COOKIE)
 }
 
-/** Lee la cookie y revalida contra la base que el perfil siga activo. */
-export async function sesionActual(): Promise<Sesion | null> {
+/**
+ * Lee la cookie y revalida contra la base que el perfil siga activo.
+ *
+ * Va envuelta en cache() porque entre el layout y la página esto se llama dos
+ * veces por navegación, y cada llamada abría su propia transacción contra São
+ * Paulo. cache() memoiza solo dentro del mismo pedido, así que se conserva lo
+ * que dice el comentario de arriba: en el pedido siguiente se vuelve a
+ * consultar y el usuario desactivado queda afuera. Por eso no va unstable_cache
+ * ni revalidate: esos guardan entre pedidos y entre usuarios distintos.
+ */
+export const sesionActual = cache(async (): Promise<Sesion | null> => {
   const almacen = await cookies()
   const bruto = almacen.get(COOKIE)?.value
   if (!bruto) return null
@@ -94,7 +104,7 @@ export async function sesionActual(): Promise<Sesion | null> {
   if (!p) return null
 
   return { perfilId: p.id, rol: p.rol, sitioId: p.sitio_id, nombre: p.nombre }
-}
+})
 
 /** Para páginas que exigen sesión. Devuelve null si no hay; el layout redirige. */
 export async function exigirSesion(): Promise<Sesion> {

@@ -10,73 +10,198 @@
  * también la server action y la ruta que recibe la cola, así el formulario del
  * celular y el servidor no pueden discrepar sobre qué es un movimiento válido.
  */
-import { z } from 'zod'
 
 // ── Qué manda el celular ────────────────────────────────────────────────
 
-const uuid = z.uuid()
+const FLUJOS = ['planta', 'punto_verde', 'gran_generador'] as const
+const TIPOS = ['ingreso', 'salida'] as const
+const CLASES = ['sitio', 'entidad', 'vecino', 'texto'] as const
+const TIPOS_DE_ENTIDAD = ['carrero', 'emprendimiento', 'organizacion', 'otro'] as const
+const VALORIZACIONES = ['reutilizacion', 'venta', 'emprendimiento', 'otro'] as const
 
-export const esquemaMovimiento = z.object({
-  flujo: z.enum(['planta', 'punto_verde', 'gran_generador']),
-  tipo: z.enum(['ingreso', 'salida']),
-  ocurrido_en: z.string().min(1),
-  items: z
-    .array(
-      z.object({
-        material_id: uuid,
-        cantidad: z.number().positive().max(999999),
-        unidad_id: uuid,
-      }),
-    )
-    .min(1)
-    .max(20),
-  origen_clase: z.enum(['sitio', 'entidad', 'vecino', 'texto']),
-  origen_sitio_id: uuid.nullish(),
-  origen_entidad_id: uuid.nullish(),
-  origen_detalle: z.string().trim().max(200).nullish(),
-  destino_clase: z.enum(['sitio', 'entidad', 'vecino', 'texto']),
-  destino_sitio_id: uuid.nullish(),
-  destino_entidad_id: uuid.nullish(),
-  destino_detalle: z.string().trim().max(200).nullish(),
+interface ItemDelCelular {
+  material_id: string
+  cantidad: number
+  unidad_id: string
+}
+
+interface VecinoDelMovimiento {
+  nombre?: string | null
+  telefono?: string | null
+  barrio?: string | null
+  sin_datos: boolean
+}
+
+export interface MovimientoDelCelular {
+  flujo: (typeof FLUJOS)[number]
+  tipo: (typeof TIPOS)[number]
+  ocurrido_en: string
+  items: ItemDelCelular[]
+  origen_clase: (typeof CLASES)[number]
+  origen_sitio_id?: string | null
+  origen_entidad_id?: string | null
+  origen_detalle?: string | null
+  destino_clase: (typeof CLASES)[number]
+  destino_sitio_id?: string | null
+  destino_entidad_id?: string | null
+  destino_detalle?: string | null
   /**
    * El vecino se manda con sus datos, no con un id: el vigilador no puede leer
    * la lista de vecinos, así que no tiene forma de elegir uno existente. La
    * base resuelve si es alguien que ya vino (por teléfono) o uno nuevo.
    */
-  vecino: z
-    .object({
-      nombre: z.string().trim().max(120).nullish(),
-      telefono: z.string().trim().max(40).nullish(),
-      barrio: z.string().trim().max(120).nullish(),
-      sin_datos: z.boolean().default(false),
-    })
-    .nullish(),
+  vecino?: VecinoDelMovimiento | null
   /** Alta en la calle de un carrero o emprendedor que no está en la lista. */
-  entidad_nueva: z
-    .object({
-      nombre: z.string().trim().min(2).max(120),
-      tipo: z.enum(['carrero', 'emprendimiento', 'organizacion', 'otro']),
-    })
-    .nullish(),
-  tipo_valorizacion: z
-    .enum(['reutilizacion', 'venta', 'emprendimiento', 'otro'])
-    .nullish(),
+  entidad_nueva?: { nombre: string; tipo: (typeof TIPOS_DE_ENTIDAD)[number] } | null
+  tipo_valorizacion?: (typeof VALORIZACIONES)[number] | null
   /**
    * A qué pila entró la poda, o de cuál salió el compost. Es lo que cierra la
    * cadena que pidió la Secretaría: sin esto, un camión de compost no tiene de
    * dónde. Opcional a propósito: perder el movimiento sería peor que perder la
    * trazabilidad de ese movimiento.
    */
-  pila_id: uuid.nullish(),
-  vehiculo_id: uuid.nullish(),
-  chofer_id: uuid.nullish(),
-  autorizado_por_id: uuid.nullish(),
-  vigilador_id: uuid.nullish(),
-  observaciones: z.string().trim().max(500).nullish(),
-  client_uuid: uuid,
-})
+  pila_id?: string | null
+  vehiculo_id?: string | null
+  chofer_id?: string | null
+  autorizado_por_id?: string | null
+  vigilador_id?: string | null
+  observaciones?: string | null
+  client_uuid: string
+}
 
-export type MovimientoDelCelular = z.infer<typeof esquemaMovimiento>
+// ── Leer un movimiento que llega de afuera ──────────────────────────────
+
+/**
+ * Esto lo ejecuta sólo el servidor, pero está escrito a mano y no con Zod
+ * porque el archivo entero viaja al celular: lo importan el formulario y la
+ * pantalla del turno para la cola y el borrador. Declarar acá un esquema de Zod
+ * arrastraba la librería completa —unos 24 KB comprimidos— a la primera visita
+ * de un vigilador con datos y mala señal, para no ejecutarse nunca ahí.
+ *
+ * Son las mismas comprobaciones que hacía el esquema y en el mismo orden:
+ * recorta los textos antes de medirlos, completa `sin_datos` cuando no viene, y
+ * arma la respuesta campo por campo, así lo que el celular mande de más no
+ * llega a la base.
+ */
+
+/** Marca interna: un control que no se cumple corta la lectura entera. */
+const INVALIDO = Symbol('movimiento inválido')
+
+function rechazar(): never {
+  throw INVALIDO
+}
+
+function objeto(valor: unknown): Record<string, unknown> {
+  if (typeof valor !== 'object' || valor === null || Array.isArray(valor)) rechazar()
+  return valor as Record<string, unknown>
+}
+
+function unaDe<T extends string>(opciones: readonly T[], valor: unknown): T {
+  if (typeof valor !== 'string' || !opciones.includes(valor as T)) rechazar()
+  return valor as T
+}
+
+/** Las versiones 1 a 8 de la RFC 9562, más el uuid en cero y el de todo efes. */
+const UUID =
+  /^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$/
+
+function uuid(valor: unknown): string {
+  if (typeof valor !== 'string' || !UUID.test(valor)) rechazar()
+  return valor
+}
+
+/** Recorta y recién después mide, que es el orden en el que estaba escrito. */
+function texto(valor: unknown, maximo: number, minimo = 0): string {
+  if (typeof valor !== 'string') rechazar()
+  const limpio = valor.trim()
+  if (limpio.length < minimo || limpio.length > maximo) rechazar()
+  return limpio
+}
+
+/** Campo que puede faltar, llegar en null, o llegar y tener que ser válido. */
+function opcional<T>(valor: unknown, leer: (v: unknown) => T): T | null | undefined {
+  return valor === null || valor === undefined ? (valor as null | undefined) : leer(valor)
+}
+
+function items(valor: unknown): ItemDelCelular[] {
+  if (!Array.isArray(valor) || valor.length < 1 || valor.length > 20) rechazar()
+  return valor.map((crudo) => {
+    const item = objeto(crudo)
+    const material_id = uuid(item.material_id)
+    const cantidad = item.cantidad
+    if (typeof cantidad !== 'number' || !Number.isFinite(cantidad)) rechazar()
+    if (cantidad <= 0 || cantidad > 999999) rechazar()
+    return { material_id, cantidad, unidad_id: uuid(item.unidad_id) }
+  })
+}
+
+function vecino(valor: unknown): VecinoDelMovimiento {
+  const datos = objeto(valor)
+  const sinDatos = datos.sin_datos
+  if (sinDatos !== undefined && typeof sinDatos !== 'boolean') rechazar()
+  return {
+    nombre: opcional(datos.nombre, (v) => texto(v, 120)),
+    telefono: opcional(datos.telefono, (v) => texto(v, 40)),
+    barrio: opcional(datos.barrio, (v) => texto(v, 120)),
+    sin_datos: sinDatos ?? false,
+  }
+}
+
+function entidadNueva(valor: unknown) {
+  const datos = objeto(valor)
+  return {
+    nombre: texto(datos.nombre, 120, 2),
+    tipo: unaDe(TIPOS_DE_ENTIDAD, datos.tipo),
+  }
+}
+
+function leer(valor: unknown): MovimientoDelCelular {
+  const m = objeto(valor)
+  const ocurrido = m.ocurrido_en
+  if (typeof ocurrido !== 'string' || ocurrido.length < 1) rechazar()
+
+  return {
+    flujo: unaDe(FLUJOS, m.flujo),
+    tipo: unaDe(TIPOS, m.tipo),
+    ocurrido_en: ocurrido,
+    items: items(m.items),
+    origen_clase: unaDe(CLASES, m.origen_clase),
+    origen_sitio_id: opcional(m.origen_sitio_id, uuid),
+    origen_entidad_id: opcional(m.origen_entidad_id, uuid),
+    origen_detalle: opcional(m.origen_detalle, (v) => texto(v, 200)),
+    destino_clase: unaDe(CLASES, m.destino_clase),
+    destino_sitio_id: opcional(m.destino_sitio_id, uuid),
+    destino_entidad_id: opcional(m.destino_entidad_id, uuid),
+    destino_detalle: opcional(m.destino_detalle, (v) => texto(v, 200)),
+    vecino: opcional(m.vecino, vecino),
+    entidad_nueva: opcional(m.entidad_nueva, entidadNueva),
+    tipo_valorizacion: opcional(m.tipo_valorizacion, (v) => unaDe(VALORIZACIONES, v)),
+    pila_id: opcional(m.pila_id, uuid),
+    vehiculo_id: opcional(m.vehiculo_id, uuid),
+    chofer_id: opcional(m.chofer_id, uuid),
+    autorizado_por_id: opcional(m.autorizado_por_id, uuid),
+    vigilador_id: opcional(m.vigilador_id, uuid),
+    observaciones: opcional(m.observaciones, (v) => texto(v, 500)),
+    client_uuid: uuid(m.client_uuid),
+  }
+}
+
+/**
+ * Se sigue llamando `esquemaMovimiento` y respondiendo `safeParse` porque es
+ * como lo llaman la server action del formulario y la ruta que recibe la cola.
+ */
+export const esquemaMovimiento = {
+  safeParse(
+    valor: unknown,
+  ): { success: true; data: MovimientoDelCelular } | { success: false } {
+    try {
+      return { success: true, data: leer(valor) }
+    } catch (error) {
+      if (error === INVALIDO) return { success: false }
+      throw error // una falla de verdad no es "el movimiento vino mal"
+    }
+  },
+}
 
 export interface EnvioPendiente {
   client_uuid: string

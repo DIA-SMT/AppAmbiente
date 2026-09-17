@@ -4,6 +4,17 @@ const config: NextConfig = {
   serverExternalPackages: ['@electric-sql/pglite', 'exceljs', 'postgres'],
   experimental: { serverActions: { bodySizeLimit: '8mb' } },
 
+  images: {
+    // Lo que pasa por <Image> sale de /_next/image, y ahí Next pone un
+    // max-age de 60 segundos: al minuto el celular vuelve a preguntar por el
+    // logo en cada pantalla. Son los logos institucionales, no cambian nunca.
+    //
+    // La dirección NO lleva hash, igual que /fondo: para reemplazar un logo
+    // hay que subirlo con otro nombre, si no los navegadores siguen con el
+    // viejo.
+    minimumCacheTTL: 31536000,
+  },
+
   async headers() {
     return [
       {

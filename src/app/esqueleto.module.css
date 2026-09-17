@@ -1,0 +1,105 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   Los bloques grises que ocupan el lugar de la pantalla mientras el servidor
+   la arma. Los comparten los loading.tsx de los dos grupos.
+
+   Por qué existen: sin un loading.tsx el App Router deja congelada la pantalla
+   anterior hasta tener la nueva entera. El vigilador toca, no ve nada, y
+   vuelve a tocar creyendo que la app se colgó. Estos bloques son la respuesta
+   inmediata al dedo.
+
+   Por qué tienen forma y no son un spinner: si el hueco mide más o menos lo
+   mismo que lo que va a llegar, el contenido no salta cuando entra, y de lejos
+   ya se entiende a qué pantalla se está entrando.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.bloque {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--r-chico);
+  /* El mismo gris que los bordes de la app: en claro y en oscuro ya está
+     resuelto, y se lee como hueco y no como contenido. */
+  background: var(--linea);
+}
+
+/* El brillo que barre. Es lo único que dice "sigue viniendo" cuando la señal
+   está mala y el hueco dura varios segundos. Anima transform y no el fondo,
+   que es lo que un celular de gama baja puede sostener sin gastar batería. */
+.bloque::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--panel) 65%, transparent),
+    transparent
+  );
+  animation: barrer 1.3s ease-in-out infinite;
+}
+
+@keyframes barrer {
+  to { transform: translateX(100%); }
+}
+
+/* globals.css ya acorta toda animación a .01ms, pero eso deja el brillo clavado
+   en cualquier punto del recorrido. Acá se saca del todo: el hueco gris solo
+   ya avisa que algo está cargando. */
+@media (prefers-reduced-motion: reduce) {
+  .bloque::after { display: none; }
+}
+
+/* ── Texto ────────────────────────────────────────────────────────────── */
+
+/* El h1 de la pantalla. En 375 px el ancho relativo lo deja entrar igual. */
+.titulo { height: 28px; width: min(62%, 300px); border-radius: 8px; }
+
+/* La bajada gris que casi toda pantalla tiene debajo del título. */
+.renglon { height: 13px; width: 78%; border-radius: 6px; }
+.renglonCorto { height: 13px; width: 44%; border-radius: 6px; }
+
+/* El rótulo en versalitas de un campo. */
+.etiqueta { height: 10px; width: 108px; border-radius: 5px; }
+
+/* ── Controles del formulario ─────────────────────────────────────────── */
+
+/* Mismo alto que .control de globals.css, para que el campo no se corra
+   cuando llega el de verdad. */
+.control { height: var(--toque); }
+
+/* El "Volver" de arriba a la derecha, con el alto de .boton.chico. */
+.volver { flex: 0 0 auto; width: 84px; height: 40px; }
+
+/* Los botones de recipiente: van en fila y envuelven, como los de verdad. */
+.recipientes { display: flex; gap: 8px; flex-wrap: wrap; }
+.recipiente { flex: 0 1 auto; width: 84px; height: var(--toque); }
+
+/* El botón de guardar, con el alto de .boton.grande. */
+.botonGrande { height: 56px; }
+
+/* ── Bloques grandes del celular ──────────────────────────────────────── */
+
+/* Cada acceso del inicio de turno: mismo alto y mismo radio que .boton-accion. */
+.acceso { height: 88px; border-radius: var(--r); }
+
+/* ── Panel de coordinación ────────────────────────────────────────────── */
+
+/* Misma grilla que los indicadores del tablero: en el celular caen en una
+   columna sola. */
+.indicadores {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(196px, 1fr));
+}
+.cifra { height: 30px; width: 104px; border-radius: 8px; }
+
+.pestanas { display: flex; gap: 8px; flex-wrap: wrap; }
+.pestana { width: 128px; height: var(--toque); border-radius: 99px; }
+
+.grafico { height: 220px; }
+
+/* La tabla, que es casi toda la pantalla de cualquier sección del panel. El
+   padding va acá porque .desplazable no lo trae. */
+.tabla { display: flex; flex-direction: column; gap: 10px; padding: 14px; }
+.cabeceraTabla { height: 20px; }
+.filaTabla { height: 34px; }

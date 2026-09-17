@@ -8,6 +8,7 @@
  * la pena correrlo después de tocar db/migrations/0010_rls.sql y antes de
  * desplegar a Supabase, donde las mismas políticas se evalúan igual.
  */
+import '../entorno'
 import { randomUUID } from 'node:crypto'
 import { comoServicio, conSesion, type Sesion } from '../sesion'
 import { hashearCredencial } from '../credenciales'

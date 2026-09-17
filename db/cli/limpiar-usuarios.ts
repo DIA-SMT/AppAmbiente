@@ -14,6 +14,7 @@
  * foráneas están en `on delete restrict`— y entonces lo que corresponde es
  * desactivarlo, no borrarlo. El archivo hace las dos cosas y avisa cuál aplicó.
  */
+import '../entorno'
 import { writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { USUARIOS } from '../datos-base'

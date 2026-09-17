@@ -8,6 +8,7 @@
  * está para producción y para reparar. Cerrá el servidor antes de usarlo: dos
  * procesos escribiendo la misma carpeta .data/pglite se pisan.
  */
+import '../entorno'
 import { obtenerBase, describirMotor } from '../client'
 import { aplicarMigraciones } from '../migraciones'
 

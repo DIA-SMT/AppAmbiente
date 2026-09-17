@@ -6,6 +6,7 @@
  * En PGlite elimina la carpeta .data/pglite. Con DATABASE_URL apuntando a un
  * Postgres real pide confirmación explícita, para no borrar producción.
  */
+import '../entorno'
 import { rmSync } from 'node:fs'
 import path from 'node:path'
 import { obtenerBase } from '../client'

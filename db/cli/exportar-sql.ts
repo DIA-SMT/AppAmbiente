@@ -23,6 +23,7 @@
  * En los dos casos, antes de escribir nada, ejecuta el archivo contra un PGlite
  * en memoria y verifica el resultado. Si no sirve, falla y no lo escribe.
  */
+import '../entorno'
 import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'

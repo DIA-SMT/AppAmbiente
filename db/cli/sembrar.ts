@@ -15,6 +15,7 @@
  *
  * Es idempotente: correrlo dos veces no duplica nada.
  */
+import '../entorno'
 import { comoServicio } from '../sesion'
 import { obtenerBase } from '../client'
 import { hashearCredencial } from '../credenciales'

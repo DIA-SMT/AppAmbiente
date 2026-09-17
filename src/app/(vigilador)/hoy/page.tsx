@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { consultarConSesion } from '@db/sesion'
-import { movimientosDelTurno } from '@/lib/datos'
+import { conSesion } from '@db/sesion'
+import { movimientosDelTurnoEnTx } from '@/lib/datos'
 import { ETIQUETA_TIPO, ETIQUETA_VALORIZACION, cantidadDeMovimiento, hora } from '@/lib/formato'
 import { sesionActual } from '@/lib/sesion'
 import { ListaPendientes } from '../turno/SelectorVigilador'
@@ -14,14 +14,20 @@ export default async function Hoy() {
 
   // El tipo de sitio decide cómo se nombran los dos botones del final. Los
   // chips de cada fila no lo necesitan: cada movimiento trae su propio flujo.
-  const [movimientos, sitios] = await Promise.all([
-    movimientosDelTurno(sesion, 100),
+  //
+  // Las dos consultas van adentro de una sola transacción. Abrir una cuesta
+  // cuatro viajes a la base (BEGIN, poner la identidad, la consulta, COMMIT) y
+  // el pool serverless tiene una conexión sola: dos conSesion se hacen uno
+  // después del otro por más Promise.all que los envuelva. Sobre el mismo `tx`
+  // sí salen encauzadas y viajan juntas.
+  const [movimientos, sitios] = await conSesion(sesion, (tx) => Promise.all([
+    movimientosDelTurnoEnTx(tx, 100),
     sesion.sitioId
-      ? consultarConSesion<{ tipo: string }>(
-          sesion, `select tipo from sitios where id = $1`, [sesion.sitioId],
+      ? tx.consultar<{ tipo: string }>(
+          `select tipo from sitios where id = $1`, [sesion.sitioId],
         )
       : Promise.resolve([]),
-  ])
+  ]))
 
   const esPuntoVerde = sitios[0]?.tipo === 'punto_verde'
 

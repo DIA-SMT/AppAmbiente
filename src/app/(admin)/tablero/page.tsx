@@ -1,11 +1,10 @@
 import { Fragment, type CSSProperties } from 'react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { buscarMovimientos, resumenMensual, sitiosVisibles } from '@/lib/datos'
+import { resumenMensualEnTx, sitiosVisiblesEnTx } from '@/lib/datos'
 import { mesCorto, mesLargo, numero, paraInputFechaHora } from '@/lib/formato'
-import { consultarConSesion } from '@db/sesion'
-import { sesionActual, type Sesion } from '@/lib/sesion'
-import type { TipoMovimiento } from '@/lib/tipos'
+import { conSesion } from '@db/sesion'
+import { sesionActual } from '@/lib/sesion'
 import GraficoMensual, { type MesGrafico } from './GraficoMensual'
 import SubNavegacion from './SubNavegacion'
 
@@ -61,34 +60,84 @@ function mismoDiaDelMesAnterior(hoy: string, mesPrevio: string): string {
   return `${mesPrevio}-${String(Math.min(dia, ultimo)).padStart(2, '0')}`
 }
 
-/** Volumen equivalente en m³ movido entre dos fechas, por tipo. */
-async function volumenEnRango(
-  sesion: Sesion,
-  desde: string,
-  hasta: string,
-): Promise<{ ingreso: number; salida: number }> {
-  const filas = await consultarConSesion<{ tipo: TipoMovimiento; total: string }>(
-    sesion,
-    `select tipo, coalesce(sum(equivalente_m3), 0)::text as total
-       from v_movimiento_items
-      where flujo = 'planta' and estado = 'vigente'
-        and ocurrido_en >= $1::timestamptz
-        and ocurrido_en < ($2::date + interval '1 day')
-      group by tipo`,
-    [desde, hasta],
-  )
-  const por = (t: string) => Number(filas.find((f) => f.tipo === t)?.total ?? 0)
-  return { ingreso: por('ingreso'), salida: por('salida') }
+/**
+ * Las dos ventanas que comparan las tarjetas de arriba, en el mismo orden en
+ * las dos consultas: [inicio del mes previo, inicio del mes actual, hoy, corte
+ * del mes previo]. Se pasan iguales a las dos porque ni postgres-js ni PGlite
+ * escriben sobre el arreglo que reciben.
+ */
+type Ventana = [string, string, string, string]
+
+/**
+ * Los cuatro contadores de las tarjetas, de un solo recorrido de v_movimientos.
+ *
+ * Antes eran cuatro llamadas a buscarMovimientos con porPagina: 1. Cada una
+ * abría su transacción y, peor, corría además el listado entero —33 columnas
+ * con ORDER BY sobre todo lo filtrado— nada más que para tirarlo: cuatro
+ * recorridos completos de la vista que nadie miraba.
+ *
+ * Las dos ventanas no son simétricas, así que cada `filter` lleva escritos sus
+ * dos bordes: el mes en curso va del día 1 a hoy, y el previo del día 1 al
+ * mismo día del mes anterior, que casi siempre es más corto. El where de
+ * afuera es la unión de las dos —del 1 del mes previo a hoy— y por eso arrastra
+ * también los días del medio, que ningún `filter` cuenta.
+ */
+const SQL_CONTEOS = `
+  select
+    count(*) filter (where tipo = 'ingreso'
+                       and ocurrido_en >= $2::timestamptz
+                       and ocurrido_en <  ($3::date + interval '1 day'))::text as ingresos_mes,
+    count(*) filter (where tipo = 'salida'
+                       and ocurrido_en >= $2::timestamptz
+                       and ocurrido_en <  ($3::date + interval '1 day'))::text as salidas_mes,
+    count(*) filter (where tipo = 'ingreso'
+                       and ocurrido_en >= $1::timestamptz
+                       and ocurrido_en <  ($4::date + interval '1 day'))::text as ingresos_previo,
+    count(*) filter (where tipo = 'salida'
+                       and ocurrido_en >= $1::timestamptz
+                       and ocurrido_en <  ($4::date + interval '1 day'))::text as salidas_previo
+    from v_movimientos
+   where flujo = 'planta' and estado = 'vigente'
+     and ocurrido_en >= $1::timestamptz
+     and ocurrido_en <  ($3::date + interval '1 day')`
+
+/**
+ * Los cuatro m³ de las tarjetas, con las mismas dos ventanas. Antes eran dos
+ * consultas con `group by tipo`, una por ventana, cada una en su transacción.
+ * El coalesce hace acá lo que antes hacía el `find` que no encontraba nada: sin
+ * filas que sumar el agregado da null y la tarjeta tiene que mostrar 0.
+ */
+const SQL_VOLUMENES = `
+  select
+    coalesce(sum(equivalente_m3) filter (where tipo = 'ingreso'
+                       and ocurrido_en >= $2::timestamptz
+                       and ocurrido_en <  ($3::date + interval '1 day')), 0)::text as ingreso_mes,
+    coalesce(sum(equivalente_m3) filter (where tipo = 'salida'
+                       and ocurrido_en >= $2::timestamptz
+                       and ocurrido_en <  ($3::date + interval '1 day')), 0)::text as salida_mes,
+    coalesce(sum(equivalente_m3) filter (where tipo = 'ingreso'
+                       and ocurrido_en >= $1::timestamptz
+                       and ocurrido_en <  ($4::date + interval '1 day')), 0)::text as ingreso_previo,
+    coalesce(sum(equivalente_m3) filter (where tipo = 'salida'
+                       and ocurrido_en >= $1::timestamptz
+                       and ocurrido_en <  ($4::date + interval '1 day')), 0)::text as salida_previo
+    from v_movimiento_items
+   where flujo = 'planta' and estado = 'vigente'
+     and ocurrido_en >= $1::timestamptz
+     and ocurrido_en <  ($3::date + interval '1 day')`
+
+interface FilaConteos {
+  ingresos_mes: string
+  salidas_mes: string
+  ingresos_previo: string
+  salidas_previo: string
 }
 
-async function contarMovimientos(
-  sesion: Sesion,
-  tipo: TipoMovimiento,
-  desde: string,
-  hasta?: string,
-): Promise<number> {
-  const { total } = await buscarMovimientos(sesion, { flujo: 'planta', tipo, desde, hasta, porPagina: 1 })
-  return total
+interface FilaVolumenes {
+  ingreso_mes: string
+  salida_mes: string
+  ingreso_previo: string
+  salida_previo: string
 }
 
 export default async function Tablero({
@@ -104,15 +153,39 @@ export default async function Tablero({
   const pedido = Number(Array.isArray(parametros.meses) ? parametros.meses[0] : parametros.meses)
   const meses = PERIODOS.includes(pedido) ? pedido : 6
 
-  const filas = await resumenMensual(sesion, { flujo: 'planta', meses })
-  const sitios = await sitiosVisibles(sesion)
+  // Las ventanas de tiempo son aritmética de fechas, no consultas, así que se
+  // calculan antes de tocar la base y las cuatro lecturas pueden salir juntas.
+  // De paso el mes y el día salen de la misma lectura del reloj: antes eran dos
+  // y en el cambio de mes podían no coincidir.
+  const ahora = paraInputFechaHora()
+  const mesActual = ahora.slice(0, 7)
+  const hoy = ahora.slice(0, 10)
+  const mesPrevio = restarMeses(mesActual, 1)
+  const inicioMes = `${mesActual}-01`
+  const inicioPrevio = `${mesPrevio}-01`
+  const cortePrevio = mismoDiaDelMesAnterior(hoy, mesPrevio)
+  const ventana: Ventana = [inicioPrevio, inicioMes, hoy, cortePrevio]
+
+  // Toda la pantalla en una sola transacción. Abrirla cuesta cuatro viajes
+  // fijos —BEGIN, identidad, la consulta, COMMIT— y el pool en serverless tiene
+  // una sola conexión: las seis transacciones que había antes se hacían cola
+  // una detrás de otra, y un Promise.all entre ellas no cambiaba nada. Sobre el
+  // mismo `tx` sí, porque el driver encauza las cuatro consultas y viajan
+  // juntas. Nada se saltea RLS: la identidad la puso conSesion() al abrir.
+  const [filas, sitios, [conteos], [volumenes]] = await conSesion(sesion, (tx) =>
+    Promise.all([
+      resumenMensualEnTx(tx, { flujo: 'planta', meses }),
+      sitiosVisiblesEnTx(tx),
+      tx.consultar<FilaConteos>(SQL_CONTEOS, ventana),
+      tx.consultar<FilaVolumenes>(SQL_VOLUMENES, ventana),
+    ]),
+  )
+
   const planta = sitios.find((s) => s.tipo === 'planta')
 
-  const mesActual = paraInputFechaHora().slice(0, 7)
   const rango: string[] = []
   for (let i = meses - 1; i >= 0; i--) rango.push(restarMeses(mesActual, i))
   const claves = Array.from(new Set([...rango, ...filas.map((f) => claveDeMes(f.mes))])).sort()
-  const mesPrevio = restarMeses(mesActual, 1)
 
   const volumenPorMes = new Map<string, Par>()
   const materiales = new Map<string, FilaMaterial>()
@@ -221,20 +294,25 @@ export default async function Tablero({
     )
   }
 
-  const inicioMes = `${mesActual}-01`
-  const hoy = paraInputFechaHora().slice(0, 10)
-  const cortePrevio = mismoDiaDelMesAnterior(hoy, mesPrevio)
   // El mes en curso se compara contra los mismos días del anterior, no contra
   // el mes entero. El último día del mes las dos ventanas coinciden solas.
   const mesIncompleto = hoy < ultimoDia(mesActual)
 
-  const ingresosMes = await contarMovimientos(sesion, 'ingreso', inicioMes, hoy)
-  const salidasMes = await contarMovimientos(sesion, 'salida', inicioMes, hoy)
-  const ingresosPrevio = await contarMovimientos(sesion, 'ingreso', `${mesPrevio}-01`, cortePrevio)
-  const salidasPrevio = await contarMovimientos(sesion, 'salida', `${mesPrevio}-01`, cortePrevio)
+  // Los ocho números de las tarjetas ya vinieron con el resto, en la misma
+  // transacción: acá solo se desarman las dos filas que devolvió la base.
+  const ingresosMes = Number(conteos.ingresos_mes)
+  const salidasMes = Number(conteos.salidas_mes)
+  const ingresosPrevio = Number(conteos.ingresos_previo)
+  const salidasPrevio = Number(conteos.salidas_previo)
 
-  const volumenMes = await volumenEnRango(sesion, inicioMes, hoy)
-  const volumenPrevio = await volumenEnRango(sesion, `${mesPrevio}-01`, cortePrevio)
+  const volumenMes = {
+    ingreso: Number(volumenes.ingreso_mes),
+    salida: Number(volumenes.salida_mes),
+  }
+  const volumenPrevio = {
+    ingreso: Number(volumenes.ingreso_previo),
+    salida: Number(volumenes.salida_previo),
+  }
   const diaCorte = Number(hoy.slice(8, 10))
   const rotuloPrevio = mesIncompleto
     ? `los primeros ${diaCorte} días de ${mesCorto(instanteDeMes(mesPrevio))}`

@@ -1,8 +1,8 @@
 import type { CSSProperties } from 'react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { consultarConSesion } from '@db/sesion'
-import { contenedoresDelSitio, pedidosDeRecambio } from '@/lib/datos'
+import { conSesion } from '@db/sesion'
+import { contenedoresDelSitioEnTx, pedidosDeRecambioEnTx } from '@/lib/datos'
 import { claveDeCalendario, fechaDeCalendario, paraInputFechaHora } from '@/lib/formato'
 import { sesionActual } from '@/lib/sesion'
 import type { PedidoRecambio } from '@/lib/tipos'
@@ -79,22 +79,32 @@ export default async function Contenedores() {
   const sesion = await sesionActual()
   if (!sesion) redirect('/ingresar')
 
-  const [sitio] = sesion.sitioId
-    ? await consultarConSesion<{ nombre: string; tipo: string }>(
-        sesion,
-        'select nombre, tipo from sitios where id = $1',
-        [sesion.sitioId],
-      )
-    : []
+  // Las tres consultas adentro de una sola transacción. Antes eran tres —el
+  // sitio primero, y las otras dos después de mirarlo—, y cada transacción
+  // cuesta cuatro viajes a la base (BEGIN, poner la identidad, la consulta,
+  // COMMIT) porque el pool serverless tiene una conexión sola y no hay
+  // Promise.all que las superponga. Sobre el mismo `tx` sí se encauzan y viajan
+  // juntas, así que pedir los contenedores antes de saber si el punto es verde
+  // no agrega un viaje: cuando no lo es se descartan y se redirige igual, como
+  // antes. Lo que se lee de más en esa vuelta es la Planta, que no tiene
+  // contenedores; y si la sesión no tiene punto —la coordinadora escribiendo la
+  // dirección a mano— son dos tablas chicas que igual terminan en el redirect.
+  const [sitios, contenedores, pedidos] = await conSesion(sesion, (tx) => Promise.all([
+    sesion.sitioId
+      ? tx.consultar<{ nombre: string; tipo: string }>(
+          'select nombre, tipo from sitios where id = $1',
+          [sesion.sitioId],
+        )
+      : Promise.resolve([]),
+    contenedoresDelSitioEnTx(tx, sesion),
+    pedidosDeRecambioEnTx(tx, { estado: 'abiertos', sitioId: sesion.sitioId ?? undefined }),
+  ]))
+
+  const sitio = sitios[0]
 
   // Los contenedores son de los puntos verdes. En la Planta esta pantalla no
   // existe, y por eso tampoco aparece el botón que lleva hasta acá.
   if (!sitio || sitio.tipo !== 'punto_verde') redirect('/turno')
-
-  const [contenedores, pedidos] = await Promise.all([
-    contenedoresDelSitio(sesion),
-    pedidosDeRecambio(sesion, { estado: 'abiertos', sitioId: sesion.sitioId ?? undefined }),
-  ])
 
   // Un contenedor no debería tener dos pedidos abiertos —pedir de nuevo no crea
   // otro—, pero si los tuviera manda el primero de la cola, que es el que la

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { consultarConSesion } from '@db/sesion'
-import { pilas } from '@/lib/datos'
+import { conSesion } from '@db/sesion'
+import { pilasEnTx } from '@/lib/datos'
 import { fecha, haceCuanto, numero } from '@/lib/formato'
 import { sesionActual } from '@/lib/sesion'
 import type { EstadoPila, FilaPila } from '@/lib/tipos'
@@ -53,19 +53,27 @@ export default async function Pilas() {
   const sesion = await sesionActual()
   if (!sesion) redirect('/ingresar')
 
-  const [sitio] = sesion.sitioId
-    ? await consultarConSesion<{ tipo: string }>(
-        sesion,
-        `select tipo from sitios where id = $1`,
-        [sesion.sitioId],
-      )
-    : []
+  // El tipo de sitio decide si esta pantalla existe, pero preguntarlo primero y
+  // esperar la respuesta para recién ahí pedir las pilas son dos transacciones,
+  // y cada una cuesta cuatro viajes a la base (BEGIN, poner la identidad, la
+  // consulta, COMMIT) porque el pool serverless tiene una conexión sola. Las
+  // dos adentro de la misma transacción se encauzan y viajan juntas: pedir las
+  // pilas de más no agrega un viaje. Si el punto resulta verde se descartan y
+  // se redirige igual, que es lo mismo que veía el vigilador antes.
+  const [sitios, lista] = await conSesion(sesion, (tx) => Promise.all([
+    sesion.sitioId
+      ? tx.consultar<{ tipo: string }>(
+          `select tipo from sitios where id = $1`, [sesion.sitioId],
+        )
+      : Promise.resolve([]),
+    pilasEnTx(tx, { sitioId: sesion.sitioId ?? undefined }),
+  ]))
+
+  const sitio = sitios[0]
 
   // Las pilas son de la Planta. En un punto verde esta pantalla no existe, y
   // por eso tampoco aparece el botón que lleva hasta acá.
   if (sitio?.tipo === 'punto_verde') redirect('/turno')
-
-  const lista = await pilas(sesion, { sitioId: sesion.sitioId ?? undefined })
 
   // La que hace tres semanas que no se voltea va arriba de todo: es el dato por
   // el que existe esta pantalla.

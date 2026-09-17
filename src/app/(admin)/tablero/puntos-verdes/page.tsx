@@ -1,9 +1,10 @@
 import { Fragment, type CSSProperties } from 'react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { consultarConSesion } from '@db/sesion'
+import { conSesion } from '@db/sesion'
 import {
-  buscarMovimientos, entidadesPendientes, resumenValorizacion, resumenVecinos, sitiosVisibles,
+  contarMovimientosEnTx, entidadesPendientesEnTx, resumenValorizacionEnTx, resumenVecinosEnTx,
+  sitiosVisiblesEnTx,
 } from '@/lib/datos'
 import {
   ETIQUETA_VALORIZACION, cantidad, fecha, mesCorto, mesLargo, numero, paraInputFechaHora,
@@ -169,9 +170,46 @@ export default async function TableroPuntosVerdes({
       ? `la semana del ${fecha(instanteDeDia(clave))}`
       : mesLargo(instanteDeMes(clave)).toLowerCase()
 
-  const sitios = await sitiosVisibles(sesion)
+  // ── Todo lo que lee la pantalla, en una sola transacción ──────────────
+  //
+  // Las consultas estaban repartidas por el cuerpo, cada una con su propio
+  // conSesion. Abrir una transacción son cuatro viajes a la base —BEGIN,
+  // poner la identidad, la consulta, COMMIT— y el pool en serverless tiene
+  // una sola conexión, así que ni siquiera se superponían: lo que le cuesta a
+  // esta pantalla es cuántas transacciones abre, no cuántas consultas hace.
+  // Lanzadas juntas sobre el mismo `tx`, postgres-js las encauza y el peaje se
+  // paga una vez.
+  //
+  // Ninguna necesita el resultado de otra: todos los parámetros salen del
+  // período y de las fechas, que ya están calculados arriba. El procesamiento
+  // en JS queda donde estaba, más abajo.
+  //
+  // Se piden todas aunque la pantalla pueda cortar temprano con el cartel de
+  // «todavía no hay movimientos»: eso pasa una sola vez en la vida de la
+  // instalación, y con la transacción ya abierta esas filas vacías salen más
+  // baratas que volver a abrirla el resto de los días.
+  const [sitios, registrados, filasVecinos, modalidades, valorizacionCruda, pendientes] =
+    await conSesion(sesion, (tx) => Promise.all([
+      sitiosVisiblesEnTx(tx),
+      // Solo se usa el total, así que se cuenta y nada más: pedir el listado
+      // para tirarlo hace recorrer v_movimientos entera con su ORDER BY.
+      contarMovimientosEnTx(tx, { flujo: 'punto_verde' }),
+      resumenVecinosEnTx(tx, { periodo, desde }),
+      // La modalidad no viene con los sitios, y hace falta también para los
+      // puntos que no tienen ni una fila en el período: un punto que solo
+      // cuenta y no cargó nada es justo el que no hay que leer como un punto
+      // sin gente.
+      tx.consultar<{ id: string; carga_detallada: boolean }>(
+        "select id, carga_detallada from sitios where tipo = 'punto_verde'",
+      ),
+      // Con semanas alcanza con cuatro meses: ocho semanas nunca tocan más.
+      resumenValorizacionEnTx(tx, {
+        flujo: 'punto_verde', meses: periodo === 'semana' ? 4 : columnas,
+      }),
+      entidadesPendientesEnTx(tx),
+    ]))
+
   const puntos = sitios.filter((s) => s.tipo === 'punto_verde')
-  const { total: registrados } = await buscarMovimientos(sesion, { flujo: 'punto_verde', porPagina: 1 })
 
   const enlaceExcel =
     `/api/exportar?vista=movimientos&flujo=punto_verde&desde=${desde}&hasta=${hoy}`
@@ -241,16 +279,6 @@ export default async function TableroPuntosVerdes({
 
   // ── Vecinos por punto ─────────────────────────────────────────────────
 
-  // La modalidad no viene con los sitios, y hace falta también para los puntos
-  // que no tienen ni una fila en el período: un punto que solo cuenta y no
-  // cargó nada es justo el que no hay que leer como un punto sin gente.
-  const [filasVecinos, modalidades] = await Promise.all([
-    resumenVecinos(sesion, { periodo, desde }),
-    consultarConSesion<{ id: string; carga_detallada: boolean }>(
-      sesion,
-      "select id, carga_detallada from sitios where tipo = 'punto_verde'",
-    ),
-  ])
   const soloCuenta = new Map(modalidades.map((s) => [s.id, !s.carga_detallada]))
 
   const porPunto = new Map<string, FilaPunto>(
@@ -329,10 +357,9 @@ export default async function TableroPuntosVerdes({
 
   // ── Valorización ──────────────────────────────────────────────────────
 
-  // Con semanas alcanza con cuatro meses: ocho semanas nunca tocan más.
-  const filasValorizacion = (
-    await resumenValorizacion(sesion, { flujo: 'punto_verde', meses: periodo === 'semana' ? 4 : columnas })
-  ).filter((f) => {
+  // El recorte fino se hace acá: la consulta trae meses enteros y las ocho
+  // semanas arrancan a mitad del primero.
+  const filasValorizacion = valorizacionCruda.filter((f) => {
     const clave = periodo === 'semana' ? claveDeFecha(f.semana) : claveDeFecha(f.mes).slice(0, 7)
     return clave >= claves[0]
   })
@@ -384,8 +411,6 @@ export default async function TableroPuntosVerdes({
   const detalleValorizacion = [...materialesValorizados.values()].sort(
     (a, b) => (a.unidad === b.unidad ? b.total - a.total : a.unidad.localeCompare(b.unidad, 'es')),
   )
-
-  const pendientes = await entidadesPendientes(sesion)
 
   const celda = (valor: number, decimales = 0) =>
     valor > 0 ? numero(valor, decimales) : <span className="gris">—</span>

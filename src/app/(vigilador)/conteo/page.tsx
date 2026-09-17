@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { consultarConSesion } from '@db/sesion'
-import { conteosRecientes } from '@/lib/datos'
+import { conSesion } from '@db/sesion'
+import { conteosRecientesEnTx } from '@/lib/datos'
 import {
   claveDeCalendario, desdeInputFechaHora, diaSemana, fecha, numero, paraInputFechaHora,
 } from '@/lib/formato'
@@ -36,20 +36,42 @@ function conMayuscula(texto: string): string {
   return texto.charAt(0).toUpperCase() + texto.slice(1)
 }
 
+/**
+ * OJO ANTES DE AGREGAR UN loading.tsx QUE ALCANCE A ESTA PANTALLA.
+ *
+ * Con un límite de Suspense por encima —da igual si está en (vigilador) o acá
+ * mismo— esta pantalla nunca termina de aparecer: el servidor manda el HTML
+ * completo, 42 KB con todo el contenido adentro, y el navegador se queda
+ * mostrando el esqueleto para siempre. Sin errores en la consola, sin nada en
+ * los registros del servidor, y con un 200 en el pedido.
+ *
+ * Comprobado: sacando el loading.tsx anda; con un loading.tsx de una sola línea
+ * se cuelga igual, así que es el límite en sí y no lo que se dibuja. Las otras
+ * seis pantallas del vigilador no tienen el problema, y /cargar/[tipo], que
+ * también usa useActionState, tampoco.
+ *
+ * No se encontró la causa. Por eso el esqueleto quedó sólo en el panel de
+ * coordinación y en /cargar/[tipo], que son los dos verificados. Una pantalla
+ * que nunca carga es peor que una sin esqueleto.
+ */
 export default async function ConteoDelDia() {
   const sesion = await sesionActual()
   if (!sesion) redirect('/ingresar')
 
-  const [sitios, conteos] = await Promise.all([
+  // Una sola transacción para las dos consultas. Abrir una cuesta cuatro viajes
+  // a la base (BEGIN, poner la identidad, la consulta, COMMIT) y el pool
+  // serverless tiene una conexión sola, así que dos conSesion se hacen uno
+  // después del otro aunque los envuelva un Promise.all. Sobre el mismo `tx`
+  // viajan juntas y la pantalla paga el peaje una vez.
+  const [sitios, conteos] = await conSesion(sesion, (tx) => Promise.all([
     sesion.sitioId
-      ? consultarConSesion<{ nombre: string; tipo: string; carga_detallada: boolean }>(
-          sesion,
+      ? tx.consultar<{ nombre: string; tipo: string; carga_detallada: boolean }>(
           'select nombre, tipo, carga_detallada from sitios where id = $1',
           [sesion.sitioId],
         )
       : Promise.resolve([]),
-    conteosRecientes(sesion, { dias: DIAS_ATRAS }),
-  ])
+    conteosRecientesEnTx(tx, sesion, { dias: DIAS_ATRAS }),
+  ]))
 
   const sitio = sitios[0]
   // El conteo es de vecinos que llegan a un punto verde. En la Planta no hay

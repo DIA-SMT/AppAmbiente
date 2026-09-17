@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { consultarConSesion } from '@db/sesion'
+import { conSesion } from '@db/sesion'
 import { numero } from '@/lib/formato'
 import {
   RECURSOS, UUID, campoPorNombre, columnasDeLectura, identificador, ordenSql,
@@ -18,6 +18,8 @@ export const dynamic = 'force-dynamic'
 const TOPE = 500
 
 type Fila = Record<string, unknown> & { id: string; activo: boolean }
+/** Una fila de otra lista maestra, tal como la lee el select por referencia. */
+type FilaDeOrigen = { id: string; etiqueta: string; activo: boolean }
 type Parametros = { [clave: string]: string | string[] | undefined }
 
 function texto(valor: string | string[] | undefined): string {
@@ -48,7 +50,7 @@ export default async function PantallaRecurso({
   const tabla = identificador(recurso.tabla)
   const columnas = columnasDeLectura(recurso)
 
-  // ── Listado ───────────────────────────────────────────────────────────
+  // ── Qué se le pide a la base ──────────────────────────────────────────
   const condiciones: string[] = []
   const parametros: unknown[] = []
   if (!verInactivos) condiciones.push('activo')
@@ -61,43 +63,58 @@ export default async function PantallaRecurso({
         .join(' or ')})`,
     )
   }
-  const filas = await consultarConSesion<Fila>(
-    sesion,
-    `select ${columnas} from ${tabla}
-      ${condiciones.length ? `where ${condiciones.join(' and ')}` : ''}
-      order by ${ordenSql(recurso)}
-      limit ${TOPE}`,
-    parametros,
-  )
+
+  // Las listas de las que este recurso toma opciones, sin repetir: dos campos
+  // pueden apuntar al mismo origen (personas mira sitios y entidades, y
+  // entidades una sola vez aunque la miren dos campos).
+  const clavesDeOrigen = [
+    ...new Set(recurso.campos.flatMap((c) => (c.origen ? [c.origen] : []))),
+  ]
+
+  // Todo en una sola transacción y todo lanzado junto. Abrir una transacción
+  // cuesta cuatro viajes a São Paulo (BEGIN, identidad, consulta, COMMIT) y el
+  // pool serverless tiene una sola conexión: lo que le costaba a esta pantalla
+  // no eran las consultas sino las transacciones, una por cada lista de origen
+  // adentro de un for. Adentro de un mismo `tx` las consultas se encauzan y
+  // viajan juntas, así que las tres clases de lectura salen por el precio de
+  // una. Ninguna se sale de conSesion: la identidad puesta en el BEGIN es lo
+  // que hace que las políticas de la base sigan filtrando igual.
+  const [filas, enEdicion, listasDeOrigen] = await conSesion(sesion, (tx) => Promise.all([
+    tx.consultar<Fila>(
+      `select ${columnas} from ${tabla}
+        ${condiciones.length ? `where ${condiciones.join(' and ')}` : ''}
+        order by ${ordenSql(recurso)}
+        limit ${TOPE}`,
+      parametros,
+    ),
+    idEditar && UUID.test(idEditar)
+      ? tx.consultar<Fila>(`select ${columnas} from ${tabla} where id = $1`, [idEditar])
+      : Promise.resolve<Fila[]>([]),
+    Promise.all(clavesDeOrigen.map((clave) => {
+      const otro = RECURSOS.find((r) => r.clave === clave)!
+      return tx.consultar<FilaDeOrigen>(
+        `select id, ${identificador(otro.campoEtiqueta)} as etiqueta, activo
+           from ${identificador(otro.tabla)} order by ${ordenSql(otro)}`,
+      )
+    })),
+  ]))
 
   // ── Fila que se está editando ─────────────────────────────────────────
-  let filaEnEdicion: Fila | null = null
-  if (idEditar && UUID.test(idEditar)) {
-    const [fila] = await consultarConSesion<Fila>(
-      sesion, `select ${columnas} from ${tabla} where id = $1`, [idEditar],
-    )
-    filaEnEdicion = fila ?? null
-  }
+  const filaEnEdicion: Fila | null = enEdicion[0] ?? null
   const seFueLaFila = Boolean(idEditar) && !filaEnEdicion
   const mostrarFormulario = esNuevo || Boolean(filaEnEdicion)
 
   // ── Listas de las que este recurso toma opciones ──────────────────────
   const origenes = new Map<ClaveRecurso, { etiquetas: Record<string, string>; opciones: Opcion[] }>()
-  for (const campo of recurso.campos) {
-    if (!campo.origen || origenes.has(campo.origen)) continue
-    const otro = RECURSOS.find((r) => r.clave === campo.origen)!
-    const suyas = await consultarConSesion<{ id: string; etiqueta: string; activo: boolean }>(
-      sesion,
-      `select id, ${identificador(otro.campoEtiqueta)} as etiqueta, activo
-         from ${identificador(otro.tabla)} order by ${ordenSql(otro)}`,
-    )
-    origenes.set(campo.origen, {
+  clavesDeOrigen.forEach((clave, i) => {
+    const suyas = listasDeOrigen[i]
+    origenes.set(clave, {
       // Los nombres de las inactivas también, para poder mostrar de qué habla
       // un material que apunta a una unidad dada de baja.
       etiquetas: Object.fromEntries(suyas.map((f) => [f.id, f.etiqueta])),
       opciones: suyas.filter((f) => f.activo).map((f) => ({ valor: f.id, etiqueta: f.etiqueta })),
     })
-  }
+  })
 
   const opcionesPorCampo: Record<string, Opcion[]> = {}
   const etiquetasPorCampo: Record<string, Record<string, string>> = {}

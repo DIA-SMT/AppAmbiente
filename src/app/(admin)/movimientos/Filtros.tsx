@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { ZONA } from '@/lib/formato'
 import type { Material, Sitio } from '@/lib/tipos'
@@ -71,6 +71,20 @@ export default function Filtros({ valores, sitios, materiales }: Props) {
   // (no hay que tocar el input) de uno ajeno, como el botón Atrás del navegador.
   const enviado = useRef({ texto: valores.texto, patente: valores.patente })
 
+  // Cambiar un filtro navega, y navegar tarda: la tabla que está abajo sigue
+  // siendo la del filtro anterior hasta que el servidor conteste. Como
+  // transición, React deja la tabla vieja en pantalla en vez de tirarla y caer
+  // en el loading.tsx de la sección —que haría parpadear la pantalla entera con
+  // cada tecla— y a cambio nos avisa con `navegando` que todavía está en camino.
+  const [navegando, iniciar] = useTransition()
+
+  // Lo que se ve no es todavía el resultado de lo que se escribió: o porque lo
+  // tipeado está esperando el retardo, o porque la navegación ya salió y no
+  // volvió. Se compara contra lo último enviado, no contra `valores`, para que
+  // el botón Atrás no encienda el aviso por un instante antes de sincronizar.
+  const sinAplicar = texto !== enviado.current.texto || patente !== enviado.current.patente
+  const desactualizado = sinAplicar || navegando
+
   const activos = contarActivos(valores)
   const [rangos, setRangos] = useState<Partial<Record<Atajo, { desde: string; hasta: string }>>>({})
 
@@ -109,20 +123,28 @@ export default function Filtros({ valores, sitios, materiales }: Props) {
     }
     // Cambiar un filtro siempre vuelve a la primera página.
     const qs = p.toString()
-    router.replace(qs ? `${ruta}?${qs}` : ruta, { scroll: false })
+    iniciar(() => router.replace(qs ? `${ruta}?${qs}` : ruta, { scroll: false }))
   }
 
   function limpiar() {
     setTexto('')
     setPatente('')
     enviado.current = { texto: '', patente: '' }
-    router.replace(ruta, { scroll: false })
+    iniciar(() => router.replace(ruta, { scroll: false }))
   }
 
   return (
     <section className="tarjeta pila" aria-label="Filtros del listado">
       <div className="fila-entre">
-        <h2 style={{ fontSize: '1rem' }}>Filtros</h2>
+        <div className="fila" style={{ gap: 8 }}>
+          <h2 style={{ fontSize: '1rem' }}>Filtros</h2>
+          {/* Sin esto la tabla de abajo miente sin avisar: muestra el resultado
+              del filtro anterior mientras se sigue tipeando. role="status" hace
+              que el lector de pantalla lo cante solo. */}
+          {desactualizado && (
+            <span className="chip pendiente" role="status">Actualizando la lista…</span>
+          )}
+        </div>
         {activos > 0 && (
           <div className="fila" style={{ gap: 8 }}>
             <span className="chip">

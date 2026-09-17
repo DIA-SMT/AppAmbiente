@@ -1,7 +1,9 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { consultarConSesion } from '@db/sesion'
-import { contenedoresDelSitio, listasDelFormulario, movimientosDelTurno } from '@/lib/datos'
+import { conSesion } from '@db/sesion'
+import {
+  contenedoresDelSitioEnTx, listasDelFormularioEnTx, movimientosDelTurnoEnTx,
+} from '@/lib/datos'
 import { diaSemana } from '@/lib/formato'
 import { sesionActual } from '@/lib/sesion'
 import SelectorVigilador, { AvisoPendientes } from './SelectorVigilador'
@@ -72,25 +74,38 @@ export default async function InicioDeTurno() {
   const sesion = await sesionActual()
   if (!sesion) redirect('/ingresar')
 
+  // Una sola transacción para toda la pantalla.
+  //
+  // Antes cada una de estas cuatro abría la suya, y el Promise.all no
+  // paralelizaba nada: el pool en serverless tiene una sola conexión, así que
+  // los cuatro conSesion() se hacían fila y cada uno pagaba su peaje de cuatro
+  // viajes (BEGIN, identidad, consulta, COMMIT). Pedidas todas sobre el mismo
+  // `tx`, el peaje se paga una vez y las consultas viajan encauzadas.
+  //
   // La lista de vigiladores sale del mismo lugar que las del formulario: una
   // sola consulta trae todo lo del sitio. El flujo que se pasa acá solo cambia
   // qué materiales y qué entidades vuelven, y esta pantalla no usa ninguno de
   // los dos: el tipo de sitio sale de la misma respuesta.
-  const [listas, movimientos, sitios, contenedores] = await Promise.all([
-    listasDelFormulario(sesion, 'planta', 'ingreso'),
-    movimientosDelTurno(sesion, 100),
-    // `carga_detallada` no viene en las listas del formulario y acá decide el
-    // orden de los botones: una fila más, en paralelo con todo lo demás.
-    sesion.sitioId
-      ? consultarConSesion<{ carga_detallada: boolean }>(
-          sesion, `select carga_detallada from sitios where id = $1`, [sesion.sitioId],
-        )
-      : Promise.resolve([]),
-    // Cada contenedor trae su pedido abierto si lo tiene: contarlos es lo que
-    // hace que el botón diga cuántos están esperando, y ese número es lo que
-    // hace que entren.
-    contenedoresDelSitio(sesion),
-  ])
+  const [listas, movimientos, sitios, contenedores] = await conSesion(sesion, (tx) =>
+    Promise.all([
+      listasDelFormularioEnTx(tx, sesion, 'planta', 'ingreso'),
+      movimientosDelTurnoEnTx(tx, 100),
+      // `carga_detallada` acá decide el orden de los botones. La fila del sitio
+      // que traen las listas ya la incluye en su select, pero el tipo `Sitio`
+      // todavía no la declara, así que no se puede leer de ahí sin mentirle a
+      // TypeScript. Queda como fila aparte: dentro de esta transacción es una
+      // consulta más encauzada con las otras, no un peaje nuevo.
+      sesion.sitioId
+        ? tx.consultar<{ carga_detallada: boolean }>(
+            `select carga_detallada from sitios where id = $1`, [sesion.sitioId],
+          )
+        : Promise.resolve([]),
+      // Cada contenedor trae su pedido abierto si lo tiene: contarlos es lo que
+      // hace que el botón diga cuántos están esperando, y ese número es lo que
+      // hace que entren.
+      contenedoresDelSitioEnTx(tx, sesion),
+    ]),
+  )
 
   const esPuntoVerde = listas.sitio?.tipo === 'punto_verde'
 

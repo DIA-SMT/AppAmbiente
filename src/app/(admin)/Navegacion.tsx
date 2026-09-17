@@ -4,8 +4,6 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import estilos from './Navegacion.module.css'
-import { contarRecambiosAbiertos } from './recambios/acciones'
-import { contarPendientes } from './revisiones/acciones'
 
 const SECCIONES = [
   { destino: '/tablero', rotulo: 'Tablero', icono: 'tablero' },
@@ -79,17 +77,32 @@ export default function Navegacion({ contraida = false }: { contraida?: boolean 
   // Los números al lado de "Revisiones" y "Recambios" son lo que hace que
   // alguien entre: sin ellos, las altas de la calle se quedan ahí para siempre y
   // un punto puede esperar una semana por un contenedor sin que nadie lo vea. El
-  // layout no pasa props, así que el dato se pide al servidor desde acá, al
-  // montar y cada vez que se cambia de sección.
+  // layout no pasa props —y tampoco podría: los layouts no se vuelven a
+  // renderizar al navegar entre secciones hermanas, así que el número quedaría
+  // en el que había al entrar—, así que el dato se pide desde acá, al montar y
+  // cada vez que se cambia de sección.
+  //
+  // Es un fetch común a /api/contadores y no dos Server Actions: una acción
+  // llamada desde el navegador vuelve por la cola del router, y Next aprovecha
+  // la respuesta para volver a pedir ENTERA la pantalla que acababa de llegar.
+  // Eran dos idas y vueltas encadenadas más una pantalla de más en cada cambio
+  // de sección; un fetch normal no entra en esa cola y no dispara nada. Los dos
+  // números vienen juntos en la misma respuesta.
   useEffect(() => {
-    let vigente = true
-    contarPendientes()
-      .then((n) => { if (vigente) setPendientes(n) })
-      .catch(() => { /* La barra funciona igual sin el número. */ })
-    contarRecambiosAbiertos()
-      .then((n) => { if (vigente) setRecambios(n) })
-      .catch(() => { /* Ídem. */ })
-    return () => { vigente = false }
+    // Al cambiar de sección se corta el pedido anterior: si llegara tarde,
+    // pintaría en la barra nueva el número que se pidió para la barra vieja.
+    const corte = new AbortController()
+
+    fetch('/api/contadores', { signal: corte.signal, cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() as Promise<Partial<Cuentas>> : null))
+      .then((cuentas) => {
+        if (!cuentas) return
+        setPendientes(cuentas.pendientes ?? 0)
+        setRecambios(cuentas.recambios ?? 0)
+      })
+      .catch(() => { /* La barra funciona igual sin los números. */ })
+
+    return () => corte.abort()
   }, [ruta])
 
   return (

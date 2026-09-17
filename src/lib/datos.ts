@@ -2,8 +2,34 @@
  * Capa de datos. Todo pasa por conSesion(), así que las políticas de
  * 0010_rls.sql se aplican siempre: si acá se escapa un filtro, la base
  * igual no devuelve lo que no corresponde.
+ *
+ * ── Por qué cada consulta viene en dos formas ───────────────────────────
+ *
+ * Abrir una transacción no es gratis: son cuatro idas y vueltas a la base
+ * —BEGIN, poner la identidad del usuario, la consulta, COMMIT— y el pool en
+ * serverless tiene una sola conexión, así que dos conSesion() en paralelo no
+ * se superponen: uno espera al otro. Lo que le cuesta a una pantalla no es
+ * cuántas consultas hace sino cuántas transacciones abre.
+ *
+ * Por eso cada lectura existe dos veces:
+ *
+ *   · `algo(sesion, …)`      abre su propia transacción. Para cuando es la
+ *                            única consulta de la pantalla o de la acción.
+ *   · `algoEnTx(tx, …)`      corre sobre una transacción ya abierta. Varias
+ *                            de estas dentro de un mismo conSesion() viajan
+ *                            encauzadas y pagan el peaje una sola vez.
+ *
+ * El sufijo `EnTx` y el primer parámetro dicen cuál es cuál, y TypeScript no
+ * deja pasar una Sesion donde va una Conexion. La identidad del usuario la
+ * puso conSesion() al abrir la transacción, así que las dos formas quedan
+ * igual de tapadas por RLS: `EnTx` no saltea nada, solo no vuelve a abrir.
+ *
+ * Las que escriben (crearMovimiento, guardarConteo, pedirRecambio…) no tienen
+ * forma `EnTx`: cada una es toda la operación de una acción y ya abre una sola
+ * transacción, que además es la que les da atomicidad.
  */
 import 'server-only'
+import type { Conexion } from '@db/client'
 import { conSesion, consultarConSesion, type Sesion } from '@db/sesion'
 import type {
   Contenedor, ConteoDiario, ControlDePila, DestinoAFormalizar, Entidad,
@@ -23,94 +49,122 @@ import type {
  * salen: compost no aparece en un ingreso a Planta, y por eso no se puede
  * elegir por error.
  */
+export async function listasDelFormularioEnTx(
+  tx: Conexion,
+  sesion: Sesion,
+  flujo: Flujo,
+  tipo: TipoMovimiento,
+): Promise<ListasDelFormulario> {
+  // La sesión viene solo por el rol y el sitio: quién es el usuario para la
+  // base ya lo dejó puesto conSesion() al abrir esta transacción.
+  const sitioId = sesion.rol === 'admin' ? null : sesion.sitioId
+
+  // Ninguna de las seis usa el resultado de la anterior: los cruces —unidades
+  // contra materiales, sitio contra vigiladores— se hacen abajo en JS. Pedidas
+  // juntas, la transacción las manda de una vez en lugar de esperar seis idas
+  // y vueltas, que es lo que el celular sentía al abrir el formulario.
+  const [
+    [sitio], unidades, materialesCrudos, entidades, vehiculos, personas,
+  ] = await Promise.all([
+    tx.consultar<Sitio>(
+      sitioId
+        ? `select id, codigo, nombre, tipo, direccion, orden, activo, carga_detallada
+             from sitios where id = $1`
+        : `select id, codigo, nombre, tipo, direccion, orden, activo, carga_detallada
+             from sitios
+            where tipo = case when $1::text = 'planta' then 'planta' else 'punto_verde' end
+            order by orden limit 1`,
+      [sitioId ?? flujo],
+    ),
+    tx.consultar<Unidad>(
+      `select id, codigo, nombre, nombre_plural, decimales, factor_m3, orden, activo
+         from unidades where activo order by orden`,
+    ),
+    tx.consultar<Material>(
+      `select id, nombre, categoria, flujos, tipos, unidad_default_id,
+              unidades_permitidas, sugerencias, color, orden, activo
+         from materiales
+        where activo
+          and (cardinality(flujos) = 0 or $1 = any(flujos))
+          and $2 = any(tipos)
+        order by orden, nombre`,
+      [flujo, tipo],
+    ),
+    // Vista pública: sin CUIT ni teléfono.
+    tx.consultar<Entidad>(
+      `select id, nombre, tipo, habilitada_origen, habilitada_destino, flujos,
+              activo, pendiente_revision
+         from entidades_publicas
+        where cardinality(flujos) = 0 or $1 = any(flujos)
+        order by nombre`,
+      [flujo],
+    ),
+    tx.consultar<Vehiculo>(
+      `select id, patente, tipo, capacidad_m3, activo from vehiculos where activo order by patente`,
+    ),
+    tx.consultar<Persona>(
+      `select id, nombre, rol, sitio_id, activo from personas_publicas order by nombre`,
+    ),
+  ])
+
+  const porUnidad = new Map(unidades.map((u) => [u.id, u]))
+
+  const materiales = materialesCrudos.map((m) => {
+    const permitidas = (m.unidades_permitidas ?? [])
+      .map((id) => porUnidad.get(id))
+      .filter((u): u is Unidad => Boolean(u))
+    return {
+      ...m,
+      sugerencias: (m.sugerencias ?? []).map(Number),
+      unidad: porUnidad.get(m.unidad_default_id),
+      // Si un material no declara recipientes, queda al menos el suyo: el
+      // formulario nunca puede quedarse sin ninguno para ofrecer.
+      recipientes: permitidas.length
+        ? permitidas
+        : [porUnidad.get(m.unidad_default_id)].filter((u): u is Unidad => Boolean(u)),
+    }
+  })
+
+  return {
+    sitio,
+    materiales,
+    unidades,
+    origenes: entidades.filter((e) => e.habilitada_origen),
+    destinos: entidades.filter((e) => e.habilitada_destino),
+    vehiculos,
+    choferes: personas.filter((p) => p.rol === 'chofer'),
+    autorizantes: personas.filter((p) => p.rol === 'autorizante'),
+    vigiladores: personas.filter(
+      (p) => p.rol === 'vigilador' && (!sitio || !p.sitio_id || p.sitio_id === sitio.id),
+    ),
+  }
+}
+
 export async function listasDelFormulario(
   sesion: Sesion,
   flujo: Flujo,
   tipo: TipoMovimiento,
 ): Promise<ListasDelFormulario> {
-  return conSesion(sesion, async (tx) => {
-    const sitioId = sesion.rol === 'admin' ? null : sesion.sitioId
+  return conSesion(sesion, (tx) => listasDelFormularioEnTx(tx, sesion, flujo, tipo))
+}
 
-    // Ninguna de las seis usa el resultado de la anterior: los cruces —unidades
-    // contra materiales, sitio contra vigiladores— se hacen abajo en JS. Pedidas
-    // juntas, la transacción las manda de una vez en lugar de esperar seis idas
-    // y vueltas, que es lo que el celular sentía al abrir el formulario.
-    const [
-      [sitio], unidades, materialesCrudos, entidades, vehiculos, personas,
-    ] = await Promise.all([
-      tx.consultar<Sitio>(
-        sitioId
-          ? `select id, codigo, nombre, tipo, direccion, orden, activo, carga_detallada
-               from sitios where id = $1`
-          : `select id, codigo, nombre, tipo, direccion, orden, activo, carga_detallada
-               from sitios
-              where tipo = case when $1::text = 'planta' then 'planta' else 'punto_verde' end
-              order by orden limit 1`,
-        [sitioId ?? flujo],
-      ),
-      tx.consultar<Unidad>(
-        `select id, codigo, nombre, nombre_plural, decimales, factor_m3, orden, activo
-           from unidades where activo order by orden`,
-      ),
-      tx.consultar<Material>(
-        `select id, nombre, categoria, flujos, tipos, unidad_default_id,
-                unidades_permitidas, sugerencias, color, orden, activo
-           from materiales
-          where activo
-            and (cardinality(flujos) = 0 or $1 = any(flujos))
-            and $2 = any(tipos)
-          order by orden, nombre`,
-        [flujo, tipo],
-      ),
-      // Vista pública: sin CUIT ni teléfono.
-      tx.consultar<Entidad>(
-        `select id, nombre, tipo, habilitada_origen, habilitada_destino, flujos,
-                activo, pendiente_revision
-           from entidades_publicas
-          where cardinality(flujos) = 0 or $1 = any(flujos)
-          order by nombre`,
-        [flujo],
-      ),
-      tx.consultar<Vehiculo>(
-        `select id, patente, tipo, capacidad_m3, activo from vehiculos where activo order by patente`,
-      ),
-      tx.consultar<Persona>(
-        `select id, nombre, rol, sitio_id, activo from personas_publicas order by nombre`,
-      ),
-    ])
+/**
+ * El flujo del punto donde trabaja el usuario.
+ *
+ * Vivía en la pantalla de carga, que lo pedía con su propio conSesion() aunque
+ * después abriera otro para las listas. Acá abajo, la pantalla puede leer el
+ * flujo y pedir las listas dentro de la misma transacción: es una fila de
+ * `sitios` por id, no justifica un peaje propio.
+ */
+export async function flujoDelSitioEnTx(tx: Conexion, sesion: Sesion): Promise<Flujo> {
+  // La coordinadora no tiene sitio propio: sigue viendo la Planta.
+  if (!sesion.sitioId) return 'planta'
 
-    const porUnidad = new Map(unidades.map((u) => [u.id, u]))
-
-    const materiales = materialesCrudos.map((m) => {
-      const permitidas = (m.unidades_permitidas ?? [])
-        .map((id) => porUnidad.get(id))
-        .filter((u): u is Unidad => Boolean(u))
-      return {
-        ...m,
-        sugerencias: (m.sugerencias ?? []).map(Number),
-        unidad: porUnidad.get(m.unidad_default_id),
-        // Si un material no declara recipientes, queda al menos el suyo: el
-        // formulario nunca puede quedarse sin ninguno para ofrecer.
-        recipientes: permitidas.length
-          ? permitidas
-          : [porUnidad.get(m.unidad_default_id)].filter((u): u is Unidad => Boolean(u)),
-      }
-    })
-
-    return {
-      sitio,
-      materiales,
-      unidades,
-      origenes: entidades.filter((e) => e.habilitada_origen),
-      destinos: entidades.filter((e) => e.habilitada_destino),
-      vehiculos,
-      choferes: personas.filter((p) => p.rol === 'chofer'),
-      autorizantes: personas.filter((p) => p.rol === 'autorizante'),
-      vigiladores: personas.filter(
-        (p) => p.rol === 'vigilador' && (!sitio || !p.sitio_id || p.sitio_id === sitio.id),
-      ),
-    }
-  })
+  const [sitio] = await tx.consultar<{ tipo: string }>(
+    `select tipo from sitios where id = $1`,
+    [sesion.sitioId],
+  )
+  return sitio?.tipo === 'punto_verde' ? 'punto_verde' : 'planta'
 }
 
 // ── Alta de movimiento ──────────────────────────────────────────────────
@@ -348,43 +402,77 @@ function armarFiltros(f: FiltrosMovimientos) {
   return { where: cond.length ? `where ${cond.join(' and ')}` : '', par: valores }
 }
 
-export async function buscarMovimientos(
-  sesion: Sesion,
+export async function buscarMovimientosEnTx(
+  tx: Conexion,
   filtros: FiltrosMovimientos = {},
 ): Promise<{ filas: MovimientoListado[]; total: number }> {
   const { where, par } = armarFiltros(filtros)
   const porPagina = Math.min(Math.max(filtros.porPagina ?? 50, 1), 500)
   const pagina = Math.max(filtros.pagina ?? 1, 1)
 
-  return conSesion(sesion, async (tx) => {
-    // El offset sale de la página pedida, no del total, así que el conteo no
-    // condiciona al listado y las dos pueden ir juntas. `par` se pasa a las dos:
-    // ni postgres-js ni PGlite escriben sobre el arreglo que reciben (cada uno
-    // se copia los valores antes de serializarlos).
-    const [[{ total }], filas] = await Promise.all([
-      tx.consultar<{ total: string }>(
-        `select count(*)::text as total from v_movimientos ${where}`, par,
-      ),
-      tx.consultar<MovimientoListado>(
-        `select ${COLUMNAS_MOV} from v_movimientos ${where}
-          order by ocurrido_en desc, numero desc
-          limit ${porPagina} offset ${(pagina - 1) * porPagina}`,
-        par,
-      ),
-    ])
-    return { filas, total: Number(total) }
-  })
+  // El offset sale de la página pedida, no del total, así que el conteo no
+  // condiciona al listado y las dos pueden ir juntas. `par` se pasa a las dos:
+  // ni postgres-js ni PGlite escriben sobre el arreglo que reciben (cada uno
+  // se copia los valores antes de serializarlos).
+  const [[{ total }], filas] = await Promise.all([
+    tx.consultar<{ total: string }>(
+      `select count(*)::text as total from v_movimientos ${where}`, par,
+    ),
+    tx.consultar<MovimientoListado>(
+      `select ${COLUMNAS_MOV} from v_movimientos ${where}
+        order by ocurrido_en desc, numero desc
+        limit ${porPagina} offset ${(pagina - 1) * porPagina}`,
+      par,
+    ),
+  ])
+  return { filas, total: Number(total) }
+}
+
+export async function buscarMovimientos(
+  sesion: Sesion,
+  filtros: FiltrosMovimientos = {},
+): Promise<{ filas: MovimientoListado[]; total: number }> {
+  return conSesion(sesion, (tx) => buscarMovimientosEnTx(tx, filtros))
+}
+
+/**
+ * Cuántos movimientos cumplen los filtros, sin traerlos.
+ *
+ * Los indicadores del tablero son cuatro números, y para sacarlos se llamaba a
+ * buscarMovimientos con porPagina: 1. Eso corría igual el listado entero —33
+ * columnas de v_movimientos, con el ORDER BY sobre todo lo filtrado— y tiraba
+ * el resultado: cuatro recorridos completos de la vista que nadie mira. El
+ * ORDER BY no lo arregla ningún cambio de región; es tiempo de CPU de la base.
+ *
+ * Mismos filtros que el listado, porque los arma la misma función: el número
+ * que sale de acá es el mismo `total` que devolvía buscarMovimientos.
+ */
+export async function contarMovimientosEnTx(
+  tx: Conexion,
+  filtros: FiltrosMovimientos = {},
+): Promise<number> {
+  const { where, par } = armarFiltros(filtros)
+  const [{ total }] = await tx.consultar<{ total: string }>(
+    `select count(*)::text as total from v_movimientos ${where}`, par,
+  )
+  return Number(total)
+}
+
+export async function contarMovimientos(
+  sesion: Sesion,
+  filtros: FiltrosMovimientos = {},
+): Promise<number> {
+  return conSesion(sesion, (tx) => contarMovimientosEnTx(tx, filtros))
 }
 
 /** Sin paginar. Solo para exportar. */
-export async function movimientosParaExportar(
-  sesion: Sesion,
+export async function movimientosParaExportarEnTx(
+  tx: Conexion,
   filtros: FiltrosMovimientos = {},
 ): Promise<ItemListado[]> {
   const { where, par } = armarFiltros(filtros)
   const sub = `select id from v_movimientos ${where}`
-  return consultarConSesion<ItemListado>(
-    sesion,
+  return tx.consultar<ItemListado>(
     `select i.* from v_movimiento_items i
       where i.movimiento_id in (${sub})
       order by i.ocurrido_en desc, i.numero desc`,
@@ -392,31 +480,42 @@ export async function movimientosParaExportar(
   )
 }
 
+export async function movimientosParaExportar(
+  sesion: Sesion,
+  filtros: FiltrosMovimientos = {},
+): Promise<ItemListado[]> {
+  return conSesion(sesion, (tx) => movimientosParaExportarEnTx(tx, filtros))
+}
+
+export async function movimientoPorIdEnTx(
+  tx: Conexion,
+  id: string,
+): Promise<{ movimiento: MovimientoListado; items: ItemListado[] } | null> {
+  // Los ítems filtran por el id que llega, no por la cabecera: van juntas. Si
+  // el movimiento no aparece, los ítems tampoco —las dos pasan por RLS— y el
+  // resultado se descarta igual.
+  const [[movimiento], items] = await Promise.all([
+    tx.consultar<MovimientoListado>(
+      `select ${COLUMNAS_MOV} from v_movimientos where id = $1`, [id],
+    ),
+    tx.consultar<ItemListado>(
+      `select * from v_movimiento_items where movimiento_id = $1 order by material_nombre`, [id],
+    ),
+  ])
+  if (!movimiento) return null
+  return { movimiento, items }
+}
+
 export async function movimientoPorId(
   sesion: Sesion,
   id: string,
 ): Promise<{ movimiento: MovimientoListado; items: ItemListado[] } | null> {
-  return conSesion(sesion, async (tx) => {
-    // Los ítems filtran por el id que llega, no por la cabecera: van juntas. Si
-    // el movimiento no aparece, los ítems tampoco —las dos pasan por RLS— y el
-    // resultado se descarta igual.
-    const [[movimiento], items] = await Promise.all([
-      tx.consultar<MovimientoListado>(
-        `select ${COLUMNAS_MOV} from v_movimientos where id = $1`, [id],
-      ),
-      tx.consultar<ItemListado>(
-        `select * from v_movimiento_items where movimiento_id = $1 order by material_nombre`, [id],
-      ),
-    ])
-    if (!movimiento) return null
-    return { movimiento, items }
-  })
+  return conSesion(sesion, (tx) => movimientoPorIdEnTx(tx, id))
 }
 
 /** Lo cargado en el turno: desde las 0 h de hoy, hora de Tucumán. */
-export async function movimientosDelTurno(sesion: Sesion, limite = 30) {
-  return consultarConSesion<MovimientoListado>(
-    sesion,
+export async function movimientosDelTurnoEnTx(tx: Conexion, limite = 30) {
+  return tx.consultar<MovimientoListado>(
     `select ${COLUMNAS_MOV} from v_movimientos
       where estado in ('vigente', 'anulado')
         and creado_en >= date_trunc('day', now() at time zone 'America/Argentina/Tucuman')
@@ -426,10 +525,14 @@ export async function movimientosDelTurno(sesion: Sesion, limite = 30) {
   )
 }
 
+export async function movimientosDelTurno(sesion: Sesion, limite = 30) {
+  return conSesion(sesion, (tx) => movimientosDelTurnoEnTx(tx, limite))
+}
+
 // ── Tablero ─────────────────────────────────────────────────────────────
 
-export async function resumenMensual(
-  sesion: Sesion,
+export async function resumenMensualEnTx(
+  tx: Conexion,
   opciones: { flujo?: Flujo; sitioId?: string; meses?: number } = {},
 ): Promise<FilaResumen[]> {
   const meses = Math.min(Math.max(opciones.meses ?? 6, 1), 36)
@@ -438,27 +541,39 @@ export async function resumenMensual(
   if (opciones.flujo)   { par.push(opciones.flujo);   cond.push(`flujo = $${par.length}`) }
   if (opciones.sitioId) { par.push(opciones.sitioId); cond.push(`sitio_id = $${par.length}`) }
 
-  return consultarConSesion<FilaResumen>(
-    sesion,
+  return tx.consultar<FilaResumen>(
     `select * from v_resumen_mensual where ${cond.join(' and ')} order by mes, material_nombre`,
     par,
   )
 }
 
-export async function sitiosVisibles(sesion: Sesion): Promise<Sitio[]> {
-  return consultarConSesion<Sitio>(
-    sesion,
+export async function resumenMensual(
+  sesion: Sesion,
+  opciones: { flujo?: Flujo; sitioId?: string; meses?: number } = {},
+): Promise<FilaResumen[]> {
+  return conSesion(sesion, (tx) => resumenMensualEnTx(tx, opciones))
+}
+
+export async function sitiosVisiblesEnTx(tx: Conexion): Promise<Sitio[]> {
+  return tx.consultar<Sitio>(
     `select id, codigo, nombre, tipo, direccion, orden, activo from sitios
       where activo order by orden`,
   )
 }
 
-export async function materialesVisibles(sesion: Sesion): Promise<Material[]> {
-  return consultarConSesion<Material>(
-    sesion,
+export async function sitiosVisibles(sesion: Sesion): Promise<Sitio[]> {
+  return conSesion(sesion, (tx) => sitiosVisiblesEnTx(tx))
+}
+
+export async function materialesVisiblesEnTx(tx: Conexion): Promise<Material[]> {
+  return tx.consultar<Material>(
     `select id, nombre, categoria, flujos, tipos, unidad_default_id, sugerencias, color, orden, activo
        from materiales where activo order by orden, nombre`,
   )
+}
+
+export async function materialesVisibles(sesion: Sesion): Promise<Material[]> {
+  return conSesion(sesion, (tx) => materialesVisiblesEnTx(tx))
 }
 
 // ── Puntos Verdes ───────────────────────────────────────────────────────
@@ -470,8 +585,8 @@ export async function materialesVisibles(sesion: Sesion): Promise<Material[]> {
  * vez; un vecino identificado es alguien que dejó el teléfono y se lo puede
  * seguir en el tiempo. Quien vino cuatro veces son cuatro visitas y un vecino.
  */
-export async function resumenVecinos(
-  sesion: Sesion,
+export async function resumenVecinosEnTx(
+  tx: Conexion,
   opciones: { periodo?: 'semana' | 'mes'; sitioId?: string; desde?: string } = {},
 ): Promise<FilaVecinos[]> {
   const periodo = opciones.periodo === 'semana' ? 'semana' : 'mes'
@@ -480,8 +595,7 @@ export async function resumenVecinos(
   const cond = [`${periodo} >= ${par(opciones.desde ?? '2000-01-01')}::date`]
   if (opciones.sitioId) cond.push(`sitio_id = ${par(opciones.sitioId)}`)
 
-  return consultarConSesion<FilaVecinos>(
-    sesion,
+  return tx.consultar<FilaVecinos>(
     `select sitio_id, sitio_nombre, sitio_codigo, carga_detallada, semana, mes,
             sum(visitas)::int       as visitas,
             sum(sin_datos)::int     as sin_datos,
@@ -495,9 +609,16 @@ export async function resumenVecinos(
   )
 }
 
-/** Material recirculado por tipo de valorización. */
-export async function resumenValorizacion(
+export async function resumenVecinos(
   sesion: Sesion,
+  opciones: { periodo?: 'semana' | 'mes'; sitioId?: string; desde?: string } = {},
+): Promise<FilaVecinos[]> {
+  return conSesion(sesion, (tx) => resumenVecinosEnTx(tx, opciones))
+}
+
+/** Material recirculado por tipo de valorización. */
+export async function resumenValorizacionEnTx(
+  tx: Conexion,
   opciones: { flujo?: Flujo; sitioId?: string; meses?: number } = {},
 ): Promise<FilaValorizacion[]> {
   const meses = Math.min(Math.max(opciones.meses ?? 6, 1), 36)
@@ -507,20 +628,27 @@ export async function resumenValorizacion(
   if (opciones.flujo)   cond.push(`flujo = ${par(opciones.flujo)}`)
   if (opciones.sitioId) cond.push(`sitio_id = ${par(opciones.sitioId)}`)
 
-  return consultarConSesion<FilaValorizacion>(
-    sesion,
+  return tx.consultar<FilaValorizacion>(
     `select * from v_valorizacion where ${cond.join(' and ')} order by mes, tipo_valorizacion`,
     valores,
   )
 }
 
+export async function resumenValorizacion(
+  sesion: Sesion,
+  opciones: { flujo?: Flujo; sitioId?: string; meses?: number } = {},
+): Promise<FilaValorizacion[]> {
+  return conSesion(sesion, (tx) => resumenValorizacionEnTx(tx, opciones))
+}
+
 /** Lo que los vigiladores dieron de alta en la calle y falta confirmar. */
-export async function entidadesPendientes(sesion: Sesion) {
-  return consultarConSesion<{
-    id: string; nombre: string; tipo: string; creado_en: string
-    creado_por: string | null; usos: number
-  }>(
-    sesion,
+export interface EntidadPendiente {
+  id: string; nombre: string; tipo: string; creado_en: string
+  creado_por: string | null; usos: number
+}
+
+export async function entidadesPendientesEnTx(tx: Conexion): Promise<EntidadPendiente[]> {
+  return tx.consultar<EntidadPendiente>(
     `select e.id, e.nombre, e.tipo, e.creado_en, p.nombre as creado_por,
             (select count(*) from movimientos m
               where m.destino_entidad_id = e.id or m.origen_entidad_id = e.id)::int as usos
@@ -531,6 +659,10 @@ export async function entidadesPendientes(sesion: Sesion) {
   )
 }
 
+export async function entidadesPendientes(sesion: Sesion): Promise<EntidadPendiente[]> {
+  return conSesion(sesion, (tx) => entidadesPendientesEnTx(tx))
+}
+
 /**
  * Los destinos que el vigilador tuvo que escribir porque no estaban en la lista.
  *
@@ -538,11 +670,14 @@ export async function entidadesPendientes(sesion: Sesion) {
  * portero adónde lleva el material. Esta consulta es la materia prima para
  * formalizarla de a poco — si un destino aparece diez veces, merece ser opción.
  */
-export async function destinosAFormalizar(sesion: Sesion): Promise<DestinoAFormalizar[]> {
-  return consultarConSesion<DestinoAFormalizar>(
-    sesion,
+export async function destinosAFormalizarEnTx(tx: Conexion): Promise<DestinoAFormalizar[]> {
+  return tx.consultar<DestinoAFormalizar>(
     'select * from v_destinos_a_formalizar order by veces desc, ultima_vez desc',
   )
+}
+
+export async function destinosAFormalizar(sesion: Sesion): Promise<DestinoAFormalizar[]> {
+  return conSesion(sesion, (tx) => destinosAFormalizarEnTx(tx))
 }
 
 // ── Pilas de compost ────────────────────────────────────────────────────
@@ -553,8 +688,8 @@ export async function destinosAFormalizar(sesion: Sesion): Promise<DestinoAForma
  * Es la respuesta a "el control operativo de las pilas", que la Secretaría
  * nombró como una de las dos cosas que hoy le piden y no puede contestar.
  */
-export async function pilas(
-  sesion: Sesion,
+export async function pilasEnTx(
+  tx: Conexion,
   opciones: { sitioId?: string; estado?: EstadoPila; incluirBajas?: boolean } = {},
 ): Promise<FilaPila[]> {
   const valores: unknown[] = []
@@ -564,8 +699,7 @@ export async function pilas(
   if (opciones.sitioId) cond.push(`sitio_id = ${par(opciones.sitioId)}`)
   if (opciones.estado)  cond.push(`estado = ${par(opciones.estado)}`)
 
-  return consultarConSesion<FilaPila>(
-    sesion,
+  return tx.consultar<FilaPila>(
     `select * from v_pilas
       ${cond.length ? `where ${cond.join(' and ')}` : ''}
       order by estado, codigo`,
@@ -573,80 +707,107 @@ export async function pilas(
   )
 }
 
+export async function pilas(
+  sesion: Sesion,
+  opciones: { sitioId?: string; estado?: EstadoPila; incluirBajas?: boolean } = {},
+): Promise<FilaPila[]> {
+  return conSesion(sesion, (tx) => pilasEnTx(tx, opciones))
+}
+
 /** Las que todavía reciben material. Es lo que ofrece el formulario del celular. */
-export async function pilasEnFormacion(sesion: Sesion): Promise<FilaPila[]> {
-  return consultarConSesion<FilaPila>(
-    sesion,
+export async function pilasEnFormacionEnTx(tx: Conexion): Promise<FilaPila[]> {
+  return tx.consultar<FilaPila>(
     "select * from v_pilas where activo and estado = 'en_formacion' order by codigo",
   )
 }
 
+export async function pilasEnFormacion(sesion: Sesion): Promise<FilaPila[]> {
+  return conSesion(sesion, (tx) => pilasEnFormacionEnTx(tx))
+}
+
 /** Las que ya pueden despacharse. */
-export async function pilasParaDespachar(sesion: Sesion): Promise<FilaPila[]> {
-  return consultarConSesion<FilaPila>(
-    sesion,
+export async function pilasParaDespacharEnTx(tx: Conexion): Promise<FilaPila[]> {
+  return tx.consultar<FilaPila>(
     "select * from v_pilas where activo and estado in ('madurando', 'lista') order by madurez nulls last, codigo",
   )
+}
+
+export async function pilasParaDespachar(sesion: Sesion): Promise<FilaPila[]> {
+  return conSesion(sesion, (tx) => pilasParaDespacharEnTx(tx))
 }
 
 /**
  * La ficha completa de una pila: de qué está hecha, cómo se la trató y qué
  * salió de ella. Las tres puntas de la cadena en una sola consulta.
  */
-export async function pilaPorId(sesion: Sesion, id: string) {
-  return conSesion(sesion, async (tx) => {
-    // Las tres puntas cuelgan del id que llega, no de la fila `pila`: se piden
-    // juntas y recién después se decide si la pila existe. Si no existe, las
-    // otras tampoco devuelven nada —RLS se aplica a cada una— y se descartan.
-    const [[pila], composicion, controles, salidas] = await Promise.all([
-      tx.consultar<FilaPila>('select * from v_pilas where id = $1', [id]),
-      tx.consultar<FilaComposicion>(
-        'select * from v_pila_composicion where pila_id = $1 order by m3 desc',
-        [id],
-      ),
-      tx.consultar<ControlDePila>(
-        `select c.id, c.pila_id, c.tipo, c.ocurrido_en, c.valor, c.observacion, p.nombre as registrado_por
-           from pila_controles c
-           left join perfiles p on p.id = c.registrado_por_id
-          where c.pila_id = $1
-          order by c.ocurrido_en desc`,
-        [id],
-      ),
-      tx.consultar<TrazaDeSalida>(
-        'select * from v_trazabilidad_salidas where pila_id = $1 order by ocurrido_en desc',
-        [id],
-      ),
-    ])
-    if (!pila) return null
+export async function pilaPorIdEnTx(tx: Conexion, id: string) {
+  // Las tres puntas cuelgan del id que llega, no de la fila `pila`: se piden
+  // juntas y recién después se decide si la pila existe. Si no existe, las
+  // otras tampoco devuelven nada —RLS se aplica a cada una— y se descartan.
+  const [[pila], composicion, controles, salidas] = await Promise.all([
+    tx.consultar<FilaPila>('select * from v_pilas where id = $1', [id]),
+    tx.consultar<FilaComposicion>(
+      'select * from v_pila_composicion where pila_id = $1 order by m3 desc',
+      [id],
+    ),
+    tx.consultar<ControlDePila>(
+      `select c.id, c.pila_id, c.tipo, c.ocurrido_en, c.valor, c.observacion, p.nombre as registrado_por
+         from pila_controles c
+         left join perfiles p on p.id = c.registrado_por_id
+        where c.pila_id = $1
+        order by c.ocurrido_en desc`,
+      [id],
+    ),
+    tx.consultar<TrazaDeSalida>(
+      'select * from v_trazabilidad_salidas where pila_id = $1 order by ocurrido_en desc',
+      [id],
+    ),
+  ])
+  if (!pila) return null
 
-    return { pila, composicion, controles, salidas }
-  })
+  return { pila, composicion, controles, salidas }
+}
+
+export async function pilaPorId(sesion: Sesion, id: string) {
+  return conSesion(sesion, (tx) => pilaPorIdEnTx(tx, id))
 }
 
 /** De dónde salió este camión. */
-export async function trazaDeSalida(sesion: Sesion, movimientoId: string): Promise<TrazaDeSalida | null> {
-  const filas = await consultarConSesion<TrazaDeSalida>(
-    sesion,
+export async function trazaDeSalidaEnTx(
+  tx: Conexion,
+  movimientoId: string,
+): Promise<TrazaDeSalida | null> {
+  const filas = await tx.consultar<TrazaDeSalida>(
     'select * from v_trazabilidad_salidas where movimiento_id = $1',
     [movimientoId],
   )
   return filas[0] ?? null
 }
 
+export async function trazaDeSalida(sesion: Sesion, movimientoId: string): Promise<TrazaDeSalida | null> {
+  return conSesion(sesion, (tx) => trazaDeSalidaEnTx(tx, movimientoId))
+}
+
 /** Salidas con pila declarada, para el listado de trazabilidad. */
-export async function trazabilidadDeSalidas(
-  sesion: Sesion,
+export async function trazabilidadDeSalidasEnTx(
+  tx: Conexion,
   opciones: { desde?: string; limite?: number } = {},
 ): Promise<TrazaDeSalida[]> {
   const valores: unknown[] = [opciones.desde ?? '2000-01-01']
-  return consultarConSesion<TrazaDeSalida>(
-    sesion,
+  return tx.consultar<TrazaDeSalida>(
     `select * from v_trazabilidad_salidas
       where ocurrido_en >= $1::timestamptz
       order by ocurrido_en desc
       limit ${Math.min(Math.max(opciones.limite ?? 100, 1), 500)}`,
     valores,
   )
+}
+
+export async function trazabilidadDeSalidas(
+  sesion: Sesion,
+  opciones: { desde?: string; limite?: number } = {},
+): Promise<TrazaDeSalida[]> {
+  return conSesion(sesion, (tx) => trazabilidadDeSalidasEnTx(tx, opciones))
 }
 
 export async function registrarControl(
@@ -720,7 +881,8 @@ export async function guardarConteo(
 }
 
 /** Los últimos conteos del punto, para ver qué días ya se cargaron. */
-export async function conteosRecientes(
+export async function conteosRecientesEnTx(
+  tx: Conexion,
   sesion: Sesion,
   opciones: { sitioId?: string; dias?: number } = {},
 ): Promise<ConteoDiario[]> {
@@ -728,11 +890,12 @@ export async function conteosRecientes(
   const valores: unknown[] = []
   const par = (v: unknown) => `$${valores.push(v)}`
   const cond = [`c.fecha >= current_date - ${dias}`]
+  // La sesión acá es solo para decidir de qué punto se habla: la coordinadora
+  // elige, el vigilador siempre ve el suyo.
   const sitioId = sesion.rol === 'admin' ? opciones.sitioId : sesion.sitioId
   if (sitioId) cond.push(`c.sitio_id = ${par(sitioId)}`)
 
-  return consultarConSesion<ConteoDiario>(
-    sesion,
+  return tx.consultar<ConteoDiario>(
     `select c.id, c.sitio_id, s.nombre as sitio_nombre, c.fecha, c.vecinos,
             c.observaciones, p.nombre as cargado_por, c.creado_en, c.actualizado_en
        from conteos_diarios c
@@ -744,17 +907,27 @@ export async function conteosRecientes(
   )
 }
 
+export async function conteosRecientes(
+  sesion: Sesion,
+  opciones: { sitioId?: string; dias?: number } = {},
+): Promise<ConteoDiario[]> {
+  return conSesion(sesion, (tx) => conteosRecientesEnTx(tx, sesion, opciones))
+}
+
 /**
  * Hace cuánto que cada punto no carga nada.
  *
  * Un punto callado no es un punto sin gente: puede ser que el vigilador dejó de
  * cargar. Distinguirlo es la diferencia entre un indicador y una suposición.
  */
-export async function puntosSinCarga(sesion: Sesion): Promise<PuntoSinCarga[]> {
-  return consultarConSesion<PuntoSinCarga>(
-    sesion,
+export async function puntosSinCargaEnTx(tx: Conexion): Promise<PuntoSinCarga[]> {
+  return tx.consultar<PuntoSinCarga>(
     'select * from v_puntos_sin_carga order by ultima_carga, codigo',
   )
+}
+
+export async function puntosSinCarga(sesion: Sesion): Promise<PuntoSinCarga[]> {
+  return conSesion(sesion, (tx) => puntosSinCargaEnTx(tx))
 }
 
 // ── Recambio de contenedores ────────────────────────────────────────────
@@ -766,18 +939,19 @@ export async function puntosSinCarga(sesion: Sesion): Promise<PuntoSinCarga[]> {
  * cartón de Italia". El pedido abierto viaja con cada uno para que la pantalla
  * no ofrezca pedir dos veces lo mismo.
  */
-export async function contenedoresDelSitio(
+export async function contenedoresDelSitioEnTx(
+  tx: Conexion,
   sesion: Sesion,
   sitioId?: string,
 ): Promise<Contenedor[]> {
+  // Otra vez la sesión por el rol: el vigilador solo mira los de su punto.
   const destino = sesion.rol === 'admin' ? sitioId : sesion.sitioId
   const valores: unknown[] = []
   const par = (v: unknown) => `$${valores.push(v)}`
   const cond = ['c.activo']
   if (destino) cond.push(`c.sitio_actual_id = ${par(destino)}`)
 
-  return consultarConSesion<Contenedor>(
-    sesion,
+  return tx.consultar<Contenedor>(
     `select c.id, c.codigo, c.tipo, c.capacidad_m3, c.sitio_actual_id,
             s.nombre as sitio_nombre, c.material_id, m.nombre as material,
             m.color as material_color, c.estado, c.ultima_retirada, c.activo,
@@ -791,6 +965,13 @@ export async function contenedoresDelSitio(
       order by s.orden, m.orden`,
     valores,
   )
+}
+
+export async function contenedoresDelSitio(
+  sesion: Sesion,
+  sitioId?: string,
+): Promise<Contenedor[]> {
+  return conSesion(sesion, (tx) => contenedoresDelSitioEnTx(tx, sesion, sitioId))
 }
 
 /**
@@ -838,8 +1019,8 @@ export async function pedirRecambio(
   }
 }
 
-export async function pedidosDeRecambio(
-  sesion: Sesion,
+export async function pedidosDeRecambioEnTx(
+  tx: Conexion,
   opciones: { estado?: EstadoPedido | 'abiertos' | 'todos'; sitioId?: string; limite?: number } = {},
 ): Promise<PedidoRecambio[]> {
   const valores: unknown[] = []
@@ -850,14 +1031,20 @@ export async function pedidosDeRecambio(
   else if (estado !== 'todos') cond.push(`estado = ${par(estado)}`)
   if (opciones.sitioId) cond.push(`sitio_id = ${par(opciones.sitioId)}`)
 
-  return consultarConSesion<PedidoRecambio>(
-    sesion,
+  return tx.consultar<PedidoRecambio>(
     `select * from v_pedidos_recambio
       ${cond.length ? `where ${cond.join(' and ')}` : ''}
       order by urgente desc, pedido_en
       limit ${Math.min(Math.max(opciones.limite ?? 200, 1), 1000)}`,
     valores,
   )
+}
+
+export async function pedidosDeRecambio(
+  sesion: Sesion,
+  opciones: { estado?: EstadoPedido | 'abiertos' | 'todos'; sitioId?: string; limite?: number } = {},
+): Promise<PedidoRecambio[]> {
+  return conSesion(sesion, (tx) => pedidosDeRecambioEnTx(tx, opciones))
 }
 
 /**
@@ -868,11 +1055,14 @@ export async function pedidosDeRecambio(
  * en avisar y cuánto tarda la empresa en venir son dos problemas distintos y
  * se arreglan de maneras distintas.
  */
-export async function respuestaDeRecambio(sesion: Sesion): Promise<RespuestaRecambio[]> {
-  return consultarConSesion<RespuestaRecambio>(
-    sesion,
+export async function respuestaDeRecambioEnTx(tx: Conexion): Promise<RespuestaRecambio[]> {
+  return tx.consultar<RespuestaRecambio>(
     'select * from v_respuesta_recambio order by demorados desc, promedio_total desc nulls last',
   )
+}
+
+export async function respuestaDeRecambio(sesion: Sesion): Promise<RespuestaRecambio[]> {
+  return conSesion(sesion, (tx) => respuestaDeRecambioEnTx(tx))
 }
 
 /** La coordinación avisó a la empresa: el tramo que hoy no queda registrado. */

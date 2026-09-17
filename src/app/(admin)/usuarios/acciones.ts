@@ -1,15 +1,23 @@
 'use server'
 
 /**
- * Alta y mantenimiento de los usuarios de punto.
+ * Alta y mantenimiento de los usuarios.
  *
  * El PIN se muestra una sola vez, acá, en la respuesta de la acción: nunca se
  * guarda en claro ni vuelve a salir por pantalla. Si se pierde, se resetea.
+ *
+ * Las dos clases de cuenta no se tratan igual. La de punto lleva un PIN de
+ * cuatro dígitos que el sistema puede inventar: se teclea en la calle, y lo que
+ * la protege no es el largo sino el bloqueo por intentos y que solo pueda
+ * escribir movimientos de su propio sitio. La de coordinación lleva una
+ * contraseña escrita de doce caracteres para arriba, que la elige una persona y
+ * el sistema nunca inventa: ve los teléfonos de los vecinos y la auditoría
+ * entera.
  */
 
 import { randomInt } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
-import { esPinValido, hashearCredencial } from '@db/credenciales'
+import { esClaveValida, esPinValido, hashearCredencial } from '@db/credenciales'
 import { consultarConSesion } from '@db/sesion'
 import { mensajeDeError } from '@/lib/datos'
 import { exigirAdmin } from '@/lib/sesion'
@@ -45,28 +53,46 @@ export async function crearUsuario(
 
   const usuario = String(datos.get('usuario') ?? '').trim().toLowerCase()
   const nombre = String(datos.get('nombre') ?? '').trim()
+  const rol = String(datos.get('rol') ?? 'vigilador') === 'admin' ? 'admin' : 'vigilador'
   const sitioId = String(datos.get('sitio_id') ?? '').trim()
   const pinPedido = String(datos.get('pin') ?? '').trim()
+  const clavePedida = String(datos.get('clave') ?? '')
 
   if (!FORMATO_USUARIO.test(usuario)) {
     return { error: 'El usuario va en minúsculas, sin espacios ni acentos, de 3 a 32 caracteres. Por ejemplo: pv09.' }
   }
   if (nombre.length < 3) return { error: 'Escribí con qué nombre se va a ver este usuario en los listados.' }
-  if (!sitioId) return { error: 'Elegí a qué punto pertenece.' }
-  if (pinPedido && !esPinValido(pinPedido)) {
-    return { error: 'El PIN son entre 4 y 8 dígitos, sin letras.' }
+
+  if (rol === 'admin') {
+    // Una cuenta de coordinación no tiene sitio: ve los tres flujos.
+    if (!esClaveValida(clavePedida)) {
+      return { error: 'La contraseña de una cuenta de coordinación va de 12 caracteres para arriba. Elegila vos: el sistema no la inventa.' }
+    }
+  } else {
+    if (!sitioId) return { error: 'Elegí a qué punto pertenece.' }
+    if (pinPedido && !esPinValido(pinPedido)) {
+      return { error: 'El PIN son entre 4 y 8 dígitos, sin letras.' }
+    }
   }
 
-  const pin = pinPedido || pinAlAzar()
+  const credencial = rol === 'admin' ? clavePedida.trim() : pinPedido || pinAlAzar()
 
   try {
-    // sesion_horas en null: la sesión del punto no vence a propósito.
+    // La sesión del punto no vence a propósito: el vigilador no puede quedarse
+    // afuera en la calle. La de coordinación sí, porque ve datos personales.
     const filas = await consultarConSesion<{ id: string }>(
       sesion,
       `insert into perfiles (usuario, nombre, rol, sitio_id, credencial_hash, sesion_horas)
-       values ($1, $2, 'vigilador', $3, $4, null)
+       values ($1, $2, $3, $4, $5, $6)
        returning id`,
-      [usuario, nombre, sitioId, hashearCredencial(pin)],
+      [
+        usuario,
+        nombre,
+        rol,
+        rol === 'admin' ? null : sitioId,
+        hashearCredencial(credencial),
+        rol === 'admin' ? 12 : null,
+      ],
     )
     if (!filas.length) return { error: 'No se pudo crear el usuario.' }
   } catch (e) {
@@ -74,7 +100,13 @@ export async function crearUsuario(
   }
 
   revalidatePath('/usuarios')
-  return { pin, usuario, aviso: `Usuario ${usuario} creado.` }
+
+  // La contraseña de coordinación la escribió quien la va a usar: no hace falta
+  // devolvérsela, y mostrarla sería dejarla en pantalla sin motivo.
+  if (rol === 'admin') {
+    return { aviso: `Cuenta de coordinación ${usuario} creada. Entra con la contraseña que escribiste.` }
+  }
+  return { pin: credencial, usuario, aviso: `Usuario ${usuario} creado.` }
 }
 
 export async function accionSobreUsuario(
@@ -92,6 +124,7 @@ export async function accionSobreUsuario(
   }
 
   try {
+    // Resetear el PIN de un punto: lo inventa el sistema y se muestra una vez.
     if (accion === 'reset') {
       const pin = pinAlAzar()
       const filas = await consultarConSesion<{ usuario: string }>(
@@ -103,10 +136,37 @@ export async function accionSobreUsuario(
         [id, hashearCredencial(pin)],
       )
       if (!filas.length) {
-        return { error: 'Ese usuario no existe, o es de coordinación: su contraseña no se resetea desde acá.' }
+        return { error: 'Ese usuario no existe, o es de coordinación: ahí va "Cambiar contraseña".' }
       }
       revalidatePath('/usuarios')
       return { pin, usuario: filas[0].usuario }
+    }
+
+    // Cambiar la contraseña de una cuenta de coordinación, incluida la propia.
+    // Va escrita: el sistema no inventa contraseñas largas porque nadie las
+    // anota bien, y una cuenta de coordinación no se puede resetear a ciegas.
+    if (accion === 'clave') {
+      const clave = String(datos.get('clave') ?? '')
+      if (!esClaveValida(clave)) {
+        return { error: 'La contraseña va de 12 caracteres para arriba.' }
+      }
+      const filas = await consultarConSesion<{ usuario: string }>(
+        sesion,
+        `update perfiles
+            set credencial_hash = $2, intentos_fallidos = 0, bloqueado_hasta = null
+          where id = $1 and rol = 'admin'
+          returning usuario`,
+        [id, hashearCredencial(clave.trim())],
+      )
+      if (!filas.length) {
+        return { error: 'Ese usuario no existe, o es de punto: ahí va "Resetear PIN".' }
+      }
+      revalidatePath('/usuarios')
+      return {
+        aviso: id === sesion.perfilId
+          ? 'Tu contraseña quedó cambiada. La sesión abierta sigue valiendo hasta que venza.'
+          : `Contraseña de ${filas[0].usuario} cambiada.`,
+      }
     }
 
     if (accion === 'activar' || accion === 'desactivar') {

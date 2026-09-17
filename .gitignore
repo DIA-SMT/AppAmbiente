@@ -3,6 +3,7 @@ node_modules/
 .data/
 .env
 .env.local
+.env.local.*
 *.tsbuildinfo
 next-env.d.ts
 
@@ -10,3 +11,4 @@ next-env.d.ts
 # Trae hashes con sal nueva en cada corrida, así que no tiene sentido versionarlo.
 db/produccion.sql
 db/actualizacion.sql
+db/usuarios.sql

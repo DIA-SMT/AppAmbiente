@@ -17,7 +17,8 @@
  */
 import { comoServicio } from '../sesion'
 import { obtenerBase } from '../client'
-import { sentenciasBase } from '../datos-base'
+import { hashearCredencial } from '../credenciales'
+import { SITIOS, sentenciasBase } from '../datos-base'
 
 // nombre, tipo, origen, destino, flujos
 const ENTIDADES: ReadonlyArray<readonly [string, string, boolean, boolean, string[]]> = [
@@ -114,7 +115,7 @@ async function sembrar() {
   Para cargar los datos de ejemplo igual —solo en una base de prueba—:
       npm run db:sembrar -- --ejemplos
 `)
-    avisoDeUsuarios()
+    avisoDeUsuarios(false)
     return
   }
 
@@ -123,6 +124,32 @@ async function sembrar() {
   // de verdad los carga la coordinadora desde Listas maestras, y los destinos
   // se formalizan desde lo que los vigiladores escriben.
   await comoServicio(async (tx) => {
+    // ── Usuarios de desarrollo ───────────────────────────────────────────
+    // Una base nueva se entrega con una sola puerta —direccionia— y desde ahí
+    // se crean las demás por pantalla. Pero para desarrollar hacen falta las
+    // diez: sin un usuario de punto no se puede abrir ninguna pantalla de
+    // vigilador. Por eso viven acá, del lado de los ejemplos, que nunca llega
+    // a un Postgres de verdad.
+    const usuarios: Array<[string, string, 'admin' | 'vigilador', string | null, string, number | null]> = [
+      ['coordinacion', 'Coordinación de Ambiente', 'admin', null, 'ambiente2026', 12],
+      ['planta', 'Planta de Valorización — turno', 'vigilador', 'PVRV', '1234', null],
+      ...SITIOS.slice(1).map(
+        (s) =>
+          [s[0].toLowerCase().replace('-', ''), `${s[1]} — turno`, 'vigilador', s[0], '1234', null] as
+            [string, string, 'vigilador', string, string, null],
+      ),
+    ]
+    for (const [usuario, nombre, rol, sitioCodigo, credencial, horas] of usuarios) {
+      await tx.consultar(
+        `insert into perfiles (usuario, nombre, rol, sitio_id, credencial_hash, sesion_horas)
+         select $1, $2, $3,
+                case when $4::text is null then null else (select id from sitios where codigo = $4) end,
+                $5, $6
+         where not exists (select 1 from perfiles where lower(usuario) = lower($1))`,
+        [usuario, nombre, rol, sitioCodigo, hashearCredencial(credencial), horas],
+      )
+    }
+
     // ── Entidades ────────────────────────────────────────────────────────
     for (const [nombre, tipo, origen, destino, flujos] of ENTIDADES) {
       await tx.consultar(
@@ -290,7 +317,8 @@ async function sembrar() {
     `)
 
     const [{ total: creados }] = await tx.consultar<{ total: string }>(
-      `select count(*)::text as total from movimientos where flujo = 'planta'`,
+      `select count(*)::text as total from movimientos where flujo = 'planta'
+        and observaciones is distinct from 'Generado por db:verificar'`,
     )
     console.log(`  ${creados} movimientos de la Planta generados (últimos 4 meses).`)
   })
@@ -300,7 +328,8 @@ async function sembrar() {
   // semana pesan más que los días hábiles, justo al revés que la Planta.
   await comoServicio(async (tx) => {
     const [{ total }] = await tx.consultar<{ total: string }>(
-      `select count(*)::text as total from movimientos where flujo = 'punto_verde'`,
+      `select count(*)::text as total from movimientos where flujo = 'punto_verde'
+        and observaciones is distinct from 'Generado por db:verificar'`,
     )
     if (Number(total) > 0) {
       console.log('  Ya hay movimientos de puntos verdes: no se generan ejemplos.')
@@ -391,7 +420,11 @@ async function sembrar() {
       conocidos as (
         select v.id, (row_number() over (order by v.telefono)) - 1 as rn,
                count(*) over () as total
-          from vecinos v where v.telefono is not null and not v.anonimizado
+          from vecinos v
+         where v.telefono is not null and not v.anonimizado
+           -- El vecino que arma db:verificar no: después no lo puede borrar,
+           -- porque un movimiento apuntándolo lo deja clavado.
+           and v.telefono <> '3814569988'
       ),
       dias as (
         select generate_series(current_date - interval '119 days', current_date, interval '1 day')::date as d
@@ -519,7 +552,8 @@ async function sembrar() {
     `)
 
     const [{ total: creados }] = await tx.consultar<{ total: string }>(
-      `select count(*)::text as total from movimientos where flujo = 'punto_verde'`,
+      `select count(*)::text as total from movimientos where flujo = 'punto_verde'
+        and observaciones is distinct from 'Generado por db:verificar'`,
     )
     console.log(`  ${creados} movimientos de puntos verdes generados (últimos 4 meses).`)
   })
@@ -589,6 +623,9 @@ async function sembrar() {
           on p.sitio_id = m.sitio_id
          and m.ocurrido_en::date between p.fecha_armado
                                      and coalesce(p.fecha_cierre, current_date)
+         -- La pila que se arma db:verificar no: después no la puede borrar,
+         -- porque un movimiento apuntándola la deja clavada.
+         and p.notas is distinct from 'Generado por db:verificar'
         join lateral (
           select sum(it.cantidad * coalesce(u.factor_m3, 0)) as m3
             from movimiento_items it join unidades u on u.id = it.unidad_id
@@ -683,27 +720,33 @@ async function sembrar() {
 
   console.log(`
   Listo. Movimientos cargados: ${porFlujo('planta')} de la Planta y ${porFlujo('punto_verde')} de puntos verdes.`)
-  avisoDeUsuarios()
+  avisoDeUsuarios(true)
 }
 
 /**
  * Las credenciales que quedaron puestas. Contra un Postgres de verdad el aviso
  * es otro: ahí son una puerta abierta, no una comodidad.
  */
-function avisoDeUsuarios() {
+function avisoDeUsuarios(conEjemplos: boolean) {
   console.log(`
-  Usuarios creados:
+  Usuario creado:
 
     Dirección de IA  usuario: direccionia    clave: 123456
+`)
+  if (conEjemplos) {
+    console.log(`  Y los de desarrollo, que son de ejemplo y no van a ninguna base de verdad:
+
     Coordinadora     usuario: coordinacion   clave: ambiente2026
     Planta           usuario: planta         PIN:   1234
     Puntos verdes    usuario: pv01 … pv08    PIN:   1234
 `)
+  }
   if (process.env.DATABASE_URL?.trim()) {
-    console.log(`
-  ⚠  Esta base no es la local. Esas claves están publicadas en el repositorio:
-     cambialas desde Usuarios antes de darle el link a nadie.
-     npm run db:verificar falla mientras alguna siga puesta.
+    console.log(`  ⚠  Esta base no es la local, y direccionia es la ÚNICA puerta que tiene.
+     Esa clave está publicada en el repositorio: cambiala desde Usuarios →
+     Cambiar contraseña antes de darle el link a nadie. Desde ahí mismo se
+     crean la cuenta de coordinación y los usuarios de cada punto.
+     npm run db:verificar falla mientras siga puesta.
 `)
   } else {
     console.log('  Cambiar antes de cualquier despliegue.')

@@ -62,9 +62,16 @@ export async function verificarAcceso(usuario: string, credencial: string): Prom
     if (!coincide) {
       const intentos = p.intentos_fallidos + 1
       await tx.consultar(
+        // Los tipos van escritos. Sin los casts, Postgres tiene que deducir el
+        // de $2 dos veces —en la asignación y en la comparación— y saca dos
+        // distintos: «inconsistent types deduced for parameter $2, text versus
+        // integer». Reventaba el ingreso entero, y sólo en el camino de la
+        // credencial equivocada, que es el que nadie prueba.
         `update perfiles
-            set intentos_fallidos = $2,
-                bloqueado_hasta = case when $2 >= $3 then now() + make_interval(mins => $4) else null end
+            set intentos_fallidos = $2::int,
+                bloqueado_hasta = case when $2::int >= $3::int
+                                       then now() + make_interval(mins => $4::int)
+                                       else null end
           where id = $1`,
         [p.id, intentos, INTENTOS_MAXIMOS, MINUTOS_BLOQUEO],
       )

@@ -36,7 +36,7 @@ const ESPERADO: ReadonlyArray<readonly [string, number]> = [
   ['unidades', 8],
   ['materiales', 14],
   ['contenedores', 40],
-  ['perfiles', 11],
+  ['perfiles', 1],
   ['movimientos', 0],
   ['entidades', 0],
   ['personas', 0],

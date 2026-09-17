@@ -36,3 +36,15 @@ export function verificarCredencial(texto: string, guardado: string): boolean {
 export function esPinValido(pin: string): boolean {
   return /^\d{4,8}$/.test(pin)
 }
+
+/**
+ * La contraseña de una cuenta de coordinación.
+ *
+ * Doce caracteres y no cuatro dígitos, porque no es lo mismo: el PIN del
+ * vigilador lo protege el bloqueo por intentos y que solo pueda escribir
+ * movimientos de su punto; una cuenta de coordinación ve los teléfonos de los
+ * vecinos y la auditoría entera, desde cualquier lado y sin más límite.
+ */
+export function esClaveValida(clave: string): boolean {
+  return clave.trim().length >= 12 && clave.trim().length <= 128
+}

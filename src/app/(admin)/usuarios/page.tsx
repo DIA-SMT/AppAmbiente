@@ -53,9 +53,11 @@ export default async function PantallaUsuarios() {
       <header className="pila-chica">
         <h1>Usuarios y accesos</h1>
         <p className="menor gris">
-          Un usuario por punto, compartido por quienes estén de turno. El PIN se muestra una sola
-          vez al crearlo o al resetearlo. Desactivar un usuario le corta el acceso en el próximo
-          pedido, aunque tenga la sesión abierta en el celular.
+          Un usuario por punto, compartido por quienes estén de turno, y uno de coordinación por
+          cada persona que administre. El PIN de un punto se muestra una sola vez al crearlo o al
+          resetearlo; la contraseña de una cuenta de coordinación la elige quien la va a usar y no
+          se muestra nunca. Desactivar un usuario le corta el acceso en el próximo pedido, aunque
+          tenga la sesión abierta en el celular.
         </p>
       </header>
 
@@ -140,7 +142,7 @@ export default async function PantallaUsuarios() {
       </div>
 
       <section className="tarjeta pila">
-        <h2>Crear usuario de un punto</h2>
+        <h2>Crear un usuario</h2>
         <FormularioUsuario sitios={sitios} />
       </section>
     </div>

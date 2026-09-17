@@ -45,28 +45,35 @@ ejemplo.
 > y los cambios de uno no los ve el otro. Con `DATABASE_URL` apuntando a un Postgres
 > de verdad esto no pasa.
 
-### Usuarios de desarrollo
+### Usuarios
+
+Una base que se entrega tiene **una sola puerta**:
 
 | Quién | Usuario | Clave | Qué ve |
 |---|---|---|---|
-| Dirección de IA | `direccionia` | `123456` | Todo. Es un admin más, para entrar sin usar la cuenta de la coordinación |
-| Coordinadora | `coordinacion` | `ambiente2026` | Todo: tablero, listados, listas maestras, auditoría |
-| Planta | `planta` | PIN `1234` | Solo carga movimientos de la Planta |
-| Puntos verdes | `pv01` … `pv08` | PIN `1234` | Solo su propio punto |
+| Dirección de IA | `direccionia` | `123456` | Todo. Desde ahí se crean las demás cuentas |
 
-Para entrar como coordinadora hay que tocar **“Entrar como coordinación”** abajo del
-formulario: la pantalla por defecto es la del vigilador, que es quien la usa todos
-los días.
+Con esa cuenta se entra a **Usuarios** y se crean las dos clases que existen:
 
-No hay un rol por encima de `admin`: el sistema tiene dos roles y `admin` ya puede
-todo —los tres flujos, las listas maestras, anular movimientos, los datos de vecinos
-y la auditoría—. Tener una cuenta propia para la Dirección de IA no agrega permisos,
-agrega trazabilidad: la auditoría distingue quién hizo cada cosa.
+- **De coordinación**: ve los tres flujos, los datos de los vecinos y la auditoría.
+  La contraseña la escribe quien la va a usar, de 12 caracteres para arriba, y el
+  sistema nunca la inventa ni la vuelve a mostrar.
+- **De punto**: sólo carga movimientos del punto que se le asigne. Lleva un PIN de
+  cuatro dígitos, que el sistema puede inventar y que se muestra una sola vez. Es
+  corto a propósito: se teclea en la calle, y lo que lo protege es el bloqueo por
+  intentos y que no pueda escribir fuera de su punto.
 
-> **Estas credenciales son de desarrollo y están publicadas en este repositorio.**
-> Sirven para la base local de PGlite, que vive en tu máquina. Antes de desplegar
-> esto en cualquier lado hay que cambiarlas desde la pantalla **Usuarios** y generar
-> un `AUTH_SECRET` propio: con la clave de firma publicada, cualquiera puede
+Hasta que exista el primer usuario de punto, la pantalla de ingreso lo dice y ofrece
+sólo el acceso de coordinación.
+
+En la base local, `npm run db:sembrar` agrega además los usuarios de desarrollo
+—`coordinacion` / `ambiente2026`, `planta` y `pv01`…`pv08` con PIN `1234`—, que son
+datos de ejemplo y no llegan a ninguna base de verdad.
+
+> **La clave de fábrica está publicada en este repositorio.** Se cambia desde
+> **Usuarios → Cambiar contraseña** antes de darle el link a nadie, y
+> `npm run db:verificar` falla contra un Postgres de verdad mientras siga puesta.
+> Lo mismo con `AUTH_SECRET`: con la clave de firma publicada, cualquiera puede
 > emitirse una sesión de coordinación.
 
 ---
@@ -78,7 +85,7 @@ agrega trazabilidad: la auditoría distingue quién hizo cada cosa.
 | Aplicación | Next.js 15 (App Router), PWA | Se instala desde el navegador del celular, sin pasar por Play Store. Los vigiladores rotan seguido: instalar tiene que ser abrir un link. |
 | Base | Postgres | **PGlite** (Postgres compilado a WASM) en desarrollo, Supabase o cualquier Postgres en producción. Las mismas migraciones y las mismas políticas corren en los dos. |
 | Permisos | Row Level Security de Postgres | Las reglas viven en la base, no en el código de pantalla. Un vigilador con el token de su celular no puede leer un movimiento de otro punto ni la lista de vecinos, aunque consulte la API directo. |
-| Sesión | JWT firmado en cookie httpOnly | Un usuario por sitio con PIN. La sesión del vigilador no vence; la de la coordinadora sí. |
+| Sesión | JWT firmado en cookie httpOnly | Un usuario por sitio con PIN, y uno por persona en coordinación con contraseña. La sesión del vigilador no vence; la de coordinación sí. |
 | Excel | ExcelJS | Exportar cualquier vista, e importar el archivo de pesos con mapeo de columnas. |
 | Pantalla de ingreso | Una imagen, no un video | Los vigiladores cargan desde sus celulares personales, con sus propios datos y mala señal en casi todos los puntos. La pantalla pesa unos 175 KB la primera vez y nada después. |
 
@@ -276,6 +283,7 @@ assets/marca/        identidad institucional (logos y plantilla de referencia)
 | `npm run db:sembrar -- --sin-ejemplos` | Solo los datos base, aunque sea la base local |
 | `npm run db:sql` | Escribe db/produccion.sql: una base nueva, de cero |
 | `npm run db:sql -- --desde 0019` | Escribe db/actualizacion.sql: sólo de esa migración en adelante |
+| `npm run db:usuarios` | Escribe db/usuarios.sql: deja en la base sólo los usuarios de datos-base.ts |
 | `npm run db:reset` | Borra la base local y la rehace desde cero |
 | `npm run db:verificar` | Comprueba que las políticas de seguridad hagan lo que dicen |
 | `npm run typecheck` | Chequeo de tipos |

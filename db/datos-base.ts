@@ -90,34 +90,26 @@ export const RECIPIENTES_POR_FLUJO: Record<string, string[]> = {
 const CORRIENTES_CON_CONTENEDOR = ['Plástico', 'Cartón', 'Vidrio y metal', 'Residuos de poda', 'RSU']
 
 /**
- * Los usuarios con los que se entra la primera vez.
+ * El único usuario con el que se entra la primera vez.
  * usuario, nombre, rol, código de sitio, credencial, horas de sesión
  *
- * CREDENCIALES DE FÁBRICA, publicadas en el repositorio: se cambian desde la
- * pantalla Usuarios antes de darle el link a nadie. Contra un Postgres de verdad,
- * `npm run db:verificar` falla mientras alguna siga puesta.
+ * Uno solo, y a propósito. Una base nueva se entrega con una sola puerta: la
+ * Dirección de IA entra, crea la cuenta de coordinación y los usuarios de cada
+ * punto desde la pantalla Usuarios, y desde ahí la Secretaría se maneja sola.
+ * Sembrar diez cuentas con el PIN 1234 era cómodo para desarrollar y una puerta
+ * abierta en producción: nadie se acuerda de desactivar las que no usa.
  *
- * No hay un rol por encima de `admin`: el modelo tiene dos roles y admin ya puede
- * todo. El acceso de la Dirección de IA es un admin más, para entrar sin usar la
- * cuenta de la coordinación y que la auditoría distinga quién hizo qué.
+ * CREDENCIAL DE FÁBRICA, publicada en el repositorio. Se cambia desde Usuarios →
+ * Cambiar contraseña antes de darle el link a nadie, y contra un Postgres de
+ * verdad `npm run db:verificar` falla mientras siga puesta.
+ *
+ * No hay un rol por encima de `admin`: el modelo tiene dos roles —admin y
+ * vigilador— y admin ya puede todo.
  */
 export const USUARIOS: ReadonlyArray<
   readonly [string, string, 'admin' | 'vigilador', string | null, string, number | null]
 > = [
-  ['direccionia',  'Dirección de Inteligencia Artificial', 'admin', null, '123456', 12],
-  ['coordinacion', 'Coordinación de Ambiente',             'admin', null, 'ambiente2026', 12],
-  ['planta',       'Planta de Valorización — turno',       'vigilador', 'PVRV', '1234', null],
-  ...SITIOS.slice(1).map(
-    (s) =>
-      [
-        s[0].toLowerCase().replace('-', ''),
-        `${s[1]} — turno`,
-        'vigilador',
-        s[0],
-        '1234',
-        null,
-      ] as readonly [string, string, 'vigilador', string, string, null],
-  ),
+  ['direccionia', 'Dirección de Inteligencia Artificial', 'admin', null, '123456', 12],
 ]
 
 /**

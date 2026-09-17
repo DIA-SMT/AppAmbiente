@@ -52,23 +52,37 @@ export default function FormularioIngreso({ sitios }: { sitios: SitioIngreso[] }
         <div className="aviso error" role="alert">{estado.error}</div>
       )}
 
+      {/* Para que el mensaje de error hable de PIN o de contraseña según el caso. */}
+      <input type="hidden" name="modo" value={modoCoordinacion ? 'admin' : 'punto'} />
+
       {!modoCoordinacion ? (
-        <div className="campo">
-          <label htmlFor="usuario">¿En qué punto estás?</label>
-          <select
-            id="usuario"
-            name="usuario"
-            className="control"
-            required
-            value={usuario}
-            onChange={(e) => recordar(e.target.value)}
-          >
-            <option value="" disabled>Elegí tu punto…</option>
-            {sitios.map((s) => (
-              <option key={s.usuario} value={s.usuario}>{s.sitio_nombre}</option>
-            ))}
-          </select>
-        </div>
+        sitios.length === 0 ? (
+          // Una base recién entregada no tiene usuarios de punto: los crea la
+          // coordinación desde la app. Sin esto, el vigilador ve un selector
+          // vacío y no tiene forma de saber si se rompió algo o si todavía no
+          // le tocó.
+          <div className="aviso atencion">
+            Todavía no hay ningún punto habilitado para entrar desde el celular.
+            Los crea la coordinación desde <span className="fuerte">Usuarios</span>.
+          </div>
+        ) : (
+          <div className="campo">
+            <label htmlFor="usuario">¿En qué punto estás?</label>
+            <select
+              id="usuario"
+              name="usuario"
+              className="control"
+              required
+              value={usuario}
+              onChange={(e) => recordar(e.target.value)}
+            >
+              <option value="" disabled>Elegí tu punto…</option>
+              {sitios.map((s) => (
+                <option key={s.usuario} value={s.usuario}>{s.sitio_nombre}</option>
+              ))}
+            </select>
+          </div>
+        )
       ) : (
         <div className="campo">
           <label htmlFor="usuario">Usuario</label>
@@ -86,6 +100,8 @@ export default function FormularioIngreso({ sitios }: { sitios: SitioIngreso[] }
         </div>
       )}
 
+      {/* Sin puntos que elegir no hay nada que hacer con el PIN. */}
+      {(modoCoordinacion || sitios.length > 0) && (
       <div className="campo">
         <label htmlFor="credencial">{modoCoordinacion ? 'Contraseña' : 'PIN'}</label>
         <input
@@ -103,8 +119,9 @@ export default function FormularioIngreso({ sitios }: { sitios: SitioIngreso[] }
           style={modoCoordinacion ? undefined : { fontSize: '1.5rem', letterSpacing: '.4em', textAlign: 'center' }}
         />
       </div>
+      )}
 
-      <Boton />
+      {(modoCoordinacion || sitios.length > 0) && <Boton />}
 
       <button
         type="button"

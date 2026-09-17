@@ -15,9 +15,17 @@ export async function ingresar(
 ): Promise<EstadoIngreso> {
   const usuario = String(datos.get('usuario') ?? '').trim()
   const credencial = String(datos.get('credencial') ?? '')
+  // La coordinación entra con usuario escrito; los puntos, eligiendo del
+  // selector. Uno pone una contraseña y el otro un PIN, y decirle "PIN" a
+  // quien escribió una contraseña lo manda a buscar algo que no tiene.
+  const esCoordinacion = datos.get('modo') === 'admin'
+  const falta = esCoordinacion ? 'Falta la contraseña.' : 'Falta el PIN.'
+  const incorrecta = esCoordinacion
+    ? 'La contraseña no es correcta.'
+    : 'El PIN no es correcto.'
 
   if (!usuario) return { error: 'Elegí tu punto o escribí tu usuario.' }
-  if (!credencial) return { error: 'Falta el PIN.', usuario }
+  if (!credencial) return { error: falta, usuario }
 
   const r = await verificarAcceso(usuario, credencial)
 
@@ -25,13 +33,13 @@ export async function ingresar(
     if (r.motivo === 'bloqueado') {
       return {
         usuario,
-        error: `Demasiados intentos. Probá de nuevo en ${r.minutos} minuto${r.minutos === 1 ? '' : 's'}, o pedile a la coordinadora que te resetee el PIN.`,
+        error: `Demasiados intentos. Probá de nuevo en ${r.minutos} minuto${r.minutos === 1 ? '' : 's'}, o pedile a la coordinadora que te resetee el acceso.`,
       }
     }
     if (r.motivo === 'inactivo') {
       return { usuario, error: 'Este usuario está desactivado. Hablá con la coordinadora.' }
     }
-    return { usuario, error: 'El PIN no es correcto.' }
+    return { usuario, error: incorrecta }
   }
 
   await crearCookieDeSesion({

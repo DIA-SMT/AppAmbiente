@@ -8,7 +8,9 @@
  * la pena correrlo después de tocar db/migrations/0010_rls.sql y antes de
  * desplegar a Supabase, donde las mismas políticas se evalúan igual.
  */
+import { randomUUID } from 'node:crypto'
 import { comoServicio, conSesion, type Sesion } from '../sesion'
+import { hashearCredencial } from '../credenciales'
 import { obtenerBase, describirMotor } from '../client'
 
 let pasaron = 0
@@ -73,6 +75,29 @@ const ENTIDADES_PRUEBA = ['Carrero de prueba', 'Productor de prueba verificar', 
 const PILA_PRUEBA = 'VERIF-PRUEBA'
 
 /**
+ * Los tres usuarios que esta verificación necesita, y que se crea sola.
+ *
+ * Antes salían de la siembra —coordinacion, planta, pv02—, pero una base de
+ * producción se entrega con un solo usuario y esos no existen. Creárselos acá
+ * hace que la comprobación sirva contra cualquier base, que es justo cuando más
+ * importa: recién creada y antes de entregarla.
+ *
+ * Nacen desactivados a propósito. No hace falta que entren —la verificación
+ * arma la sesión directamente, sin login— y así no aparecen ni un segundo en el
+ * selector de la pantalla de ingreso, que solo ofrece perfiles activos.
+ *
+ * usuario, nombre, rol, código de sitio
+ */
+const PERFILES_PRUEBA: ReadonlyArray<readonly [string, string, 'admin' | 'vigilador', string | null]> = [
+  ['verif_admin',  'Verificación — coordinación', 'admin',     null],
+  ['verif_planta', 'Verificación — Planta',       'vigilador', 'PVRV'],
+  ['verif_punto',  'Verificación — punto verde',  'vigilador', 'PV-02'],
+  // PV-03 es el punto que solo informa el conteo del día (carga_detallada en
+  // false), y eso es justo lo que separa "visitas" de "vecinos identificados".
+  ['verif_andes',  'Verificación — solo conteo',  'vigilador', 'PV-03'],
+]
+
+/**
  * Una comprobación que no se puede hacer sobre esta base.
  *
  * No es lo mismo que fallar. Las que miran la cadena del compost necesitan
@@ -115,28 +140,58 @@ async function limpiarRastros() {
       [PILA_PRUEBA],
     )
     await tx.consultar('delete from pilas where codigo = $1', [PILA_PRUEBA])
+    // Último: casi todas las tablas de arriba los referencian con `on delete
+    // restrict`, así que hasta acá no se pueden sacar.
+    await tx.consultar('delete from perfiles where usuario = any($1::text[])', [
+      PERFILES_PRUEBA.map((p) => p[0]),
+    ])
   })
+}
+
+/**
+ * Crea los usuarios de prueba y devuelve sus sesiones. La credencial es
+ * un hash de algo al azar: nadie tiene que poder entrar con ellos.
+ */
+async function sesionesDePrueba(): Promise<Record<'admin' | 'planta' | 'punto' | 'andes', Sesion>> {
+  const filas = await comoServicio(async (tx) => {
+    for (const [usuario, nombre, rol, sitioCodigo] of PERFILES_PRUEBA) {
+      await tx.consultar(
+        `insert into perfiles (usuario, nombre, rol, sitio_id, credencial_hash, sesion_horas, activo)
+         select $1, $2, $3,
+                case when $4::text is null then null else (select id from sitios where codigo = $4) end,
+                $5, null, false
+          where not exists (select 1 from perfiles where lower(usuario) = lower($1))`,
+        [usuario, nombre, rol, sitioCodigo, hashearCredencial(randomUUID())],
+      )
+    }
+    return tx.consultar<{ id: string; usuario: string; rol: 'admin' | 'vigilador'; sitio_id: string | null; nombre: string }>(
+      `select id, usuario, rol, sitio_id, nombre from perfiles where usuario = any($1::text[])`,
+      [PERFILES_PRUEBA.map((p) => p[0])],
+    )
+  })
+
+  const buscar = (u: string): Sesion => {
+    const p = filas.find((x) => x.usuario === u)
+    if (!p) throw new Error(`No se pudo crear el usuario de prueba ${u}.`)
+    if (p.rol === 'vigilador' && !p.sitio_id) {
+      throw new Error(`Falta el sitio de ${u}. ¿Están cargados los datos base? Correr: npm run db:sembrar`)
+    }
+    return { perfilId: p.id, rol: p.rol, sitioId: p.sitio_id, nombre: p.nombre }
+  }
+
+  return {
+    admin: buscar('verif_admin'),
+    planta: buscar('verif_planta'),
+    punto: buscar('verif_punto'),
+    andes: buscar('verif_andes'),
+  }
 }
 
 async function main() {
   console.log(`\n  Verificación de permisos · ${describirMotor()}\n`)
   await limpiarRastros()
 
-  const perfiles = await comoServicio((tx) =>
-    tx.consultar<{ id: string; usuario: string; rol: 'admin' | 'vigilador'; sitio_id: string | null; nombre: string }>(
-      `select id, usuario, rol, sitio_id, nombre from perfiles
-        where usuario in ('coordinacion', 'planta', 'pv02')`,
-    ),
-  )
-  const buscar = (u: string) => {
-    const p = perfiles.find((x) => x.usuario === u)
-    if (!p) throw new Error(`Falta el usuario ${u}. Correr: npm run db:sembrar`)
-    return { perfilId: p.id, rol: p.rol, sitioId: p.sitio_id, nombre: p.nombre } satisfies Sesion
-  }
-
-  const admin = buscar('coordinacion')
-  const planta = buscar('planta')
-  const otroPunto = buscar('pv02')
+  const { admin, planta, punto: otroPunto, andes } = await sesionesDePrueba()
 
   // Contra una base recién creada no hay nada cargado, y una comprobación sobre
   // la nada engaña en las dos direcciones: "la coordinadora ve los movimientos"
@@ -543,14 +598,8 @@ async function main() {
   // ═══ Conteo diario ════════════════════════════════════════════════════
   console.log('\n  Conteo diario de vecinos')
 
-  const [andes] = await comoServicio((tx) =>
-    tx.consultar<{ id: string; sitio_id: string }>(
-      "select id, sitio_id from perfiles where usuario = 'pv03'",
-    ),
-  )
-  const sesionAndes: Sesion = {
-    perfilId: andes.id, rol: 'vigilador', sitioId: andes.sitio_id, nombre: 'Paso de los Andes',
-  }
+  // El punto que solo informa el conteo del día, no vecino por vecino.
+  const sesionAndes = andes
 
   const antesConteo = await contar(admin, 'select count(*) c from conteos_diarios')
   for (const cuantos of [15, 18]) {

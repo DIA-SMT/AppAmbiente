@@ -327,6 +327,33 @@ table.datos tbody tr:hover td { background: var(--panel-2); }
   .contenido { padding: 18px 16px; }
   .tarjeta { padding: 17px; }
   h1 { font-size: 1.55rem; }
+
+  /* Los rótulos en mayúsculas quedaban en 11,5 px. En una pantalla chica, con
+     sol encima y sin anteojos, eso no se lee. Sube a 12,6 px sólo en celular:
+     en una computadora el tamaño original está bien y ocupa menos. */
+  .campo > label, .etiqueta { font-size: .79rem; }
+}
+
+/* ── Tocar con el dedo ───────────────────────────────────────────────────
+   Un enlace vale lo que mide: si es un renglón de texto, mide quince píxeles
+   de alto y no hay dedo que le acierte. En el listado de movimientos el número
+   de cada fila —que es el que abre el detalle— medía 31 × 15, y varios enlaces
+   sueltos del panel andaban en 18 o 20 de alto.
+
+   Va con `pointer: coarse` y no con un ancho: lo que decide si hace falta un
+   blanco grande es que se toque con el dedo, no que la pantalla sea angosta.
+   Una tablet grande con touch lo necesita igual, y una ventana chica de
+   escritorio con mouse no. */
+@media (pointer: coarse) {
+  table.datos a,
+  .tocable {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    /* El área crece hacia afuera sin correr el texto de su lugar. */
+    margin-block: -10px;
+    padding-block: 10px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

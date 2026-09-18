@@ -321,3 +321,122 @@ export function sentenciasBase(): Sentencia[] {
 
   return s
 }
+
+/**
+ * Pone al día una base que ya existe.
+ *
+ * `sentenciasBase()` sirve para una base nueva: inserta lo que falta y no toca
+ * lo que está. Eso es lo correcto la primera vez y no alcanza después. Cuando
+ * las listas de este archivo cambian —y cambiaron entero al leer los
+ * formularios de la Secretaría— una base ya creada queda con los nombres
+ * viejos, los sitios viejos y las corrientes que ya nadie usa, y sembrar de
+ * nuevo no arregla nada porque no actualiza.
+ *
+ * Esto sí actualiza, y da de baja lo que dejó de estar en las listas. No borra:
+ * en este sistema nada se borra, así que lo que sale de la lista queda inactivo
+ * —deja de ofrecerse en el celular— y los movimientos que lo usaron se siguen
+ * viendo igual.
+ *
+ * LO QUE NO TOCA: los usuarios. Una credencial cambiada desde la pantalla no se
+ * pisa nunca desde acá.
+ */
+export function sentenciasPonerAlDia(): Sentencia[] {
+  const s: Sentencia[] = []
+
+  // ── Sitios ────────────────────────────────────────────────────────────
+  for (const [codigo, nombre, tipo, direccion, orden] of SITIOS) {
+    s.push({
+      sql: `insert into sitios (codigo, nombre, tipo, direccion, orden)
+            values ($1, $2, $3, $4, $5)
+            on conflict (codigo) do update
+              set nombre = excluded.nombre, tipo = excluded.tipo,
+                  direccion = excluded.direccion, orden = excluded.orden,
+                  activo = true`,
+      params: [codigo, nombre, tipo, direccion, orden],
+    })
+  }
+  s.push({
+    sql: `update sitios set activo = false
+           where codigo <> all ($1::text[]) and activo`,
+    params: [SITIOS.map((x) => x[0])],
+  })
+
+  // ── Recipientes ───────────────────────────────────────────────────────
+  for (const [codigo, nombre, plural, decimales, factor, orden] of UNIDADES) {
+    s.push({
+      sql: `insert into unidades (codigo, nombre, nombre_plural, decimales, factor_m3, orden)
+            values ($1, $2, $3, $4, $5, $6)
+            on conflict (codigo) do update
+              set nombre = excluded.nombre, nombre_plural = excluded.nombre_plural,
+                  decimales = excluded.decimales, factor_m3 = excluded.factor_m3,
+                  orden = excluded.orden, activo = true`,
+      params: [codigo, nombre, plural, decimales, factor, orden],
+    })
+  }
+  s.push({
+    sql: `update unidades set activo = false where codigo <> all ($1::text[]) and activo`,
+    params: [UNIDADES.map((x) => x[0])],
+  })
+
+  // ── Corrientes ────────────────────────────────────────────────────────
+  // El nombre es la llave acá: no hay código. Una corriente que cambia de
+  // nombre se carga como nueva y la vieja queda inactiva, que es lo honesto —
+  // no sabemos si «Residuos de poda» y «Poda y orgánico» son lo mismo, eso lo
+  // dice la Secretaría.
+  for (const [nombre, categoria, flujos, tipos, unidad, sugerencias, color, orden] of MATERIALES) {
+    const codigos = [
+      ...new Set([
+        ...flujos.flatMap((f) => RECIPIENTES_POR_FLUJO[f] ?? ['m3']),
+        ...(RECIPIENTES_EXTRA[nombre] ?? []),
+      ]),
+    ]
+    s.push({
+      sql: `insert into materiales
+              (nombre, categoria, flujos, tipos, unidad_default_id, unidades_permitidas, sugerencias, color, orden)
+            select $1, $2, $3::text[], $4::text[], u.id,
+                   (select coalesce(array_agg(x.id order by x.orden), array[u.id])
+                      from unidades x where x.codigo = any($5::text[]) and x.activo),
+                   $6::numeric[], $7, $8
+              from unidades u where u.codigo = $9
+            on conflict (lower(nombre)) do update
+              set categoria = excluded.categoria, flujos = excluded.flujos,
+                  tipos = excluded.tipos, unidad_default_id = excluded.unidad_default_id,
+                  unidades_permitidas = excluded.unidades_permitidas,
+                  sugerencias = excluded.sugerencias, color = excluded.color,
+                  orden = excluded.orden, activo = true`,
+      params: [nombre, categoria, flujos, tipos, codigos, sugerencias, color, orden, unidad],
+    })
+  }
+  s.push({
+    sql: `update materiales set activo = false
+           where activo
+             and lower(nombre) <> all (array(select lower(x) from unnest($1::text[]) as x))`,
+    params: [MATERIALES.map((x) => x[0])],
+  })
+
+  // ── Contenedores ──────────────────────────────────────────────────────
+  // Los que quedaron apuntando a una corriente dada de baja dejan de ofrecerse.
+  s.push({
+    sql: `update contenedores set activo = false
+           where activo and material_id in (select id from materiales where not activo)`,
+    params: [],
+  })
+  s.push({
+    sql: `insert into contenedores (codigo, tipo, capacidad_m3, sitio_actual_id, material_id, estado)
+          select s.codigo || ' · ' || m.nombre, 'contenedor', 6, s.id, m.id, 'en_sitio'
+            from sitios s
+            cross join materiales m
+           where s.tipo = 'punto_verde' and s.activo and m.activo
+             and m.nombre = any($1::text[])
+          on conflict (codigo) do nothing`,
+    params: [CORRIENTES_CON_CONTENEDOR],
+  })
+
+  // Y PV-03 sigue siendo el único que sólo informa el conteo del día.
+  s.push({
+    sql: `update sitios set carga_detallada = (codigo <> 'PV-03') where tipo = 'punto_verde'`,
+    params: [],
+  })
+
+  return s
+}

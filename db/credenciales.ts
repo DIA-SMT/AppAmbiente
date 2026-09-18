@@ -40,11 +40,12 @@ export function esPinValido(pin: string): boolean {
 /**
  * La contraseña de una cuenta de coordinación.
  *
- * Doce caracteres y no cuatro dígitos, porque no es lo mismo: el PIN del
- * vigilador lo protege el bloqueo por intentos y que solo pueda escribir
- * movimientos de su punto; una cuenta de coordinación ve los teléfonos de los
- * vecinos y la auditoría entera, desde cualquier lado y sin más límite.
+ * El mínimo lo eligió quien entrega el sistema. Lo que cuida de verdad a estas
+ * cuentas no es el largo: es el bloqueo por intentos fallidos de
+ * src/lib/acceso.ts —cinco errores seguidos y queda trabada cinco minutos, así
+ * que no se la puede probar a mano— y que la sesión venza a las doce horas, a
+ * diferencia de la del vigilador, que no vence nunca.
  */
 export function esClaveValida(clave: string): boolean {
-  return clave.trim().length >= 12 && clave.trim().length <= 128
+  return clave.trim().length >= 6 && clave.trim().length <= 128
 }

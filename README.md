@@ -56,7 +56,7 @@ Una base que se entrega tiene **una sola puerta**:
 Con esa cuenta se entra a **Usuarios** y se crean las dos clases que existen:
 
 - **De coordinación**: ve los tres flujos, los datos de los vecinos y la auditoría.
-  La contraseña la escribe quien la va a usar, de 12 caracteres para arriba, y el
+  La contraseña la escribe quien la va a usar, de 6 caracteres para arriba, y el
   sistema nunca la inventa ni la vuelve a mostrar.
 - **De punto**: sólo carga movimientos del punto que se le asigne. Lleva un PIN de
   cuatro dígitos, que el sistema puede inventar y que se muestra una sola vez. Es
@@ -172,7 +172,7 @@ esperando sin decir por qué.
 npm run db:sql
 ```
 
-Escribe `db/produccion.sql` (unos 130 KB): las 18 migraciones en orden, las filas
+Escribe `db/produccion.sql` (unos 175 KB): las 22 migraciones en orden, las filas
 de `app.migraciones` y los datos base. Se pega entero en **SQL Editor → New query
 → Run**, y al final devuelve una tabla con lo que quedó cargado.
 
@@ -215,9 +215,21 @@ Contra un Postgres de verdad esto **falla** mientras algún usuario conserve la 
 de fábrica. Es a propósito: están publicadas en este repositorio. Se cambian desde
 *Usuarios* y se vuelve a correr.
 
-Una comprobación queda *sin datos para probar* —la cadena del compost necesita
-movimientos vinculados a pilas, y una base nueva no los tiene hasta que la Planta
-cargue el primer camión—. Eso no es una falla.
+#### Actualizar una base que ya está andando
+
+Cuando la base ya está en uso no va el archivo completo sino el incremental:
+
+```bash
+npm run db:sql -- --desde <la primera migración que falte>
+```
+
+Escribe `db/actualizacion.sql`, que arranca con un guardián al revés que el otro:
+aborta si falta alguna migración anterior o si la primera que trae ya está aplicada.
+
+**El orden importa y no lo cuida nadie**: el despliegue en Vercel y el SQL pegado en
+el editor son dos pasos sueltos. Primero se aplica el SQL y después se sube el build.
+Al revés, la app queda pidiéndole a la base cosas que todavía no existen, y una
+pantalla que se apoya en una función nueva deja de abrir hasta que el SQL entre.
 
 #### Lo que la base nueva NO trae
 
@@ -252,7 +264,7 @@ coordinación.
 
 ```
 db/
-  migrations/        19 migraciones SQL, en orden. Es la fuente de verdad del modelo.
+  migrations/        22 migraciones SQL, en orden. Es la fuente de verdad del modelo.
   client.ts          conexión: PGlite o postgres-js según DATABASE_URL
   sesion.ts          conSesion() pone la identidad en la base antes de consultar
   credenciales.ts    hasheo de PIN con scrypt

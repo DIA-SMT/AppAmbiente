@@ -13,6 +13,7 @@ const ACCIONES: Record<string, { rotulo: string; chip: string }> = {
   insert: { rotulo: 'Alta', chip: 'chip ingreso' },
   update: { rotulo: 'Cambio', chip: 'chip diferida' },
   anular: { rotulo: 'Anulación', chip: 'chip anulado' },
+  eliminar: { rotulo: 'Eliminación', chip: 'chip anulado' },
 }
 
 const TABLAS: Record<string, string> = {
@@ -80,7 +81,10 @@ export default async function PantallaAuditoria({
       `select a.id::text as id, a.creado_en, a.tabla, a.registro_id, a.accion, a.actor_rol,
               p.nombre as actor_nombre, p.usuario as actor_usuario,
               m.numero::int as movimiento_numero,
-              coalesce(a.despues ->> 'nombre', a.despues ->> 'usuario', a.despues ->> 'patente') as etiqueta,
+              -- Una eliminación no tiene "después": el nombre de lo que se fue
+              -- está en "antes" y es lo único que la vuelve legible.
+              coalesce(a.despues ->> 'nombre', a.despues ->> 'usuario', a.despues ->> 'patente',
+                       a.antes ->> 'nombre', a.antes ->> 'usuario') as etiqueta,
               a.despues ->> 'motivo_anulacion' as motivo
          from auditoria a
          left join perfiles p on p.id = a.actor_id
@@ -113,7 +117,7 @@ export default async function PantallaAuditoria({
       <header className="pila-chica">
         <h1>Auditoría</h1>
         <p className="menor gris">
-          Qué se cargó, qué se cambió, qué se anuló, quién y cuándo.
+          Qué se cargó, qué se cambió, qué se anuló, qué usuario se eliminó, quién y cuándo.
         </p>
       </header>
 

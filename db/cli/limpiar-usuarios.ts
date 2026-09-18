@@ -8,11 +8,18 @@
  * puerta de la Dirección de IA, para que desde ahí se creen por pantalla la
  * cuenta de coordinación y los usuarios de cada punto.
  *
- * Borra de verdad, que es lo único que se borra en este sistema, y sólo puede
- * hacerlo porque son usuarios que nunca cargaron nada: si alguno tiene un
- * movimiento, un conteo o un pedido a su nombre, la base lo rechaza —las claves
- * foráneas están en `on delete restrict`— y entonces lo que corresponde es
- * desactivarlo, no borrarlo. El archivo hace las dos cosas y avisa cuál aplicó.
+ * Borra de verdad, que es lo único que se borra en este sistema, y sólo a los
+ * que nunca cargaron nada: al que dejó algo a su nombre lo desactiva, que corta
+ * el acceso igual sin perder quién hizo qué. El archivo hace las dos cosas y
+ * avisa cuál aplicó.
+ *
+ * Quién entra en cada grupo no lo decide este archivo: lo decide la base, con
+ * app.rastro_de_perfil() y app.eliminar_perfil() de la 0022. Antes acá había una
+ * lista propia de seis `exists`, y al quedarse corta —no miraba vecinos,
+ * entidades, importaciones ni los controles de pila de proceso— podía mandar al
+ * DELETE a alguien que la base sí retiene: las cuatro claves foráneas que están
+ * en `on delete set null` lo habrían dejado pasar perdiendo en silencio quién
+ * cargó esos vecinos.
  */
 import '../entorno'
 import { writeFileSync } from 'node:fs'
@@ -41,52 +48,63 @@ export function construirLimpieza(): string {
 -- QUÉ HACE
 --   A los usuarios que sobran los BORRA si nunca cargaron nada, y si cargaron
 --   algo los DESACTIVA, que corta el acceso igual sin perder el rastro de quién
---   hizo qué. Al final devuelve la lista de lo que quedó.
+--   hizo qué. Quién cae en cada grupo lo decide la base, no este archivo. Al
+--   final devuelve la lista de lo que quedó.
 --
 -- CÓMO SE USA
 --   Supabase → SQL Editor → New query → pegar todo esto → Run.
+--   Antes tiene que estar aplicada la migración 0022 (db/actualizacion.sql).
 -- ${'═'.repeat(71)}
+
+do $guardian$
+begin
+  if to_regprocedure('app.rastro_de_perfil(uuid)') is null then
+    raise exception 'Falta la migración 0022. Aplicá db/actualizacion.sql antes que este archivo.';
+  end if;
+end
+$guardian$;
+
+-- Las dos funciones de la 0022 sólo le contestan a una sesión de coordinación, y
+-- un editor SQL no tiene ninguna. Presentarse como la cuenta que va a quedar no
+-- es un rodeo: es la que va a figurar como autora de estas bajas en la auditoría.
+select set_config(
+  'request.jwt.claims',
+  json_build_object(
+    'sub', (select id from perfiles where lower(usuario) = ${literal(quedan[0].toLowerCase())}),
+    'rol', 'admin'
+  )::text,
+  false);
 
 do $limpieza$
 declare
-  sobran uuid[];
-  con_rastro uuid[];
+  p record;
+  borrados     int := 0;
+  desactivados int := 0;
 begin
-  select coalesce(array_agg(id), '{}')
-    into sobran
-    from perfiles
-   where lower(usuario) <> all (array[${quedan.map((u) => literal(u.toLowerCase())).join(', ')}]);
+  for p in
+    select id, usuario
+      from perfiles
+     where lower(usuario) <> all (array[${quedan.map((u) => literal(u.toLowerCase())).join(', ')}])
+     order by usuario
+  loop
+    -- Lo que retiene a un usuario lo cuenta la base sobre las once tablas y la
+    -- auditoría. Repetir la cuenta acá fue el error de la versión anterior.
+    if app.rastro_de_perfil(p.id) is not null then
+      update perfiles set activo = false where id = p.id and activo;
+      desactivados := desactivados + 1;
+    else
+      perform app.eliminar_perfil(p.id);
+      borrados := borrados + 1;
+    end if;
+  end loop;
 
-  if array_length(sobran, 1) is null then
+  if borrados + desactivados = 0 then
     raise notice 'No hay usuarios de más: no se tocó nada.';
     return;
   end if;
 
-  -- Los que dejaron algo cargado no se pueden borrar sin romper la trazabilidad.
-  select coalesce(array_agg(distinct p.id), '{}')
-    into con_rastro
-    from perfiles p
-   where p.id = any (sobran)
-     and (
-       exists (select 1 from movimientos      x where x.cargado_por_id    = p.id)
-       or exists (select 1 from movimientos      x where x.anulado_por_id = p.id)
-       or exists (select 1 from pila_controles   x where x.registrado_por_id = p.id)
-       or exists (select 1 from conteos_diarios  x where x.cargado_por_id = p.id)
-       or exists (select 1 from pedidos_recambio x where x.pedido_por_id  = p.id)
-       or exists (select 1 from pedidos_recambio x where x.avisado_por_id = p.id)
-     );
-
-  update perfiles set activo = false
-   where id = any (con_rastro) and activo;
-
-  delete from perfiles
-   where id = any (sobran)
-     and not (id = any (con_rastro));
-
-  raise notice 'Usuarios desactivados por tener movimientos a su nombre: %',
-    coalesce(array_length(con_rastro, 1), 0);
-  raise notice 'Usuarios borrados: %',
-    coalesce(array_length(sobran, 1), 0) - coalesce(array_length(con_rastro, 1), 0);
+  raise notice 'Usuarios desactivados por tener algo cargado a su nombre: %', desactivados;
+  raise notice 'Usuarios borrados: %', borrados;
 end
 $limpieza$;
 
@@ -101,6 +119,9 @@ begin
   end if;
 end
 $control$;
+
+-- Y devolver la sesión a como estaba, que la de arriba era prestada.
+select set_config('request.jwt.claims', '', false);
 
 -- Lo que quedó. Esta es la tabla que devuelve el editor.
 select usuario,

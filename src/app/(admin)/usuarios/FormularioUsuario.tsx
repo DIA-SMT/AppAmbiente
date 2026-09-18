@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useEffect, useRef, useState } from 'react'
+import { createContext, useActionState, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useFormStatus } from 'react-dom'
 import { accionSobreUsuario, crearUsuario, type EstadoUsuario } from './acciones'
 import estilos from '../gente.module.css'
@@ -18,6 +18,10 @@ export interface PerfilParaAcciones {
   rol: 'admin' | 'vigilador'
   activo: boolean
   trabado: boolean
+  /** Lo que este usuario dejó hecho, en una frase. Null si no dejó nada. */
+  rastro: string | null
+  /** El usuario con el que está abierta esta pantalla. */
+  esVos: boolean
 }
 
 function Pin({ pin, usuario }: { pin: string; usuario?: string }) {
@@ -146,12 +150,12 @@ export function FormularioUsuario({ sitios }: { sitios: SitioParaUsuario[] }) {
               type="password"
               className="control"
               autoComplete="new-password"
-              minLength={12}
+              minLength={6}
               maxLength={128}
               required
             />
             <span className="ayuda">
-              De 12 caracteres para arriba, y la elegís vos: el sistema no inventa
+              De 6 caracteres para arriba, y la elegís vos: el sistema no inventa
               contraseñas de coordinación. No se vuelve a mostrar.
             </span>
           </div>
@@ -195,10 +199,52 @@ export function FormularioUsuario({ sitios }: { sitios: SitioParaUsuario[] }) {
   )
 }
 
-function BotonFila({ rotulo }: { rotulo: string }) {
+/**
+ * El borrado, que no puede vivir dentro de la fila que borra.
+ *
+ * Todas las demás acciones dejan la fila en su lugar y contestan ahí mismo.
+ * Ésta la hace desaparecer: la respuesta trae el listado nuevo sin ese renglón,
+ * así que React desmonta el componente en el mismo commit en que le entrega el
+ * resultado y el «quedó eliminado» no llega a dibujarse nunca. Por eso tanto el
+ * estado de la acción como la pregunta de confirmación viven acá arriba, en algo
+ * que sobrevive al borrado, y bajan por contexto hasta el botón.
+ */
+interface Borrado {
+  /** Qué fila tiene la pregunta abierta. Una sola por vez. */
+  confirmando: string | null
+  preguntar: (id: string | null) => void
+  accion: (datos: FormData) => void
+}
+
+const Borrar = createContext<Borrado | null>(null)
+
+export function ListaDeUsuarios({ resumen, children }: { resumen: string; children: ReactNode }) {
+  const [estado, accion] = useActionState<EstadoUsuario, FormData>(accionSobreUsuario, {})
+  const [confirmando, preguntar] = useState<string | null>(null)
+
+  // Si salió bien, la fila ya no está y la pregunta se fue con ella. Si la base
+  // lo rechazó, la fila sigue: dejarle la pregunta abierta invita a insistir con
+  // algo que no va a cambiar de respuesta.
+  useEffect(() => {
+    if (estado.aviso || estado.error) preguntar(null)
+  }, [estado.aviso, estado.error])
+
+  return (
+    <Borrar.Provider value={{ confirmando, preguntar, accion }}>
+      <div className="fila menor gris">
+        <span>{resumen}</span>
+      </div>
+      {estado.error && <div className="aviso error" role="alert">{estado.error}</div>}
+      {estado.aviso && <div className="aviso exito" role="status">{estado.aviso}</div>}
+      {children}
+    </Borrar.Provider>
+  )
+}
+
+function BotonFila({ rotulo, clase = 'boton chico secundario' }: { rotulo: string; clase?: string }) {
   const { pending } = useFormStatus()
   return (
-    <button type="submit" className="boton chico secundario" disabled={pending}>
+    <button type="submit" className={clase} disabled={pending}>
       {pending ? 'Un momento…' : rotulo}
     </button>
   )
@@ -237,7 +283,17 @@ export function AccionesUsuario({ perfil }: { perfil: PerfilParaAcciones }) {
   // aparece recién cuando alguien lo pide: una caja de contraseña abierta en
   // cada fila de una lista es ruido, y encima invita a tocarla sin querer.
   const [cambiando, setCambiando] = useState(false)
+  // Eliminar no se deshace, así que va en dos pasos: el botón abre la pregunta
+  // y recién la respuesta borra. Los dos pasos los lleva la lista, no la fila:
+  // ver ListaDeUsuarios.
+  const borrado = useContext(Borrar)
+  const borrando = borrado?.confirmando === perfil.id
   const esCoordinacion = perfil.rol === 'admin'
+
+  // Sobre el propio usuario no se dice nada de eliminar: desactivarse tampoco se
+  // puede, ya lo avisa esa acción, y repetirlo en cada fila es ruido.
+  const sePuedeEliminar = Boolean(borrado) && !perfil.esVos && perfil.rastro === null
+  const retenido = !perfil.esVos && perfil.rastro !== null
 
   useEffect(() => {
     if (estado.aviso) setCambiando(false)
@@ -253,7 +309,7 @@ export function AccionesUsuario({ perfil }: { perfil: PerfilParaAcciones }) {
           <button
             type="button"
             className="boton chico secundario"
-            onClick={() => setCambiando(true)}
+            onClick={() => { setCambiando(true); borrado?.preguntar(null) }}
           >
             Cambiar contraseña
           </button>
@@ -267,7 +323,47 @@ export function AccionesUsuario({ perfil }: { perfil: PerfilParaAcciones }) {
         {perfil.trabado && (
           <AccionDeFila accion={accion} id={perfil.id} valor="desbloquear" rotulo="Desbloquear" />
         )}
+        {sePuedeEliminar && !borrando && (
+          <button
+            type="button"
+            className="boton chico secundario"
+            onClick={() => { borrado?.preguntar(perfil.id); setCambiando(false) }}
+          >
+            Eliminar
+          </button>
+        )}
       </div>
+
+      {borrado && borrando && (
+        <div className={estilos.confirmarCuerpo}>
+          <span>
+            Se borra <span className="fuerte">{perfil.usuario}</span> de la lista y no hay vuelta
+            atrás. No se pierde nada: no quedó ni un movimiento ni un registro a su nombre. Si
+            más adelante hace falta, se crea de nuevo.
+          </span>
+          <div className={estilos.acciones}>
+            <form action={borrado.accion}>
+              <input type="hidden" name="id" value={perfil.id} />
+              <input type="hidden" name="accion" value="eliminar" />
+              <BotonFila rotulo="Sí, eliminar" clase="boton peligro chico" />
+            </form>
+            <button
+              type="button"
+              className="boton chico fantasma"
+              onClick={() => borrado.preguntar(null)}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {retenido && (
+        <span className="menor gris">
+          No se puede eliminar: {perfil.rastro}.{' '}
+          {perfil.activo ? 'Desactivalo y deja de entrar.' : 'Ya está desactivado: no puede entrar.'}
+        </span>
+      )}
 
       {esCoordinacion && cambiando && (
         <form action={accion} className="pila-chica">
@@ -283,12 +379,12 @@ export function AccionesUsuario({ perfil }: { perfil: PerfilParaAcciones }) {
               type="password"
               className="control"
               autoComplete="new-password"
-              minLength={12}
+              minLength={6}
               maxLength={128}
               autoFocus
               required
             />
-            <span className="ayuda">De 12 caracteres para arriba. No se vuelve a mostrar.</span>
+            <span className="ayuda">De 6 caracteres para arriba. No se vuelve a mostrar.</span>
           </div>
           <div className={estilos.acciones}>
             <BotonFila rotulo="Guardar contraseña" />

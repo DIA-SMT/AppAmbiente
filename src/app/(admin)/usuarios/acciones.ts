@@ -10,9 +10,13 @@
  * cuatro dígitos que el sistema puede inventar: se teclea en la calle, y lo que
  * la protege no es el largo sino el bloqueo por intentos y que solo pueda
  * escribir movimientos de su propio sitio. La de coordinación lleva una
- * contraseña escrita de doce caracteres para arriba, que la elige una persona y
+ * contraseña escrita de seis caracteres para arriba, que la elige una persona y
  * el sistema nunca inventa: ve los teléfonos de los vecinos y la auditoría
  * entera.
+ *
+ * Eliminar un usuario es lo único que este sistema borra de verdad, y solo
+ * cuando no hay nada que perder. Quién puede y cuándo lo decide
+ * app.eliminar_perfil, del lado de la base.
  */
 
 import { randomInt } from 'node:crypto'
@@ -44,6 +48,20 @@ function traducir(e: unknown): string {
   return mensajeDeError(e)
 }
 
+/**
+ * Lo que aborta app.eliminar_perfil ya viene escrito para la pantalla —«No se
+ * puede eliminar: cargó 513 movimientos»— y es lo único que explica por qué ese
+ * usuario sigue en la lista: traducirlo lo cambiaría por un "probá de nuevo"
+ * que no le sirve a nadie. Lo que no salió de la función —un permiso, la
+ * migración sin aplicar— sí pasa por traducir(): eso es un problema del sistema
+ * y no una respuesta para quien está mirando la lista.
+ */
+function motivoDeLaBase(e: unknown): string {
+  const m = (e instanceof Error ? e.message : String(e)).trim()
+  const tecnico = /permission denied|does not exist|invalid input|violates|relation |function app\./i.test(m)
+  return m && !tecnico ? m : traducir(e)
+}
+
 export async function crearUsuario(
   _previo: EstadoUsuario,
   datos: FormData,
@@ -66,7 +84,7 @@ export async function crearUsuario(
   if (rol === 'admin') {
     // Una cuenta de coordinación no tiene sitio: ve los tres flujos.
     if (!esClaveValida(clavePedida)) {
-      return { error: 'La contraseña de una cuenta de coordinación va de 12 caracteres para arriba. Elegila vos: el sistema no la inventa.' }
+      return { error: 'La contraseña de una cuenta de coordinación va de 6 caracteres para arriba. Elegila vos: el sistema no la inventa.' }
     }
   } else {
     if (!sitioId) return { error: 'Elegí a qué punto pertenece.' }
@@ -122,6 +140,9 @@ export async function accionSobreUsuario(
   if (accion === 'desactivar' && id === sesion.perfilId) {
     return { error: 'No podés desactivar tu propio usuario.' }
   }
+  if (accion === 'eliminar' && id === sesion.perfilId) {
+    return { error: 'No podés eliminar tu propio usuario.' }
+  }
 
   try {
     // Resetear el PIN de un punto: lo inventa el sistema y se muestra una vez.
@@ -148,7 +169,7 @@ export async function accionSobreUsuario(
     if (accion === 'clave') {
       const clave = String(datos.get('clave') ?? '')
       if (!esClaveValida(clave)) {
-        return { error: 'La contraseña va de 12 caracteres para arriba.' }
+        return { error: 'La contraseña va de 6 caracteres para arriba.' }
       }
       const filas = await consultarConSesion<{ usuario: string }>(
         sesion,
@@ -181,6 +202,26 @@ export async function accionSobreUsuario(
         aviso: accion === 'activar'
           ? `${filas[0].usuario} puede volver a entrar.`
           : `${filas[0].usuario} ya no puede entrar. Si tenía la sesión abierta, se le corta en el próximo pedido.`,
+      }
+    }
+
+    // Borrar de verdad, que en el resto del sistema no se hace nunca. Sale bien
+    // solo si el perfil no dejó rastro en ninguna tabla ni en la auditoría, y
+    // eso lo comprueba app.eliminar_perfil: la condición vive en la base, donde
+    // no depende de que la pantalla se haya acordado de mirarla.
+    if (accion === 'eliminar') {
+      try {
+        const filas = await consultarConSesion<{ usuario: string }>(
+          sesion,
+          'select app.eliminar_perfil($1) as usuario',
+          [id],
+        )
+        const usuario = filas[0]?.usuario
+        if (!usuario) return { error: 'Ese usuario no existe.' }
+        revalidatePath('/usuarios')
+        return { aviso: `${usuario} quedó eliminado.` }
+      } catch (e) {
+        return { error: motivoDeLaBase(e) }
       }
     }
 

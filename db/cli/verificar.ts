@@ -16,7 +16,6 @@ import { obtenerBase, describirMotor } from '../client'
 
 let pasaron = 0
 let fallaron = 0
-let omitidas = 0
 
 function revisar(descripcion: string, condicion: boolean, detalle = '') {
   if (condicion) {
@@ -35,6 +34,23 @@ async function debeFallar(descripcion: string, sesion: Sesion, sql: string, para
     revisar(descripcion, false, 'la consulta pasó y no debería')
   } catch (e) {
     revisar(descripcion, true, (e as Error).message.slice(0, 60))
+  }
+}
+
+/**
+ * Lo que dijo la base al rechazar una consulta.
+ *
+ * `debeFallar` alcanza cuando lo único que importa es que no pase. Algunos
+ * mensajes, en cambio, salen tal cual a la pantalla —app.eliminar_perfil le
+ * escribe a quien lo va a leer— y ahí hay que mirar qué dicen: un rechazo con
+ * el motivo equivocado es un rechazo que no se entiende.
+ */
+async function motivoDelRechazo(sesion: Sesion, sql: string, params: unknown[] = []): Promise<string> {
+  try {
+    await conSesion(sesion, (tx) => tx.consultar(sql, params))
+    return ''
+  } catch (e) {
+    return (e as Error).message
   }
 }
 
@@ -74,6 +90,8 @@ const TELEFONOS_PRUEBA = ['3814569988']
 const ENTIDAD_FIJA = 'Organización de prueba verificar'
 const ENTIDADES_PRUEBA = ['Carrero de prueba', 'Productor de prueba verificar', ENTIDAD_FIJA]
 const PILA_PRUEBA = 'VERIF-PRUEBA'
+/** De dónde dice venir la poda que forma la pila de prueba. */
+const PODA_PRUEBA = 'Poda de db:verificar'
 
 /**
  * Los tres usuarios que esta verificación necesita, y que se crea sola.
@@ -99,17 +117,24 @@ const PERFILES_PRUEBA: ReadonlyArray<readonly [string, string, 'admin' | 'vigila
 ]
 
 /**
- * Una comprobación que no se puede hacer sobre esta base.
+ * Los dos usuarios que esta verificación crea para probar el borrado.
  *
- * No es lo mismo que fallar. Las que miran la cadena del compost necesitan
- * movimientos vinculados a pilas, y una base recién creada no los tiene —ni los
- * va a tener hasta que la Planta cargue el primer camión—. Contarlas como
- * fallas haría que una base sana se vea rota.
+ * Van aparte de los cuatro de arriba porque ésos cargan movimientos y controles
+ * mientras corre esto: a los dos minutos de nacer ya no se pueden borrar, que es
+ * la otra mitad de lo que hay que probar.
+ *
+ *   efímero   el caso de la pantalla: se creó, nunca entró, no dejó nada.
+ *   auditado  el caso que ninguna clave foránea frena, porque auditoria.actor_id
+ *             no tiene: lo único que hizo fue cambiarse el nombre a sí mismo.
+ *
+ * usuario, nombre
  */
-function omitir(descripcion: string, porque: string) {
-  omitidas++
-  console.log(`  · ${descripcion}  → ${porque}`)
-}
+const USUARIO_EFIMERO = 'verif_efimero'
+const USUARIO_AUDITADO = 'verif_auditado'
+const PERFILES_A_BORRAR: ReadonlyArray<readonly [string, string]> = [
+  [USUARIO_EFIMERO,  'Verificación — nunca entró'],
+  [USUARIO_AUDITADO, 'Verificación — solo auditoría'],
+]
 
 /**
  * Borra lo que dejó una corrida anterior, para que correr esto dos veces dé el
@@ -144,7 +169,7 @@ async function limpiarRastros() {
     // Último: casi todas las tablas de arriba los referencian con `on delete
     // restrict`, así que hasta acá no se pueden sacar.
     await tx.consultar('delete from perfiles where usuario = any($1::text[])', [
-      PERFILES_PRUEBA.map((p) => p[0]),
+      [...PERFILES_PRUEBA.map((p) => p[0]), ...PERFILES_A_BORRAR.map((p) => p[0])],
     ])
   })
 }
@@ -574,27 +599,65 @@ async function main() {
   // La cadena completa: la composición de una pila sale de los ingresos que la
   // formaron, no de una declaración. Es lo que vuelve contestable la pregunta
   // "¿de dónde salió este camión de compost?".
-  const cadena = await conSesion(admin, (tx) =>
-    tx.consultar<{ pila: string; m3: string; procedencias: string | null }>(
+  //
+  // El ingreso y la salida los arma esta misma verificación sobre la pila de
+  // prueba. Antes se miraba lo primero que hubiera cargado la Planta y eso
+  // dejaba la comprobación colgada de los datos: alcanzaba con que hubiera
+  // ingresos vinculados a pilas y ninguna salida todavía —que es exactamente la
+  // base de hoy— para que se diera por fallada sin que nada estuviera roto.
+  const [salida] = await comoServicio(async (tx) => {
+    const [pila] = await tx.consultar<{ id: string }>(
+      'select id from pilas where codigo = $1',
+      [PILA_PRUEBA],
+    )
+    if (!pila) throw new Error('Sin la pila de prueba no se puede armar la cadena del compost.')
+
+    const [ingreso] = await tx.consultar<{ id: string }>(
+      `insert into movimientos (flujo, tipo, sitio_id, pila_id, origen_clase, origen_detalle,
+                                destino_clase, destino_sitio_id, cargado_por_id, observaciones)
+       values ('planta', 'ingreso', $1, $2, 'texto', $3, 'sitio', $1, $4, $5)
+       returning id`,
+      [planta.sitioId, pila.id, PODA_PRUEBA, planta.perfilId, MARCA],
+    )
+    // La unidad tiene que convertir a m³: con kilos o bolsas el volumen que
+    // formó la pila da cero y la comprobación pasaría por el motivo equivocado.
+    await tx.consultar(
+      `insert into movimiento_items (movimiento_id, material_id, cantidad, unidad_id)
+       select $1,
+              (select id from materiales
+                where activo and 'planta' = any(flujos) and 'ingreso' = any(tipos)
+                order by orden limit 1),
+              5,
+              (select id from unidades where factor_m3 > 0 order by factor_m3 limit 1)`,
+      [ingreso.id],
+    )
+
+    return tx.consultar<{ id: string }>(
+      `insert into movimientos (flujo, tipo, sitio_id, pila_id, origen_clase, origen_sitio_id,
+                                destino_clase, destino_detalle, tipo_valorizacion,
+                                cargado_por_id, observaciones)
+       values ('planta', 'salida', $1, $2, 'sitio', $1, 'texto', 'Huerta de db:verificar',
+               'uso_interno_huerta', $3, $4)
+       returning id`,
+      [planta.sitioId, pila.id, planta.perfilId, MARCA],
+    )
+  })
+
+  const [cadena] = await conSesion(admin, (tx) =>
+    tx.consultar<{ pila: string; m3: string | null; procedencias: string | null }>(
       `select pila, m3_que_la_formaron::text as m3, procedencias
          from v_trazabilidad_salidas
-        where m3_que_la_formaron > 0 and procedencias is not null
-        limit 1`,
+        where movimiento_id = $1`,
+      [salida.id],
     ),
   )
-  const hayCadena = await contar(admin, 'select count(*) c from movimientos where pila_id is not null')
-  if (hayCadena === 0) {
-    omitir(
-      'una salida de compost sabe de qué pila y de qué poda viene',
-      'todavía no hay movimientos vinculados a pilas',
-    )
-  } else {
-    revisar(
-      'una salida de compost sabe de qué pila y de qué poda viene',
-      cadena.length === 1,
-      cadena[0] ? `${cadena[0].pila}: ${Number(cadena[0].m3).toFixed(0)} m³ de ${cadena[0].procedencias?.slice(0, 40)}…` : '',
-    )
-  }
+  revisar(
+    'una salida de compost sabe de qué pila y de qué poda viene',
+    Number(cadena?.m3 ?? 0) > 0 && cadena?.procedencias === PODA_PRUEBA,
+    cadena
+      ? `${cadena.pila}: ${Number(cadena.m3 ?? 0).toFixed(2)} m³ de ${cadena.procedencias ?? 'ninguna procedencia'}`
+      : 'la salida no aparece en v_trazabilidad_salidas',
+  )
 
   // ═══ Conteo diario ════════════════════════════════════════════════════
   console.log('\n  Conteo diario de vecinos')
@@ -754,6 +817,155 @@ async function main() {
     `${respuesta?.retirados ?? 0} retirados en ese punto`,
   )
 
+  // ═══ Eliminar usuarios ════════════════════════════════════════════════
+  //
+  // El único borrado que la app puede pedir, y existe para una sola cosa: sacar
+  // de la lista un usuario de prueba que nunca trabajó. La condición no vive en
+  // la pantalla sino en app.eliminar_perfil, así que se prueba desde acá, que es
+  // donde se ve si la base la cumple aunque nadie la mire.
+  console.log('\n  Eliminar usuarios')
+
+  // Nacen sin sesión puesta —comoServicio no pone claims— así que la línea de
+  // auditoría que deja el alta no los nombra a ellos como actores. Es lo mismo
+  // que pasa en la pantalla: el alta la firma la coordinadora, no el recién
+  // creado, y por eso un usuario nuevo empieza sin rastro propio.
+  for (const [usuario, nombre] of PERFILES_A_BORRAR) {
+    await comoServicio((tx) =>
+      tx.consultar(
+        `insert into perfiles (usuario, nombre, rol, credencial_hash, activo)
+         select $1, $2, 'admin', $3, false
+          where not exists (select 1 from perfiles where lower(usuario) = lower($1))`,
+        [usuario, nombre, hashearCredencial(randomUUID())],
+      ),
+    )
+  }
+
+  const [efimero] = await conSesion(admin, (tx) =>
+    tx.consultar<{ id: string; rastro: string | null }>(
+      'select id, app.rastro_de_perfil(id) as rastro from perfiles where usuario = $1',
+      [USUARIO_EFIMERO],
+    ),
+  )
+  revisar(
+    'un usuario recién creado no tiene ningún rastro',
+    Boolean(efimero?.id) && efimero.rastro === null,
+    efimero?.rastro ?? '',
+  )
+
+  // Éste hace una sola cosa, y sobre sí mismo: destrabarse el PIN, que es la
+  // acción más chica que hay en la pantalla. No queda apuntado en ninguna
+  // columna de ninguna tabla —ninguna clave foránea lo agarra— y aun así ya no
+  // se puede borrar, porque la auditoría se acuerda y no se le puede sacar el
+  // nombre a quien figura ahí.
+  const [auditado] = await conSesion(admin, (tx) =>
+    tx.consultar<{ id: string }>('select id from perfiles where usuario = $1', [USUARIO_AUDITADO]),
+  )
+  const sesionAuditado: Sesion = {
+    perfilId: auditado.id,
+    rol: 'admin',
+    sitioId: null,
+    nombre: PERFILES_A_BORRAR[1][1],
+  }
+  await conSesion(sesionAuditado, (tx) =>
+    tx.consultar('update perfiles set intentos_fallidos = 0 where id = $1', [auditado.id]),
+  )
+  const [soloAuditoria] = await conSesion(admin, (tx) =>
+    tx.consultar<{ rastro: string | null }>('select app.rastro_de_perfil($1) as rastro', [auditado.id]),
+  )
+  revisar(
+    'tocar algo y nada más ya deja rastro: la auditoría no tiene clave foránea',
+    soloAuditoria?.rastro === 'figura en la auditoría',
+    soloAuditoria?.rastro ?? 'sin rastro',
+  )
+
+  const [conRastro] = await conSesion(admin, (tx) =>
+    tx.consultar<{ rastro: string | null }>('select app.rastro_de_perfil($1) as rastro', [
+      planta.perfilId,
+    ]),
+  )
+  const rastroPlanta = conRastro?.rastro ?? ''
+  revisar(
+    'el que cargó movimientos sí, y se cuenta en castellano',
+    rastroPlanta.includes('movimiento'),
+    rastroPlanta || 'sin rastro',
+  )
+
+  await debeFallar(
+    'un vigilador no puede eliminar a nadie',
+    planta,
+    'select app.eliminar_perfil($1)',
+    [efimero.id],
+  )
+
+  // Contar el rastro es `security definer`: mira las once tablas enteras, que es
+  // justo lo que el vigilador no puede mirar. Sin esta guarda alcanzaba con el
+  // uuid de una coordinadora —sale de `anulado_por_id`, que sí puede leer— para
+  // averiguar cuánto cargó, sin permiso de ver una sola de esas filas.
+  await debeFallar(
+    'y tampoco puede preguntar qué dejó hecho otro usuario',
+    planta,
+    'select app.rastro_de_perfil($1)',
+    [admin.perfilId],
+  )
+  const sigueEstando = await contar(admin, 'select count(*) c from perfiles where usuario = $1', [
+    USUARIO_EFIMERO,
+  ])
+  revisar('y el usuario sigue estando después del intento', sigueEstando === 1)
+
+  // El orden de los controles adentro de la función también se prueba acá: la
+  // coordinadora tiene rastro de sobra, así que si el de "es tu propio usuario"
+  // viniera después, el error le contaría cuántos movimientos cargó en vez de
+  // decirle lo único que le sirve saber.
+  const propio = await motivoDelRechazo(admin, 'select app.eliminar_perfil($1)', [admin.perfilId])
+  revisar('nadie puede eliminarse a sí mismo', propio.includes('tu propio usuario'), propio.slice(0, 60))
+
+  const retenido = await motivoDelRechazo(admin, 'select app.eliminar_perfil($1)', [planta.perfilId])
+  revisar(
+    'al que trabajó no se lo elimina, y el error dice qué lo retiene',
+    rastroPlanta !== '' && retenido.includes(rastroPlanta),
+    retenido.slice(0, 80),
+  )
+
+  const porLaAuditoria = await motivoDelRechazo(admin, 'select app.eliminar_perfil($1)', [auditado.id])
+  revisar(
+    'al que solo figura en la auditoría, tampoco',
+    porLaAuditoria.includes('figura en la auditoría'),
+    porLaAuditoria.slice(0, 80),
+  )
+
+  const [borrado] = await conSesion(admin, (tx) =>
+    tx.consultar<{ usuario: string }>('select app.eliminar_perfil($1) as usuario', [efimero.id]),
+  )
+  const quedan = await contar(admin, 'select count(*) c from perfiles where usuario = $1', [
+    USUARIO_EFIMERO,
+  ])
+  revisar(
+    'al que nunca hizo nada sí, y desaparece de la lista',
+    borrado?.usuario === USUARIO_EFIMERO && quedan === 0,
+    `devolvió ${borrado?.usuario ?? 'nada'}, quedan ${quedan}`,
+  )
+
+  // El disparador de la 0009 es `after insert or update`: del borrado no se
+  // entera. La línea la escribe app.eliminar_perfil a mano, y sin ella la única
+  // acción del sistema que no se puede deshacer sería la única sin registro.
+  const [linea] = await conSesion(admin, (tx) =>
+    tx.consultar<{ borrado: string | null; actor: string | null; hash: string | null }>(
+      `select antes ->> 'usuario' as borrado,
+              actor_id::text    as actor,
+              antes ->> 'credencial_hash' as hash
+         from auditoria
+        where tabla = 'perfiles' and accion = 'eliminar' and registro_id = $1`,
+      [efimero.id],
+    ),
+  )
+  revisar(
+    'del borrado queda la línea de auditoría: quién eliminó a quién',
+    linea?.borrado === USUARIO_EFIMERO && linea?.actor === admin.perfilId && linea?.hash === null,
+    linea
+      ? `${linea.borrado} por ${linea.actor}${linea.hash === null ? '' : ', con la credencial adentro'}`
+      : 'no quedó ninguna línea',
+  )
+
   // ═══ Credenciales de fábrica ══════════════════════════════════════════
   //
   // Las claves de la siembra están publicadas en el repositorio. Sirven para la
@@ -851,7 +1063,7 @@ async function main() {
   })
 
   console.log(
-    `\n  ${pasaron} bien · ${fallaron} mal${omitidas ? ` · ${omitidas} sin datos para probar` : ''}\n`,
+    `\n  ${pasaron} bien · ${fallaron} mal\n`,
   )
   await (await obtenerBase()).cerrar()
   process.exit(fallaron === 0 ? 0 : 1)

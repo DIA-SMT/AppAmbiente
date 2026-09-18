@@ -13,6 +13,7 @@
     "db:sembrar": "tsx db/cli/sembrar.ts",
     "db:sql": "tsx db/cli/exportar-sql.ts",
     "db:usuarios": "tsx db/cli/limpiar-usuarios.ts",
+    "db:importar": "tsx db/cli/importar-planta.ts",
     "db:reset": "tsx db/cli/reset.ts",
     "preparar": "npm run db:migrar && npm run db:sembrar",
     "db:verificar": "tsx db/cli/verificar.ts"

@@ -1,0 +1,122 @@
+/* Lo propio del asistente de importación: el riel de pasos, la zona donde se
+   suelta el archivo, la rejilla de la asignación de columnas y las tablas que
+   se miran antes de guardar. Todo lo demás sale de globals.css. */
+
+/* ── El riel de pasos ─────────────────────────────────────────────────── */
+
+.riel {
+  list-style: none; counter-reset: paso; margin: 0; padding: 0;
+  display: flex; flex-wrap: wrap; gap: 8px 16px;
+}
+.paso {
+  counter-increment: paso;
+  display: flex; align-items: center; gap: 9px;
+  font-size: .84rem; font-weight: 700; color: var(--gris-suave);
+}
+.paso::before {
+  content: counter(paso);
+  flex: 0 0 26px; height: 26px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--panel-2); border: 1px solid var(--linea);
+  color: var(--gris); font-size: .78rem; font-weight: 800;
+}
+.rotulo { white-space: nowrap; }
+.paso[data-estado='actual'] { color: var(--tinta); }
+.paso[data-estado='actual']::before {
+  background: var(--azul); border-color: var(--azul); color: #fff;
+}
+.paso[data-estado='hecho'] { color: var(--gris); }
+.paso[data-estado='hecho']::before {
+  content: '✓';
+  background: var(--ingreso); border-color: var(--ingreso); color: #fff;
+}
+
+/* ── El archivo ───────────────────────────────────────────────────────── */
+
+.zona {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 30px 18px; text-align: center;
+  border: 2px dashed var(--linea-fuerte); border-radius: var(--r);
+  background: var(--panel-2); color: var(--gris);
+}
+.zona[data-encima='si'] {
+  border-color: var(--azul);
+  background: color-mix(in srgb, var(--azul) 7%, var(--panel));
+}
+/* El input está escondido pero es el que recibe el foco del teclado: sin esto
+   no hay ninguna señal de que está enfocado antes de apretar enter. */
+.zona:focus-within {
+  border-color: var(--azul);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--azul) 15%, transparent);
+}
+.entrada {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ── Rejillas de la asignación ────────────────────────────────────────── */
+
+.rejilla {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(232px, 1fr));
+  align-items: start;
+}
+
+/* Cada valor sin resolver es una pregunta con nombre propio, y el nombre es un
+   texto crudo del Excel: no se puede acortar sin perder de vista cuál era. */
+.pregunta { border-top: 1px solid var(--linea); padding-top: 12px; }
+.pregunta:first-child { border-top: 0; padding-top: 0; }
+.crudo { font-family: var(--mono); font-size: .86rem; text-transform: none; letter-spacing: 0; }
+
+/* ── Las cuentas del resultado ────────────────────────────────────────── */
+
+.cuentas {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+}
+.cuenta {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 12px 14px;
+  border: 1px solid var(--linea); border-radius: var(--r-chico);
+  background: var(--panel-2);
+}
+.cuenta b {
+  font-size: 1.45rem; font-weight: 800; color: var(--tinta);
+  font-variant-numeric: tabular-nums;
+}
+.cuenta[data-tono='problema'] b { color: var(--peligro); }
+.cuenta[data-tono='atencion'] b { color: var(--salida); }
+
+/* Una decisión que se toma adentro de un aviso —dejar entrar las filas del mes
+   vecino—. El área de toque abarca el texto y no sólo la casilla: se usa en
+   escritorio, pero abajo de 720 px una casilla sola son 13 px de blanco. */
+.casilla {
+  display: flex; gap: 9px; align-items: flex-start;
+  cursor: pointer; font-size: .92rem; line-height: 1.4;
+}
+.casilla input { margin-top: .18em; flex: none; width: 17px; height: 17px; }
+
+/* ── Tablas ───────────────────────────────────────────────────────────── */
+
+/* La muestra y los rechazos pueden traer decenas de filas. Sin techo, el botón
+   de confirmar queda a dos pantallas de scroll del número que hay que mirar. */
+.tablaAlta { max-height: 340px; overflow-y: auto; }
+
+/* `td.numero` existe en globals.css, el th no. */
+.thNumero { text-align: right; }
+
+/* ── Pie de cada paso ─────────────────────────────────────────────────── */
+
+.pie { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding-top: 4px; }
+
+@media (max-width: 720px) {
+  /* Cinco rótulos no entran en una pantalla angosta. Los números se quedan
+     —son la posición dentro del asistente— y el nombre queda sólo en el paso en
+     curso, que es el único que hace falta leer. */
+  .paso .rotulo { display: none; }
+  .paso[data-estado='actual'] .rotulo { display: inline; }
+
+  /* Los botones de cada paso se tocan con el pulgar: en fila quedan de 90 px. */
+  .pie :global(.boton) { flex: 1 1 100%; }
+}

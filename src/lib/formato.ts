@@ -57,7 +57,7 @@ export function mesCorto(v: Date | string | null | undefined) {
 export function fechaDeCalendario(v: Date | string | null | undefined): string {
   if (v === null || v === undefined || v === '') return '—'
   if (typeof v === 'string') {
-    const m = /^(d{4})-(d{2})-(d{2})/.exec(v)
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v)
     return m ? `${m[3]}/${m[2]}/${m[1]}` : '—'
   }
   if (Number.isNaN(v.getTime())) return '—'

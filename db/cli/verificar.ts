@@ -91,7 +91,7 @@ const PILA_PRUEBA = 'VERIF-PRUEBA'
  */
 const PERFILES_PRUEBA: ReadonlyArray<readonly [string, string, 'admin' | 'vigilador', string | null]> = [
   ['verif_admin',  'Verificación — coordinación', 'admin',     null],
-  ['verif_planta', 'Verificación — Planta',       'vigilador', 'PVRV'],
+  ['verif_planta', 'Verificación — Planta',       'vigilador', 'PVRV-VIV'],
   ['verif_punto',  'Verificación — punto verde',  'vigilador', 'PV-02'],
   // PV-03 es el punto que solo informa el conteo del día (carga_detallada en
   // false), y eso es justo lo que separa "visitas" de "vecinos identificados".
@@ -233,7 +233,7 @@ async function main() {
   // justamente lo que pasa desde que existe el flujo de Puntos Verdes.
   const plantaDesdeOtroPunto = await contar(
     otroPunto,
-    `select count(*) c from movimientos where sitio_id = (select id from sitios where codigo = 'PVRV')`,
+    `select count(*) c from movimientos where sitio_id = (select id from sitios where codigo = 'PVRV-VIV')`,
   )
   revisar(
     'un vigilador no ve movimientos de otro sitio',
@@ -262,8 +262,8 @@ async function main() {
     otroPunto,
     `insert into movimientos (flujo, tipo, sitio_id, origen_clase, origen_detalle,
                               destino_clase, destino_sitio_id, cargado_por_id)
-     values ('planta', 'ingreso', (select id from sitios where codigo = 'PVRV'),
-             'texto', 'prueba', 'sitio', (select id from sitios where codigo = 'PVRV'), $1)`,
+     values ('planta', 'ingreso', (select id from sitios where codigo = 'PVRV-VIV'),
+             'texto', 'prueba', 'sitio', (select id from sitios where codigo = 'PVRV-VIV'), $1)`,
     [otroPunto.perfilId],
   )
   await debeFallar(

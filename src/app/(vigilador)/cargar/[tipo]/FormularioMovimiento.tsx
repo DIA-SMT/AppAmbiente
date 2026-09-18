@@ -21,6 +21,7 @@ import {
   ETIQUETA_ENTIDAD, ETIQUETA_TIPO, ETIQUETA_VALORIZACION,
   cantidad, desdeInputFechaHora, fechaHora, numero, paraInputFechaHora,
 } from '@/lib/formato'
+import { valorizacionesDeFlujo } from '@/lib/recursos'
 import type {
   FilaPila, Flujo, ListasDelFormulario, Material, TipoValorizacion, Unidad,
 } from '@/lib/tipos'
@@ -35,7 +36,6 @@ const OTRO_DESTINO = 'otro-destino'
 const VECINO = 'vecino'
 const NUEVA = 'nueva'
 
-const VALORIZACIONES: TipoValorizacion[] = ['reutilizacion', 'venta', 'emprendimiento', 'otro']
 
 /** Lo único que un vigilador puede dar de alta desde la calle. */
 const TIPOS_ENTIDAD = ['carrero', 'emprendimiento', 'organizacion', 'otro'] as const
@@ -939,7 +939,7 @@ export default function FormularioMovimiento({
           <div className="campo">
             <span className="etiqueta" id="rotulo-valorizacion">Para qué se lo lleva</span>
             <div className="sugerencias" role="group" aria-labelledby="rotulo-valorizacion">
-              {VALORIZACIONES.map((v) => (
+              {valorizacionesDeFlujo(flujo).map((v) => (
                 <button
                   key={v}
                   type="button"

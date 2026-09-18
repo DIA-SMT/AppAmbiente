@@ -133,8 +133,10 @@ async function sembrar() {
     // a un Postgres de verdad.
     const usuarios: Array<[string, string, 'admin' | 'vigilador', string | null, string, number | null]> = [
       ['coordinacion', 'Coordinación de Ambiente', 'admin', null, 'ambiente2026', 12],
-      ['planta', 'Planta de Valorización — turno', 'vigilador', 'PVRV', '1234', null],
-      ...SITIOS.slice(1).map(
+      // La Planta son dos predios desde la 0020, así que lleva dos usuarios.
+      ['vivero', 'Planta de Valorización — Vivero — turno', 'vigilador', 'PVRV-VIV', '1234', null],
+      ['huerta', 'Planta de Valorización — Huerta — turno', 'vigilador', 'PVRV-HUE', '1234', null],
+      ...SITIOS.filter((s) => s[2] === 'punto_verde').map(
         (s) =>
           [s[0].toLowerCase().replace('-', ''), `${s[1]} — turno`, 'vigilador', s[0], '1234', null] as
             [string, string, 'vigilador', string, string, null],
@@ -177,7 +179,7 @@ async function sembrar() {
     for (const [nombre, rol] of PERSONAS) {
       await tx.consultar(
         `insert into personas (nombre, rol, sitio_id)
-         select $1, $2, (select id from sitios where codigo = 'PVRV')
+         select $1, $2, (select id from sitios where codigo = 'PVRV-VIV')
          where not exists (select 1 from personas where nombre = $1 and rol = $2)`,
         [nombre, rol],
       )
@@ -202,7 +204,7 @@ async function sembrar() {
       `insert into pilas (codigo, sitio_id, estado, fecha_armado, fecha_cierre, largo_m, ancho_m, alto_m)
        select
          'P-' || lpad(n::text, 2, '0'),
-         (select id from sitios where codigo = 'PVRV'),
+         (select id from sitios where codigo = 'PVRV-VIV'),
          case
            when n <= 3  then 'despachada'
            when n <= 6  then 'lista'
@@ -236,8 +238,8 @@ async function sembrar() {
 
     await tx.consultar(`
       with cfg as (
-        select (select id from sitios   where codigo = 'PVRV')          as planta,
-               (select id from perfiles where usuario = 'planta')         as perfil,
+        select (select id from sitios   where codigo = 'PVRV-VIV')          as planta,
+               (select id from perfiles where usuario = 'vivero')         as perfil,
                (select id from personas where rol = 'vigilador' limit 1)  as vigilador
       ),
       -- 120 días hacia atrás, entre 1 y 3 movimientos por día hábil
@@ -468,8 +470,8 @@ async function sembrar() {
                vg.id as vigilador_id,
                case when e.tipo = 'salida' then
                  (array['venta','venta','venta','venta',
-                        'emprendimiento','emprendimiento','emprendimiento',
-                        'reutilizacion','reutilizacion','otro'])[1 + (e.semilla_c % 10)]
+                        'manualidades','manualidades','manualidades',
+                        'asfalto','manualidades','otro'])[1 + (e.semilla_c % 10)]
                end as tipo_valorizacion,
                -- El disparador rechaza fechas futuras: el último día del rango
                -- se recorta contra el reloj.
@@ -675,7 +677,7 @@ async function sembrar() {
       `insert into pila_controles (pila_id, tipo, ocurrido_en, registrado_por_id)
        select p.id, 'volteo',
               (p.fecha_cierre + (n * 14))::timestamptz + interval '9 hours',
-              (select id from perfiles where usuario = 'planta')
+              (select id from perfiles where usuario = 'vivero')
          from pilas p, generate_series(1, 8) n
         where p.fecha_cierre is not null
           and p.codigo <> 'P-13'
@@ -685,7 +687,7 @@ async function sembrar() {
       `insert into pila_controles (pila_id, tipo, ocurrido_en, registrado_por_id)
        select p.id, 'riego',
               (p.fecha_cierre + (n * 7))::timestamptz + interval '16 hours',
-              (select id from perfiles where usuario = 'planta')
+              (select id from perfiles where usuario = 'vivero')
          from pilas p, generate_series(1, 16) n
         where p.fecha_cierre is not null
           and (p.fecha_cierre + (n * 7)) <= current_date`,
@@ -696,7 +698,7 @@ async function sembrar() {
        select p.id, 'temperatura',
               (coalesce(p.fecha_cierre, p.fecha_armado) + 30)::timestamptz + interval '10 hours',
               48 + (('x' || substr(md5(p.codigo), 1, 4))::bit(16)::int % 22),
-              (select id from perfiles where usuario = 'planta')
+              (select id from perfiles where usuario = 'vivero')
          from pilas p
         where (coalesce(p.fecha_cierre, p.fecha_armado) + 30) <= current_date`,
     )

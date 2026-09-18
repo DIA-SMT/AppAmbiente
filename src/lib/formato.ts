@@ -168,10 +168,29 @@ export const ETIQUETA_FLUJO: Record<string, string> = {
   gran_generador: 'Gran generador',
 }
 
+/**
+ * Para qué se entrega el material, con las palabras de cada formulario de
+ * entrega: R-05-06 en la Planta y R-05-08 en el punto verde. Las dos listas
+ * viven juntas acá porque una etiqueta es una etiqueta; cuál se ofrece en cada
+ * pantalla lo decide valorizacionesDeFlujo(), en recursos.ts.
+ *
+ * Reemplazan a reutilizacion / venta / emprendimiento / otro, que eran un
+ * supuesto nuestro de la fase 1: la Secretaría nunca usó esas cuatro palabras.
+ */
 export const ETIQUETA_VALORIZACION: Record<string, string> = {
-  reutilizacion: 'Reutilización',
+  // R-05-06 · Entrega de chips, compost y leña (Planta)
+  uso_interno_huerta: 'Uso interno · Huerta',
+  uso_interno_plazas: 'Uso interno · Plazas',
+  uso_interno_transforma: 'Uso interno · TRANSFORMA',
+  vecino: 'Vecino',
+  ecocanje: 'Ecocanje',
+  aserradero: 'Aserradero',
+  cic: 'CIC',
+  // R-05-08 · Entrega para reutilizar (Punto Verde)
+  manualidades: 'Manualidades, artesanías y emprendimientos',
   venta: 'Venta',
-  emprendimiento: 'Emprendimiento',
+  asfalto: 'Proceso de asfalto de la Planta de Asfalto Municipal',
+  // En los dos
   otro: 'Otro',
 }
 

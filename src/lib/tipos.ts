@@ -4,8 +4,39 @@ export type Flujo = 'planta' | 'punto_verde' | 'gran_generador'
 export type TipoMovimiento = 'ingreso' | 'salida' | 'contenedor'
 export type Clase = 'sitio' | 'entidad' | 'vecino' | 'texto'
 export type EstadoMovimiento = 'vigente' | 'anulado'
-export type TipoValorizacion = 'reutilizacion' | 'venta' | 'emprendimiento' | 'otro'
 export type Rol = 'admin' | 'vigilador'
+
+/**
+ * Para qué sale el material, según los formularios de entrega que la Secretaría
+ * ya venía usando: R-05-06 (chips, compost y leña de la Planta) y R-05-08
+ * (entrega para reutilizar en un Punto Verde).
+ *
+ * Son dos vocabularios distintos y no se mezclan: lo único que preguntan los
+ * dos es «otro». Por eso el tipo está partido en tres, y cada pantalla ofrece
+ * el subconjunto de su flujo con valorizacionesDeFlujo() de recursos.ts.
+ *
+ * Los cuatro valores anteriores —reutilizacion, venta, emprendimiento, otro—
+ * eran un supuesto nuestro de la fase 1: nadie los usa. Sobreviven «venta» y
+ * «otro», que sí están en los formularios; los otros dos no existen.
+ */
+export type ValorizacionPlanta =
+  | 'uso_interno_huerta'
+  | 'uso_interno_plazas'
+  | 'uso_interno_transforma'
+  /** El vecino que se lleva compost o leña. No confundir con la Clase 'vecino'. */
+  | 'vecino'
+  | 'ecocanje'
+  | 'aserradero'
+  | 'cic'
+
+export type ValorizacionPuntoVerde =
+  /** «Manualidades, artesanías y emprendimientos», tal cual lo dice el R-05-08. */
+  | 'manualidades'
+  | 'venta'
+  /** Al proceso de asfalto de la Planta de Asfalto Municipal. */
+  | 'asfalto'
+
+export type TipoValorizacion = ValorizacionPlanta | ValorizacionPuntoVerde | 'otro'
 
 export interface Sitio {
   id: string

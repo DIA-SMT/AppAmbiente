@@ -10,6 +10,7 @@ import {
   ETIQUETA_VALORIZACION, cantidad, fecha, mesCorto, mesLargo, numero, paraInputFechaHora,
 } from '@/lib/formato'
 import { sesionActual } from '@/lib/sesion'
+import { VALORIZACIONES_PUNTO_VERDE } from '@/lib/recursos'
 import type { TipoValorizacion } from '@/lib/tipos'
 import SubNavegacion from '../SubNavegacion'
 import GraficoVecinos, { type PuntoGrafico } from './GraficoVecinos'
@@ -21,7 +22,8 @@ export const dynamic = 'force-dynamic'
 const COLUMNAS = { semana: 8, mes: 6 } as const
 type Periodo = keyof typeof COLUMNAS
 
-const TIPOS: TipoValorizacion[] = ['reutilizacion', 'venta', 'emprendimiento', 'otro']
+// Las tres del formulario R-05-08 más 'otro': este tablero es de puntos verdes.
+const TIPOS: TipoValorizacion[] = VALORIZACIONES_PUNTO_VERDE
 
 const DIA = 86_400_000
 

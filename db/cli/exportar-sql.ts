@@ -33,9 +33,9 @@ const CARPETA = path.join(process.cwd(), 'db', 'migrations')
 
 /** Lo que tiene que haber quedado en una base nueva. Si no, no se escribe. */
 const ESPERADO: ReadonlyArray<readonly [string, number]> = [
-  ['sitios', 9],
-  ['unidades', 8],
-  ['materiales', 14],
+  ['sitios', 10],
+  ['unidades', 9],
+  ['materiales', 21],
   ['contenedores', 40],
   ['perfiles', 1],
   ['movimientos', 0],

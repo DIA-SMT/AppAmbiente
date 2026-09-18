@@ -17,7 +17,16 @@ const FLUJOS = ['planta', 'punto_verde', 'gran_generador'] as const
 const TIPOS = ['ingreso', 'salida'] as const
 const CLASES = ['sitio', 'entidad', 'vecino', 'texto'] as const
 const TIPOS_DE_ENTIDAD = ['carrero', 'emprendimiento', 'organizacion', 'otro'] as const
-const VALORIZACIONES = ['reutilizacion', 'venta', 'emprendimiento', 'otro'] as const
+// Los once destinos de los formularios de entrega: R-05-06 en la Planta y
+// R-05-08 en el punto verde. La cola valida contra la lista completa; cuál se
+// ofrece en cada pantalla lo decide valorizacionesDeFlujo(), y la base rechaza
+// las mezclas con la restricción valorizacion_segun_flujo.
+const VALORIZACIONES = [
+  'uso_interno_huerta', 'uso_interno_plazas', 'uso_interno_transforma',
+  'vecino', 'ecocanje', 'aserradero', 'cic',
+  'manualidades', 'venta', 'asfalto',
+  'otro',
+] as const
 
 interface ItemDelCelular {
   material_id: string

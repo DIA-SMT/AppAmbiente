@@ -9,7 +9,8 @@
  * columna entra a una consulta si no está escrito en este archivo. Del
  * formulario llegan valores, y los valores viajan siempre como parámetros.
  */
-import { ETIQUETA_ENTIDAD, ETIQUETA_FLUJO, ETIQUETA_TIPO } from './formato'
+import { ETIQUETA_ENTIDAD, ETIQUETA_FLUJO, ETIQUETA_TIPO, ETIQUETA_VALORIZACION } from './formato'
+import type { Flujo, TipoValorizacion } from './tipos'
 
 export type ClaveRecurso =
   | 'materiales' | 'unidades' | 'sitios' | 'entidades' | 'vehiculos' | 'personas'
@@ -86,10 +87,33 @@ const ETIQUETA_CATEGORIA: Record<string, string> = {
   verdes: 'Verdes', reciclables: 'Reciclables', textil: 'Textil',
   madera: 'Madera', especiales: 'Especiales', otros: 'Otros',
 }
+/**
+ * Los códigos de unidad que acepta la base, en el orden en que se muestran.
+ *
+ * La lista sale del CHECK de la migración 0015, no de la 0003: ahí se cambiaron
+ * las unidades inventadas por los recipientes reales con los que se estima en
+ * portería (no hay balanza). Esta lista había quedado con la vieja, y por eso
+ * cuatro de los ocho recipientes —tambor, carro de Delfi, contenedor y batea
+ * alargada— no se podían editar desde el panel: su código no figuraba en el
+ * select y el formulario lo dejaba vacío.
+ *
+ * «bolsa» vuelve porque el formulario de entrega de chips, compost y leña
+ * (R-05-06) pregunta «Cantidad en bolsas o m3». La 0015 la había desactivado
+ * junto con las inventadas.
+ *
+ * «tn» y «unidad» siguen acá aunque estén desactivadas: hay movimientos viejos
+ * que las usan y, sin su código en el select, esas filas tampoco se podrían
+ * editar. Que estén en la lista no las vuelve a ofrecer en el celular: eso lo
+ * decide la columna `activo`.
+ */
 const ETIQUETA_CODIGO_UNIDAD: Record<string, string> = {
-  m3: 'm³', camion: 'Camión', batea: 'Batea', bolsa: 'Bolsa',
+  m3: 'm³', bolsa: 'Bolsa', tambor_200: 'Tambor de 200 L',
+  carro_delfi: 'Carro de Delfi', camion: 'Camión', contenedor: 'Contenedor',
+  batea: 'Batea', batea_larga: 'Batea alargada',
   kg: 'Kilogramo', tn: 'Tonelada', unidad: 'Unidad',
 }
+const CODIGOS_UNIDAD = Object.keys(ETIQUETA_CODIGO_UNIDAD)
+
 const ETIQUETA_TIPO_SITIO: Record<string, string> = {
   planta: 'Planta', punto_verde: 'Punto Verde',
 }
@@ -97,9 +121,66 @@ const ETIQUETA_TIPO_VEHICULO: Record<string, string> = {
   camion: 'Camión', batea: 'Batea', camioneta: 'Camioneta',
   tractor: 'Tractor', otro: 'Otro',
 }
+/**
+ * Los cuatro roles alcanzan para lo que piden los formularios: chofer y
+ * autorizante aparecen en las salidas (R-05-06, R-05-08) y el personal de la
+ * Planta que firma el control de pilas (R-05-02) es «operario». No falta
+ * ninguno.
+ *
+ * Ojo con «vigilador»: en los cinco formularios operativos el nombre de quien
+ * registra va escrito a mano y es obligatorio, no elegido de una lista —son 67
+ * vigiladores con rotación permanente y una lista nunca está al día—. El rol
+ * sigue existiendo para quien tiene usuario del sistema, pero no es de donde
+ * sale el nombre que se anota en cada planilla.
+ */
 const ETIQUETA_ROL_PERSONA: Record<string, string> = {
   chofer: 'Chofer', vigilador: 'Vigilador',
   autorizante: 'Autorizante', operario: 'Operario',
+}
+
+/**
+ * Los siete tipos de entidad cubren todos los orígenes y destinos que nombran
+ * los formularios: las empresas de transporte y poda (Transporte 9 de Julio,
+ * Ecopoda/City Tec, TucuPoda, Edet), los carreros (Molina, Delfi), las
+ * dependencias (Secretaría de Servicios Públicos, Mercado Dorrego, CIC) y los
+ * destinos externos (aserradero, Planta de Asfalto Municipal). No falta ninguno.
+ *
+ * Dos opciones que ofrece el formulario de ingreso NO son entidades y no van a
+ * esta lista: «Contenedor de poda y orgánico del Punto Verde» es un sitio, y
+ * «Vecino que acerca el material» es la clase 'vecino' que el modelo ya tiene.
+ */
+const TIPOS_DE_ENTIDAD = [
+  'empresa', 'emprendimiento', 'organizacion', 'carrero',
+  'dependencia_municipal', 'planta_externa', 'otro',
+]
+
+// ── Para qué sale el material ───────────────────────────────────────────
+
+/**
+ * Las etiquetas viven en formato.ts, que es de donde las toman las pantallas.
+ * Acá sólo se decide CUÁLES se ofrecen en cada flujo.
+ */
+export { ETIQUETA_VALORIZACION }
+
+export const VALORIZACIONES_PLANTA: TipoValorizacion[] = [
+  'uso_interno_huerta', 'uso_interno_plazas', 'uso_interno_transforma',
+  'vecino', 'ecocanje', 'aserradero', 'cic', 'otro',
+]
+
+export const VALORIZACIONES_PUNTO_VERDE: TipoValorizacion[] = [
+  'manualidades', 'venta', 'asfalto', 'otro',
+]
+
+/**
+ * Qué opciones ofrecer al registrar una salida. Los dos vocabularios no se
+ * mezclan: en la Planta nadie entrega para «proceso de asfalto» y en un Punto
+ * Verde no existe el «uso interno TRANSFORMA».
+ *
+ * El gran generador no tiene formulario propio todavía, así que se le ofrece el
+ * vocabulario del Punto Verde, que es el que más se le parece.
+ */
+export function valorizacionesDeFlujo(flujo: Flujo): TipoValorizacion[] {
+  return flujo === 'planta' ? VALORIZACIONES_PLANTA : VALORIZACIONES_PUNTO_VERDE
 }
 
 function opciones(valores: string[], etiquetas: Record<string, string>): Opcion[] {
@@ -154,7 +235,7 @@ export const RECURSOS: Recurso[] = [
       },
       {
         nombre: 'sugerencias', etiqueta: 'Cantidades sugeridas', tipo: 'numeros', ancho: 'entero',
-        ayuda: 'Los botones que toca el vigilador para no escribir. Separados por coma: 5, 10, 15, 20. Si hacen falta decimales, con punto: 0.5, 1, 2.',
+        ayuda: 'Los botones que toca el vigilador para no escribir. Separados por coma, como los usa la Planta: 4.5, 6, 10, 20. Los decimales van con punto.',
       },
       {
         nombre: 'color', etiqueta: 'Color', tipo: 'color', predeterminado: '#126ff5',
@@ -188,8 +269,8 @@ export const RECURSOS: Recurso[] = [
     campos: [
       {
         nombre: 'codigo', etiqueta: 'Código', tipo: 'select', obligatorio: true,
-        opciones: opciones(['m3', 'camion', 'batea', 'bolsa', 'kg', 'tn', 'unidad'], ETIQUETA_CODIGO_UNIDAD),
-        ayuda: 'La lista es cerrada: la base solo acepta estos siete códigos.',
+        opciones: opciones(CODIGOS_UNIDAD, ETIQUETA_CODIGO_UNIDAD),
+        ayuda: 'La lista es cerrada: la base solo acepta estos códigos. Son los recipientes reales con los que se estima en portería, más la bolsa que usa el formulario de entrega de compost y leña.',
       },
       { nombre: 'nombre', etiqueta: 'Nombre', tipo: 'texto', obligatorio: true, maxLargo: 40 },
       {
@@ -218,7 +299,7 @@ export const RECURSOS: Recurso[] = [
     singular: 'Punto',
     plural: 'Puntos y Planta',
     articulo: 'un',
-    paraQue: 'La Planta y los puntos verdes. Cada vigilador carga en el suyo.',
+    paraQue: 'Los dos predios de la Planta y los ocho puntos verdes. Cada vigilador carga en el suyo.',
     orden: ['orden', 'nombre'],
     campoEtiqueta: 'nombre',
     camposBusqueda: ['nombre', 'codigo', 'direccion'],
@@ -232,12 +313,16 @@ export const RECURSOS: Recurso[] = [
     campos: [
       {
         nombre: 'codigo', etiqueta: 'Código', tipo: 'texto', obligatorio: true, maxLargo: 16,
-        ayuda: 'Corto y sin espacios: PLANTA, PV-01. Identifica al punto en todo el sistema.',
+        ayuda: 'Corto y sin espacios: PVRV-VIV, PV-01. Identifica al punto en todo el sistema.',
       },
-      { nombre: 'nombre', etiqueta: 'Nombre', tipo: 'texto', obligatorio: true, maxLargo: 80 },
+      {
+        nombre: 'nombre', etiqueta: 'Nombre', tipo: 'texto', obligatorio: true, maxLargo: 80,
+        ayuda: 'Ojo con «Huerta»: el predio de la Planta y el Punto Verde que está en el mismo lugar son dos sitios distintos. Los nombres tienen que dejarlo claro.',
+      },
       {
         nombre: 'tipo', etiqueta: 'Tipo', tipo: 'select', obligatorio: true,
         opciones: opciones(['planta', 'punto_verde'], ETIQUETA_TIPO_SITIO),
+        ayuda: 'La Planta de Valorización son dos predios —Vivero y Huerta, que es lo primero que pregunta el formulario de ingreso— y los dos van como Planta.',
       },
       { nombre: 'direccion', etiqueta: 'Dirección', tipo: 'texto', maxLargo: 120, ancho: 'entero' },
       {
@@ -269,10 +354,7 @@ export const RECURSOS: Recurso[] = [
       { nombre: 'nombre', etiqueta: 'Nombre', tipo: 'texto', obligatorio: true, maxLargo: 120, ancho: 'entero' },
       {
         nombre: 'tipo', etiqueta: 'Tipo', tipo: 'select', obligatorio: true,
-        opciones: opciones(
-          ['empresa', 'emprendimiento', 'organizacion', 'carrero', 'dependencia_municipal', 'planta_externa', 'otro'],
-          ETIQUETA_ENTIDAD,
-        ),
+        opciones: opciones(TIPOS_DE_ENTIDAD, ETIQUETA_ENTIDAD),
       },
       {
         nombre: 'habilitada_origen', etiqueta: 'Se puede elegir como origen', tipo: 'booleano',
@@ -326,7 +408,7 @@ export const RECURSOS: Recurso[] = [
       },
       {
         nombre: 'entidad_id', etiqueta: 'Pertenece a', tipo: 'select', origen: 'entidades',
-        ayuda: 'Si el vehículo es de una empresa, una cooperativa o un carrero. Vacío = es del municipio.',
+        ayuda: 'Si el vehículo es de una empresa de transporte o de poda, de un carrero o de una organización. Vacío = es del municipio.',
       },
     ],
   },
@@ -337,7 +419,7 @@ export const RECURSOS: Recurso[] = [
     singular: 'Persona',
     plural: 'Personas',
     articulo: 'una',
-    paraQue: 'Choferes, vigiladores y quienes autorizan una salida.',
+    paraQue: 'Choferes, quienes autorizan una salida y el personal de la Planta.',
     orden: ['nombre'],
     campoEtiqueta: 'nombre',
     camposBusqueda: ['nombre'],
@@ -351,8 +433,8 @@ export const RECURSOS: Recurso[] = [
       { nombre: 'nombre', etiqueta: 'Nombre', tipo: 'texto', obligatorio: true, maxLargo: 80 },
       {
         nombre: 'rol', etiqueta: 'Rol', tipo: 'select', obligatorio: true,
-        opciones: opciones(['chofer', 'vigilador', 'autorizante', 'operario'], ETIQUETA_ROL_PERSONA),
-        ayuda: 'El chofer maneja; el vigilador es quien está a cargo del turno; el autorizante firma la salida; el operario trabaja en la Planta.',
+        opciones: opciones(Object.keys(ETIQUETA_ROL_PERSONA), ETIQUETA_ROL_PERSONA),
+        ayuda: 'El chofer maneja; el vigilador está a cargo del turno; el autorizante firma la salida; el operario trabaja en la Planta y es quien registra los controles de las pilas. El nombre de quien completa cada planilla no sale de acá: va escrito a mano, como en los formularios.',
       },
       {
         nombre: 'documento', etiqueta: 'Documento', tipo: 'texto', maxLargo: 20,
@@ -364,7 +446,7 @@ export const RECURSOS: Recurso[] = [
       },
       {
         nombre: 'entidad_id', etiqueta: 'Pertenece a', tipo: 'select', origen: 'entidades',
-        ayuda: 'Si viene de una empresa o cooperativa y no del municipio.',
+        ayuda: 'Si viene de una empresa o de una organización y no del municipio.',
       },
     ],
   },

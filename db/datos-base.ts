@@ -6,11 +6,23 @@
  * db/cli/exportar-sql.ts los escribe como SQL literal para pegar en el editor
  * de un proveedor. Una sola fuente, así las dos no se separan con el tiempo.
  *
- * "Base" es lo que salió del relevamiento y no depende de nadie: los nueve
- * sitios, los recipientes con su capacidad declarada, las catorce corrientes,
+ * "Base" es lo que salió del relevamiento y no depende de nadie: los diez
+ * sitios, los recipientes con su capacidad declarada, las veintiuna corrientes,
  * los contenedores de los puntos verdes y los usuarios para entrar. Todo lo
  * demás —choferes, patentes, destinos habilitados, pilas— es inventado y vive
  * en el sembrador, detrás de --ejemplos.
+ *
+ * DE DÓNDE SALEN LOS DATOS. Hasta ahora buena parte era supuesto nuestro. Se
+ * leyeron campo por campo los seis formularios de Google con los que la
+ * Secretaría viene trabajando, y las listas de acá son las de esos formularios,
+ * no las que habíamos imaginado. Cada vez que un dato sale de un formulario se
+ * dice de cuál:
+ *
+ *   R-05-01  Ingreso de materiales en PVRV
+ *   R-05-02  Control de proceso de pilas
+ *   R-05-06  Entrega de chips, compost y leña
+ *   R-05-07  Recepción de residuos en Punto Verde
+ *   R-05-08  Entrega de materiales para reutilizar en Punto Verde
  */
 import { hashearCredencial } from './credenciales'
 
@@ -20,21 +32,55 @@ export interface Sentencia {
   params: unknown[]
 }
 
+/**
+ * Los diez sitios: dos predios de la Planta y ocho puntos verdes.
+ * codigo, nombre, tipo, dirección, orden
+ *
+ * LA PLANTA SON DOS. La primera pregunta del formulario R-05-01 es en cuál de
+ * los dos predios se recibió el material —Vivero o Huerta—, así que no es un
+ * dato de color: el material entra a uno o al otro y lo que hay en cada uno se
+ * cuenta por separado. Por eso son dos sitios y no uno con un campo adentro.
+ *
+ * CUIDADO CON "HUERTA". El nombre aparece dos veces y son dos cosas distintas:
+ * PVRV-HUE es el predio de la Planta donde se procesa, y PV-01 es el Punto
+ * Verde que funciona en el mismo lugar y donde el vecino deja sus reciclables.
+ * Se llaman distinto a propósito —"Planta de Valorización — Huerta" contra
+ * "Punto Verde Huerta"—: si en una lista aparecieran los dos como "Huerta",
+ * nadie sabría cuál eligió.
+ *
+ * El código manda: los contenedores se nombran con él ("PV-02 · Cartón"), los
+ * usuarios de cada punto se arman a partir de él y los CLI lo usan para buscar
+ * un sitio. Cambiarlo no es cosmético.
+ */
 export const SITIOS = [
-  ['PVRV',  'Planta de Valorización de Residuos Verdes', 'planta',      'Huerta y Vivero Municipal', 1],
-  ['PV-01', 'Punto Verde Huerta',                        'punto_verde', 'Huerta Municipal',          2],
-  ['PV-02', 'Punto Verde Italia',                        'punto_verde', 'Av. Italia',                3],
-  ['PV-03', 'Punto Verde Paso de los Andes',             'punto_verde', 'Paso de los Andes',         4],
-  ['PV-04', 'Punto Verde Colón',                         'punto_verde', 'Av. Colón',                 5],
-  ['PV-05', 'Punto Verde Garcilaso',                     'punto_verde', 'Garcilaso',                 6],
-  ['PV-06', 'Punto Verde Circunvalación',                'punto_verde', 'Av. de Circunvalación',     7],
-  ['PV-07', 'Punto Verde América',                       'punto_verde', 'Av. América',               8],
-  ['PV-08', 'Punto Verde Costanera',                     'punto_verde', 'Costanera',                 9],
+  ['PVRV-VIV', 'Planta de Valorización — Vivero', 'planta',      'Vivero Municipal',                1],
+  ['PVRV-HUE', 'Planta de Valorización — Huerta', 'planta',      'Huerta Municipal',                2],
+  ['PV-01',    'Punto Verde Huerta',              'punto_verde', 'Huerta Municipal — Lamadrid 3900', 3],
+  ['PV-02',    'Punto Verde Italia',              'punto_verde', 'Italia y Viamonte — Italia 2800',  4],
+  ['PV-03',    'Punto Verde Paso de los Andes',   'punto_verde', 'San Martín y Paso de los Andes',   5],
+  ['PV-04',    'Punto Verde Colón',               'punto_verde', 'Colón y Canal Sur',                6],
+  ['PV-05',    'Punto Verde Garcilazo',           'punto_verde', 'Inca Garcilazo',                   7],
+  ['PV-06',    'Punto Verde Circunvalación',      'punto_verde', 'Circunvalación',                   8],
+  ['PV-07',    'Punto Verde América',             'punto_verde', 'América y Fco. de Aguirre',        9],
+  ['PV-08',    'Punto Verde Costanera',           'punto_verde', 'Costanera Norte',                 10],
 ] as const
 
 // Relevado con la Secretaría: no hay balanza y todo se estima en m³. Estos son
 // los recipientes con los que se estima, con su capacidad declarada.
 // codigo, nombre, plural, decimales, factor_m3, orden
+//
+// LA BOLSA VUELVE. La migración 0015 la había desactivado junto con 'tn' y
+// 'unidad' por considerarla un supuesto nuestro, pero el formulario R-05-06
+// —entrega de chips, compost y leña— pregunta literalmente "Cantidad en bolsas
+// o m3": la bolsa es la forma real en que se entrega el compost y la leña al
+// vecino, y sin ella ese formulario no se puede cargar.
+//
+// SIN FACTOR A M³, a propósito. Una bolsa de compost no tiene volumen fijo: no
+// es un recipiente rígido como el tambor o la batea, y lo que entra depende de
+// cuánto se cargue. Poner un factor inventado ensuciaría todos los m³ del
+// tablero con una conversión que nadie midió. Con factor_m3 nulo la cantidad se
+// guarda y se informa en bolsas —"12 bolsas"— y no se suma a los m³, que es
+// exactamente lo que hace 'kg' desde la fase 1.
 export const UNIDADES = [
   ['m3',          'm³',              'm³',                1, 1,    1],
   ['tambor_200',  'tambor de 200 L', 'tambores de 200 L', 0, 0.2,  2],
@@ -44,28 +90,65 @@ export const UNIDADES = [
   ['batea',       'batea',           'bateas',            0, 20,   6],
   ['batea_larga', 'batea alargada',  'bateas alargadas',  0, 30,   7],
   ['kg',          'kg',              'kg',                2, null, 8],
+  ['bolsa',       'bolsa',           'bolsas',            0, null, 9],
 ] as const
 
-// Las corrientes que se registran de verdad. En la Planta salieron del
-// relevamiento; en los puntos verdes son las cinco de la pizarra de seguimiento.
-// nombre, categoria, flujos, tipos, unidad por defecto, sugerencias, color, orden
+/**
+ * Las corrientes que se registran de verdad, tal como las nombran los
+ * formularios. Antes había catorce y varias eran invento nuestro.
+ * nombre, categoría, flujos, tipos, unidad por defecto, sugerencias, color, orden
+ *
+ * LA PLANTA (R-05-01 lo que entra, R-05-06 lo que sale). Entra material verde
+ * separado por grosor —fina, media, gruesa—, más lo que llega mezclado o de
+ * origen puntual: corteza, naranja, algas, descarte de verdura. Sale producto
+ * terminado: compost, leña social, troncos, rodajas, triturado. El chipeo es el
+ * único que hace las dos cosas: entra chipeado de la calle y sale chipeado de
+ * la Planta.
+ *
+ * EL PUNTO VERDE (R-05-07 lo que recibe, R-05-08 lo que entrega). Las cinco
+ * corrientes de la pizarra más neumáticos, que el formulario recibe y que
+ * nosotros no teníamos.
+ *
+ * RSU ES UNA BOLSA GRANDE. En el punto verde "RSU" incluye objetos, muebles,
+ * madera, electrodomésticos, retazos, pallets, bines y tierra filtrante: el
+ * formulario los agrupa ahí y no los pregunta por separado. Por eso
+ * desaparecen "Retazos de tela" y "Recortes de madera", que eran una lista
+ * nuestra y nunca existieron como corrientes propias.
+ *
+ * LOS COLORES siguen el criterio que ya había: lo que entra verde a la Planta
+ * en gama verde —más claro cuanto más fino—, el producto terminado en la gama
+ * fría o marrón con que se lo reconoce, y cada corriente de punto verde con su
+ * color de siempre (plástico azul, cartón amarillo, vidrio y metal gris). RSU
+ * se oscurece para que no se confunda con vidrio y metal en el mismo gráfico, y
+ * neumáticos va casi negro, que es el color de la goma.
+ */
 export const MATERIALES: ReadonlyArray<
   readonly [string, string, string[], string[], string, number[], string, number]
 > = [
-  ['Poda',                   'verdes',      ['planta'],      ['ingreso'],           'm3', [4, 6, 20, 30], '#25d366', 1],
-  ['Restos de jardinería',   'verdes',      ['planta'],      ['ingreso'],           'm3', [0.2, 4, 6],    '#10b981', 2],
-  ['Tronco y madera gruesa', 'verdes',      ['planta'],      ['ingreso'],           'm3', [4, 6],         '#1aa851', 3],
-  ['Chipeo',                 'verdes',      ['planta'],      ['ingreso', 'salida'], 'm3', [6, 20, 30],    '#3cb4f0', 4],
-  ['Triturado',              'verdes',      ['planta'],      ['salida'],            'm3', [20, 30],       '#2589ea', 5],
-  ['Compost',                'verdes',      ['planta'],      ['salida'],            'm3', [0.2, 4, 6],    '#126ff5', 6],
-  ['Leña',                   'verdes',      ['planta'],      ['salida'],            'm3', [0.2, 4, 6],    '#a16207', 7],
-  ['Plástico',               'reciclables', ['punto_verde'], ['ingreso', 'salida'], 'm3', [0.2, 6],       '#28469f', 8],
-  ['Cartón',                 'reciclables', ['punto_verde'], ['ingreso', 'salida'], 'm3', [0.2, 6],       '#f5b81c', 9],
-  ['Vidrio y metal',         'reciclables', ['punto_verde'], ['ingreso', 'salida'], 'm3', [0.2, 6],       '#6b7885', 10],
-  ['Residuos de poda',       'verdes',      ['punto_verde'], ['ingreso', 'salida'], 'm3', [0.2, 6],       '#25d366', 11],
-  ['RSU',                    'especiales',  ['punto_verde'], ['ingreso', 'salida'], 'm3', [6],            '#6b7885', 12],
-  ['Retazos de tela',        'textil',      ['gran_generador', 'punto_verde'], ['ingreso', 'salida'], 'kg', [10, 25, 50], '#8b5cf6', 13],
-  ['Recortes de madera',     'madera',      ['gran_generador', 'punto_verde'], ['ingreso', 'salida'], 'kg', [10, 25, 50], '#a16207', 14],
+  // ── Planta: lo que entra (R-05-01) ────────────────────────────────────
+  ['Jardinería (pasto y hojas)', 'verdes',      ['planta'],      ['ingreso'],           'm3', [4.5, 6, 10, 20], '#84cc16', 1],
+  ['Poda fina',                  'verdes',      ['planta'],      ['ingreso'],           'm3', [4.5, 6, 10, 20], '#4ade80', 2],
+  ['Poda media',                 'verdes',      ['planta'],      ['ingreso'],           'm3', [4.5, 6, 10, 20], '#25d366', 3],
+  ['Poda gruesa',                'verdes',      ['planta'],      ['ingreso'],           'm3', [4.5, 6, 10, 20], '#1aa851', 4],
+  ['Chipeo',                     'verdes',      ['planta'],      ['ingreso', 'salida'], 'm3', [4.5, 6, 10, 20], '#3cb4f0', 5],
+  ['Corteza',                    'verdes',      ['planta'],      ['ingreso'],           'm3', [4.5, 6, 10, 20], '#8f6b3f', 6],
+  ['Naranja',                    'verdes',      ['planta'],      ['ingreso'],           'm3', [4.5, 6, 10, 20], '#f97316', 7],
+  ['Poda y chipeo',              'verdes',      ['planta'],      ['ingreso'],           'm3', [4.5, 6, 10, 20], '#10b981', 8],
+  ['Algas',                      'verdes',      ['planta'],      ['ingreso'],           'm3', [4.5, 6, 10, 20], '#0d9488', 9],
+  ['Descarte de verdura',        'verdes',      ['planta'],      ['ingreso'],           'm3', [4.5, 6, 10, 20], '#65a30d', 10],
+  // ── Planta: lo que sale (R-05-06) ─────────────────────────────────────
+  ['Compost',                    'verdes',      ['planta'],      ['salida'],            'm3', [4.5, 6, 10, 20], '#126ff5', 11],
+  ['Leña social',                'verdes',      ['planta'],      ['salida'],            'm3', [4.5, 6, 10, 20], '#a16207', 12],
+  ['Troncos',                    'verdes',      ['planta'],      ['salida'],            'm3', [4.5, 6, 10, 20], '#854d0e', 13],
+  ['Rodajas',                    'verdes',      ['planta'],      ['salida'],            'm3', [4.5, 6, 10, 20], '#b45309', 14],
+  ['Triturado',                  'verdes',      ['planta'],      ['salida'],            'm3', [4.5, 6, 10, 20], '#2589ea', 15],
+  // ── Punto verde: entra y sale (R-05-07 y R-05-08) ─────────────────────
+  ['Plástico',                   'reciclables', ['punto_verde'], ['ingreso', 'salida'], 'm3', [0.2, 6],         '#28469f', 16],
+  ['Cartón',                     'reciclables', ['punto_verde'], ['ingreso', 'salida'], 'm3', [0.2, 6],         '#f5b81c', 17],
+  ['Vidrio y metal',             'reciclables', ['punto_verde'], ['ingreso', 'salida'], 'm3', [0.2, 6],         '#6b7885', 18],
+  ['Poda y orgánico',            'verdes',      ['punto_verde'], ['ingreso', 'salida'], 'm3', [0.2, 6],         '#25d366', 19],
+  ['RSU',                        'especiales',  ['punto_verde'], ['ingreso', 'salida'], 'm3', [6],              '#4b5563', 20],
+  ['Neumáticos',                 'especiales',  ['punto_verde'], ['ingreso', 'salida'], 'm3', [6],              '#1f2937', 21],
 ]
 
 /**
@@ -75,6 +158,10 @@ export const MATERIALES: ReadonlyArray<
  * los puntos verdes también se usan kilos: el retiro para reutilización se
  * estima por peso, que es lo que después alimenta el registro del programa
  * CIRCULA, y el Excel de la 9 de Julio llega en kilos.
+ *
+ * `gran_generador` no lo usa hoy ningún material —las dos corrientes que lo
+ * tenían eran invento nuestro y se fueron—, pero el flujo existe en el modelo y
+ * en el panel, así que la lista queda esperando la primera corriente real.
  */
 export const RECIPIENTES_POR_FLUJO: Record<string, string[]> = {
   planta:          ['m3', 'tambor_200', 'carro_delfi', 'camion', 'contenedor', 'batea', 'batea_larga'],
@@ -83,11 +170,35 @@ export const RECIPIENTES_POR_FLUJO: Record<string, string[]> = {
 }
 
 /**
- * Las cinco corrientes de la pizarra de seguimiento, que son las que tienen
- * contenedor. Los retazos de tela y los recortes de madera pasan por los puntos
- * pero vienen de grandes generadores y se retiran de otra forma.
+ * Recipientes que habilita un material puntual, además de los de su flujo.
+ *
+ * La bolsa no es de toda la Planta: el formulario R-05-06 pregunta "Cantidad en
+ * bolsas o m3" sólo para lo que se entrega al vecino —chips, compost y leña—.
+ * Ofrecerla también para un ingreso de poda sería ofrecer algo que nadie usa.
  */
-const CORRIENTES_CON_CONTENEDOR = ['Plástico', 'Cartón', 'Vidrio y metal', 'Residuos de poda', 'RSU']
+const RECIPIENTES_EXTRA: Record<string, string[]> = {
+  Chipeo: ['bolsa'],
+  Compost: ['bolsa'],
+  'Leña social': ['bolsa'],
+}
+
+/**
+ * Las cinco corrientes de la pizarra de seguimiento, que son las que tienen
+ * contenedor.
+ *
+ * NEUMÁTICOS NO ENTRA ACÁ, y es una decisión. Un contenedor no es una corriente
+ * que el punto recibe: es un recipiente físico que está parado en el punto y
+ * que la 9 de Julio viene a recambiar. Que el formulario R-05-07 reciba
+ * neumáticos no significa que los ocho puntos tengan un contenedor de
+ * neumáticos, y la Secretaría todavía no nos pasó la grilla de qué contenedor
+ * hay en cada punto. Sembrar ocho contenedores de neumáticos sería inventar
+ * ocho recipientes que capaz no existen, y después el tablero informaría
+ * recambios pendientes de algo que no está. La corriente queda disponible para
+ * registrar el ingreso y la salida —que es lo que el formulario hace—, y el
+ * contenedor lo da de alta la coordinadora desde el panel cuando sepamos dónde
+ * hay uno. Al revés no se puede: un contenedor de más no se borra.
+ */
+const CORRIENTES_CON_CONTENEDOR = ['Plástico', 'Cartón', 'Vidrio y metal', 'Poda y orgánico', 'RSU']
 
 /**
  * El único usuario con el que se entra la primera vez.
@@ -148,9 +259,27 @@ export function sentenciasBase(): Sentencia[] {
     })
   }
 
+  // La 0015 desactivó la bolsa cuando la creíamos un supuesto nuestro, y el
+  // insert de arriba no la revive: es `do nothing`, a propósito, para no pisar
+  // lo que la coordinadora haya cambiado desde el panel. Así que se reactiva
+  // explícitamente, igual que se fija el conteo diario de PV-03 unas líneas más
+  // arriba. Va antes de los materiales porque unidades_permitidas sólo toma las
+  // unidades activas: si la bolsa todavía estuviera apagada, el compost se
+  // cargaría sin poder elegirla.
+  s.push({
+    sql: `update unidades set activo = true where codigo = 'bolsa'`,
+    params: [],
+  })
+
   for (const [nombre, categoria, flujos, tipos, unidad, sugerencias, color, orden] of MATERIALES) {
-    // La unión de los recipientes de cada flujo donde aparece el material.
-    const codigos = [...new Set(flujos.flatMap((f) => RECIPIENTES_POR_FLUJO[f] ?? ['m3']))]
+    // La unión de los recipientes de cada flujo donde aparece el material, más
+    // los que ese material habilita por su cuenta (la bolsa de R-05-06).
+    const codigos = [
+      ...new Set([
+        ...flujos.flatMap((f) => RECIPIENTES_POR_FLUJO[f] ?? ['m3']),
+        ...(RECIPIENTES_EXTRA[nombre] ?? []),
+      ]),
+    ]
     s.push({
       sql: `insert into materiales
               (nombre, categoria, flujos, tipos, unidad_default_id, unidades_permitidas, sugerencias, color, orden)
@@ -165,7 +294,9 @@ export function sentenciasBase(): Sentencia[] {
   }
 
   // Un contenedor no tiene numeración física: es el par punto + corriente, "el
-  // de cartón de Italia".
+  // de cartón de Italia". Sólo en los puntos verdes: los dos predios de la
+  // Planta no tienen contenedores de corriente, ahí el material se acopia en
+  // pilas y parvas.
   s.push({
     sql: `insert into contenedores (codigo, tipo, capacidad_m3, sitio_actual_id, material_id, estado)
           select s.codigo || ' · ' || m.nombre, 'contenedor', 6, s.id, m.id, 'en_sitio'

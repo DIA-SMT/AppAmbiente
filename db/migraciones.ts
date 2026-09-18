@@ -44,15 +44,26 @@ export async function aplicarMigraciones(
     const hash = createHash('sha256').update(sql).digest('hex').slice(0, 16)
 
     try {
-      await base.ejecutar(`begin;\n${sql}\ncommit;`)
-      await base.consultar(
-        'insert into app.migraciones (nombre, hash) values ($1, $2) on conflict (nombre) do nothing',
-        [archivo, hash],
-      )
+      // La migración y su registro van juntos o no va ninguno de los dos. Si se
+      // aplican por separado —como se hacía antes— y el segundo falla, la base
+      // queda con las tablas cambiadas y sin la fila que lo dice: la próxima
+      // corrida la ve pendiente y la vuelve a aplicar sobre lo que ya está.
+      //
+      // Y la transacción la abre el driver, no un `begin;` pegado adelante del
+      // archivo. postgres-js rechaza BEGIN y COMMIT escritos a mano salvo que la
+      // conexión esté reservada —UNSAFE_TRANSACTION—, así que contra un Postgres
+      // de verdad eso fallaba después de haber corrido el DDL. No se notaba
+      // porque las migraciones se venían pegando en el editor SQL del proveedor.
+      await base.transaccion(async (tx) => {
+        await tx.ejecutar(sql)
+        await tx.consultar(
+          'insert into app.migraciones (nombre, hash) values ($1, $2) on conflict (nombre) do nothing',
+          [archivo, hash],
+        )
+      })
       decir(`  → ${archivo} ✓`)
     } catch (e) {
       decir(`  → ${archivo} ✗`)
-      await base.ejecutar('rollback').catch(() => {})
       throw new Error(`Falló la migración ${archivo}: ${(e as Error).message}`, { cause: e })
     }
   }

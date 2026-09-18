@@ -118,11 +118,7 @@ export default async function PantallaAuditoria({
       </header>
 
       <div className="aviso">
-        <p style={{ margin: 0 }}>
-          <span className="fuerte">La escriben los disparadores de la base, no la app.</span>{' '}
-          Nadie puede editar ni borrar una línea de acá: tampoco la coordinación. Es lo que permite
-          responder quién cargó un movimiento y quién lo anuló.
-        </p>
+        Nadie puede editar ni borrar una línea de acá: tampoco la coordinación.
       </div>
 
       <form method="get" className={estilos.filtros}>

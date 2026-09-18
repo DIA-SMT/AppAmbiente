@@ -280,8 +280,7 @@ export default async function FichaDePila({
         <h2>De qué está hecha</h2>
         <p className="menor gris" style={{ margin: 0, maxWidth: 'var(--ancho-lectura)' }}>
           No es una declaración: cada línea sale de un ingreso que se cargó con esta pila, con el
-          material y de dónde venía. Es lo que convierte «compost» en «compost de poda de la
-          cuadrilla Norte levantada en abril».
+          material y de dónde venía.
         </p>
 
         {composicion.length === 0 ? (
@@ -418,7 +417,7 @@ export default async function FichaDePila({
         <h2>Qué salió de ella</h2>
         <p className="menor gris" style={{ margin: 0, maxWidth: 'var(--ancho-lectura)' }}>
           La otra punta de la trazabilidad: cada camión que se llevó material de esta pila, con su
-          destino y su patente. De acá sale la respuesta a «¿de dónde salió este compost?».
+          destino y su patente.
         </p>
 
         {salidas.length === 0 ? (

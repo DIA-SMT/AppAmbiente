@@ -122,8 +122,7 @@ export default async function PantallaVecinos({
       <div className="aviso atencion">
         <p style={{ margin: 0 }}>
           <span className="fuerte">Es la única pantalla del sistema con datos personales a la vista.</span>{' '}
-          Nombre, teléfono y barrio los ve solo la coordinación: la base no se los muestra a los
-          usuarios de los puntos aunque la consulten directo, y no salen en la exportación.
+          Nombre, teléfono y barrio los ve solo la coordinación, y no salen en la exportación.
         </p>
       </div>
 

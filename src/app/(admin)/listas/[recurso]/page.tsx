@@ -244,7 +244,7 @@ export default async function PantallaRecurso({
       />
 
       <p className="menor gris" style={{ margin: 0, maxWidth: 'var(--ancho-lectura)' }}>
-        Acá no se borra nada, y no es un descuido: desactivar saca la fila de las
+        Acá no se borra nada: desactivar saca la fila de las
         listas del celular, y los movimientos que ya la usaron se siguen leyendo
         igual. Lo que se desactiva se puede volver a activar cuando haga falta.
       </p>

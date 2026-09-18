@@ -500,10 +500,8 @@ export default async function TableroPuntosVerdes({
           </p>
         )}
         <p className="menor gris" style={{ margin: 0 }}>
-          {periodo === 'semana' ? 'La semana' : 'El mes'} en curso todavía no terminó. Por eso
-          debajo de las visitas y de los identificados va el {periodo} anterior entero en vez de un
-          porcentaje: comparar días contra un {periodo} completo muestra caídas donde solo faltan
-          días.
+          {periodo === 'semana' ? 'La semana' : 'El mes'} en curso todavía no terminó: debajo de
+          las visitas y de los identificados va el {periodo} anterior entero.
         </p>
       </section>
 
@@ -610,9 +608,8 @@ export default async function TableroPuntosVerdes({
         <p className="menor gris" style={{ margin: 0 }}>
           Los puntos marcados con <span className="chip diferida">solo conteo diario</span> no
           pueden usar el celular durante la jornada: ahí todas las visitas salen del papel, y por
-          eso en identificados y en sin datos no va un cero sino «no se sabe quién vino». Un cero
-          ahí se leería como el peor punto de todos, y lo que pasa es que esa modalidad no puede
-          registrar a nadie. Que un punto cuente en papel no es un problema; que no cargue, sí:{' '}
+          eso en identificados y en sin datos no va un cero sino «no se sabe quién vino». Que un
+          punto cuente en papel no es un problema; que no cargue, sí:{' '}
           <Link href="/conteos">Conteos</Link> muestra cuál está mandando y cuál no.
         </p>
         <p className="menor gris" style={{ margin: 0 }}>

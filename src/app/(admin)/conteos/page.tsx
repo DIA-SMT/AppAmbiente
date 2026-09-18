@@ -262,8 +262,8 @@ export default async function PantallaConteos({
           <p className="menor gris" style={{ margin: 0, maxWidth: 'var(--ancho-lectura)' }}>
             Para cuando el vigilador avisa por teléfono. Hay un solo total por punto y por día: si
             ese día ya tenía un conteo, este lo corrige en vez de sumarse, y el valor anterior queda
-            en la auditoría. A vos la base no te pone el límite de siete días para atrás que tiene
-            el vigilador.
+            en la auditoría. A vos no te rige el límite de siete días para atrás que tiene el
+            vigilador.
           </p>
         </div>
 
@@ -443,9 +443,9 @@ export default async function PantallaConteos({
 
         <p className="menor gris" style={{ margin: 0, maxWidth: 'var(--ancho-lectura)' }}>
           «Corregido» quiere decir que el total del día se cambió después de cargarlo, que es parte
-          del trabajo: se anotó 15 y eran 18. Queda un solo total por día —dos filas para el mismo
-          día serían dos verdades sobre lo mismo— y el nombre pasa a ser el de quien corrigió
-          último. El cambio entero, con el valor viejo, está en <Link href="/auditoria">Auditoría</Link>.
+          del trabajo: se anotó 15 y eran 18. Queda un solo total por día y el nombre pasa a ser
+          el de quien corrigió último. El cambio entero, con el valor viejo, está en{' '}
+          <Link href="/auditoria">Auditoría</Link>.
         </p>
       </section>
     </div>

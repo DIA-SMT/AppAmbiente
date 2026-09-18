@@ -270,7 +270,7 @@ export const RECURSOS: Recurso[] = [
       {
         nombre: 'codigo', etiqueta: 'Código', tipo: 'select', obligatorio: true,
         opciones: opciones(CODIGOS_UNIDAD, ETIQUETA_CODIGO_UNIDAD),
-        ayuda: 'La lista es cerrada: la base solo acepta estos códigos. Son los recipientes reales con los que se estima en portería, más la bolsa que usa el formulario de entrega de compost y leña.',
+        ayuda: 'La lista es cerrada. Son los recipientes reales con los que se estima en portería, más la bolsa que usa el formulario de entrega de compost y leña.',
       },
       { nombre: 'nombre', etiqueta: 'Nombre', tipo: 'texto', obligatorio: true, maxLargo: 40 },
       {
@@ -362,7 +362,7 @@ export const RECURSOS: Recurso[] = [
       },
       {
         nombre: 'habilitada_destino', etiqueta: 'Se puede elegir como destino', tipo: 'booleano',
-        ayuda: 'Es lo que arma la lista de destinos habilitados que ve el vigilador en una salida. Marcá al menos una de las dos casillas: una entidad que no es ni origen ni destino no se puede elegir en ningún lado, y la base la rechaza.',
+        ayuda: 'Es lo que arma la lista de destinos habilitados que ve el vigilador en una salida. Marcá al menos una de las dos casillas: una entidad que no es ni origen ni destino no se puede elegir en ningún lado.',
       },
       {
         nombre: 'flujos', etiqueta: '¿En qué flujos se ofrece?', tipo: 'multi', ancho: 'entero',

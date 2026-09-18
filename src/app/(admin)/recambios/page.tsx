@@ -183,8 +183,7 @@ export default async function PantallaRecambios({
           El vigilador ve un contenedor lleno y lo pide desde el punto. Acá está lo que hay
           pendiente y desde cuándo, para pasarlo al grupo de choferes de la 9 de Julio. La app no le
           avisa a la empresa: ese canal sigue siendo el WhatsApp de ellos. Lo que sí hace es dejar
-          registrado cuándo se pidió, cuándo se avisó y cuándo vinieron, que es lo que hoy no queda
-          en ningún lado.
+          registrado cuándo se pidió, cuándo se avisó y cuándo vinieron.
         </p>
       </header>
 
@@ -231,7 +230,6 @@ export default async function PantallaRecambios({
           <p className="menor gris" style={{ margin: 0, maxWidth: 'var(--ancho-lectura)' }}>
             Las dos esperas van separadas y no se suman: que el municipio tarde en avisar y que la
             empresa tarde en venir son dos problemas distintos y se arreglan de maneras distintas.
-            Sumarlos en un solo número esconde cuál de los dos hay que ir a resolver.
           </p>
         </header>
 

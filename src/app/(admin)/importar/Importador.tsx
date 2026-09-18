@@ -494,10 +494,8 @@ export function Importador({
           </div>
         </div>
         <p className="gris" style={{ margin: 0, maxWidth: 'var(--ancho-lectura)' }}>
-          Estos kilos son los que informa la planta. No son movimientos: sirven para cruzarlos
-          contra lo que cada punto verde registró por su cuenta. Si el archivo vino mal, la
-          importación se revierte desde la lista de abajo; las filas no se borran, quedan marcadas
-          como revertidas y dejan de contar en el cruce.
+          Si el archivo vino mal, la importación se revierte desde la lista de abajo; las filas
+          no se borran, quedan marcadas como revertidas y dejan de contar en el cruce.
         </p>
         <div className={estilos.pie}>
           <button type="button" className="boton" onClick={empezarDeNuevo}>
@@ -1071,10 +1069,9 @@ export function Importador({
           )}
 
           <p className="menor gris" style={{ margin: 0, maxWidth: 'var(--ancho-lectura)' }}>
-            Nada de esto crea movimientos: son los kilos que informa la planta, para cruzarlos
-            contra lo que registró cada punto verde. Si más adelante resulta que el archivo vino
-            mal, la importación se revierte desde la lista de abajo. No se borra nada: las filas
-            quedan marcadas como revertidas y dejan de contar.
+            Si más adelante resulta que el archivo vino mal, la importación se revierte desde la
+            lista de abajo. No se borra nada: las filas quedan marcadas como revertidas y dejan de
+            contar.
           </p>
 
           <div className={estilos.pie}>

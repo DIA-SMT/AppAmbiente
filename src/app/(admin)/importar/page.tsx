@@ -137,15 +137,6 @@ export default async function PantallaImportar({
         </p>
       </header>
 
-      <div className="aviso">
-        <p style={{ margin: 0 }}>
-          <span className="fuerte">Esto no crea movimientos.</span>{' '}
-          Los kilos que informa la planta se guardan aparte, para cruzarlos después contra lo que
-          registró el punto verde por su cuenta. El movimiento lo carga el vigilador; esto es la
-          contramedición.
-        </p>
-      </div>
-
       {aviso === 'revertida' && (
         <div className="aviso exito" role="status">
           Listo. Esa importación quedó marcada como revertida: sus kilos dejan de contar en el
@@ -165,10 +156,9 @@ export default async function PantallaImportar({
       <section className="tarjeta pila">
         <h2>Importar un archivo</h2>
         <p className="menor gris" style={{ margin: 0, maxWidth: 'var(--ancho-lectura)' }}>
-          El Excel va tal cual lo manda la planta, sin tocarlo. Antes de guardar nada se muestra
-          qué se entendió de cada fila y qué quedó afuera, con el número de fila del archivo. Lo
-          que se resuelva una vez —qué columna es cuál, qué domicilio es qué punto verde— queda
-          guardado como mapeo y la próxima vez ya viene resuelto.
+          El Excel va tal cual lo manda la planta, sin tocarlo. Lo que se resuelva una vez —qué
+          columna es cuál, qué domicilio es qué punto verde— queda guardado como mapeo y la
+          próxima vez ya viene resuelto.
         </p>
 
         <Importador catalogo={catalogo} mapeoActivo={mapeoActivo} />

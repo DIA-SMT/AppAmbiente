@@ -35,8 +35,7 @@ export default async function IndiceDeListas() {
       <header className="pila-chica">
         <h1>Listas</h1>
         <p className="gris" style={{ margin: 0, maxWidth: 'var(--ancho-lectura)' }}>
-          Todo lo que el vigilador elige en el celular sale de acá. Una lista corta
-          es una lista que no se carga mal.
+          Todo lo que el vigilador elige en el celular sale de acá.
         </p>
       </header>
 

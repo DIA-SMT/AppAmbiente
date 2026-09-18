@@ -110,9 +110,7 @@ export default async function PantallaRevisiones({
         <header className="pila-chica">
           <h2>Altas hechas en la calle</h2>
           <p className="menor gris" style={{ margin: 0 }}>
-            Cuando aparece un carrero o un emprendimiento que no está en la lista, el vigilador lo
-            da de alta desde el celular para no quedarse trabado, y queda acá. Puede ser alguien
-            nuevo, o el mismo de siempre escrito distinto.
+            Puede ser alguien nuevo, o el mismo de siempre escrito distinto.
           </p>
         </header>
 

@@ -76,8 +76,7 @@ export default function Trazabilidad({ traza }: { traza: TrazaDeSalida | null })
   if (!traza) {
     return (
       <p className="menor gris" style={{ margin: 0 }}>
-        Esta salida no dice de qué pila salió. La pila se elige al cargar el movimiento, y es lo
-        que después permite saber de dónde vino este compost.
+        Esta salida no dice de qué pila salió. La pila se elige al cargar el movimiento.
       </p>
     )
   }

@@ -16,6 +16,7 @@
  * Es idempotente: correrlo dos veces no duplica nada.
  */
 import '../entorno'
+import { exigirConfirmacionSiEsRemota } from './guarda'
 import { comoServicio } from '../sesion'
 import { obtenerBase } from '../client'
 import { hashearCredencial } from '../credenciales'
@@ -758,6 +759,11 @@ function avisoDeUsuarios(conEjemplos: boolean) {
 
 const esEntrada = process.argv[1]?.replace(/\\/g, '/').endsWith('db/cli/sembrar.ts')
 if (esEntrada) {
+  exigirConfirmacionSiEsRemota({
+    variable: 'CONFIRMO_SEMBRAR',
+    que: 'Esto carga las listas maestras: sitios, recipientes, corrientes y contenedores.',
+    comando: 'npm run db:sembrar',
+  })
   sembrar()
     .then(async () => (await obtenerBase()).cerrar())
     .then(() => process.exit(0))

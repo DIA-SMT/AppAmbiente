@@ -310,14 +310,40 @@ que un `npm run db:migrar` a secas —con una `DATABASE_URL` que quedó puesta e
 `.env.local`— no le aplique lo que haya pendiente a la base de la Secretaría sin
 preguntar. La **0024** es justamente la que no puede adelantarse al build.
 
+#### La misma guarda, en todos los que escriben
+
+Cada comando que puede escribir muestra a qué base le va a escribir y pide su propia
+variable. Es la que aparece en el mensaje, así que se copia de ahí y no hay que
+recordar ninguna:
+
+| Comando | Variable |
+|---|---|
+| `db:migrar` | `CONFIRMO_MIGRAR=si` |
+| `db:reset` | `CONFIRMO_BORRAR=si` |
+| `db:sembrar` | `CONFIRMO_SEMBRAR=si` |
+| `db:verificar` | `CONFIRMO_VERIFICAR=si` |
+| `db:usuarios` | `CONFIRMO_USUARIOS=si` |
+| `db:clave` | `CONFIRMO_CLAVE=si` |
+| `db:importar --aplicar` | `CONFIRMO_IMPORTAR=si` |
+
+Previsualizar una importación no pide nada: no escribe una fila. Y contra la base
+local ninguno pregunta, porque ahí no hay nada que cuidar.
+
+Esto existe por algo que pasó. El 18/09/2026 `npm run db:verificar` corrió con una
+`DATABASE_URL` que había quedado puesta y dejó cuatro perfiles de prueba, un
+movimiento y una entidad adentro de la base en uso; el total pasó a decir 514
+movimientos donde había 513, y como acá nada se borra, hubo que ir a sacarlos a
+mano. La otra solución era acordarse de comentar esa línea, y acordarse no es una
+solución: el día que no te acordás es justo el día que estás apurado.
+
 ```bash
-DATABASE_URL="<cadena de sesión>" npm run db:sembrar
+CONFIRMO_SEMBRAR=si DATABASE_URL="<cadena de sesión>" npm run db:sembrar
 ```
 
 #### Con cualquiera de las dos
 
 ```bash
-DATABASE_URL="<cadena de sesión>" npm run db:verificar
+CONFIRMO_VERIFICAR=si DATABASE_URL="<cadena de sesión>" npm run db:verificar
 ```
 
 Contra un Postgres de verdad esto **falla** mientras algún usuario conserve la clave

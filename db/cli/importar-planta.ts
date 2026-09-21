@@ -32,6 +32,7 @@
  *     muestra y las deja afuera. Media fila importada es peor que ninguna.
  */
 import '../entorno'
+import { exigirConfirmacionSiEsRemota } from './guarda'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
 import { comoServicio } from '../sesion'
@@ -353,6 +354,15 @@ async function principal() {
 
 const esEntrada = process.argv[1]?.replace(/\\/g, '/').endsWith('db/cli/importar-planta.ts')
 if (esEntrada) {
+  // Sin --aplicar sólo previsualiza y no escribe una fila: ahí no hay nada que
+  // confirmar, y pedirlo enseñaría a escribir la variable sin leerla.
+  if (process.argv.includes('--aplicar')) {
+    exigirConfirmacionSiEsRemota({
+      variable: 'CONFIRMO_IMPORTAR',
+      que: 'Esto escribe en esa base los movimientos de la planilla, y en este sistema\n  nada se borra: un movimiento importado de más se anula, no se saca.',
+      comando: 'npm run db:importar -- <archivo.xlsx> --aplicar',
+    })
+  }
   principal()
     .then(async () => (await obtenerBase()).cerrar())
     .then(() => process.exit(0))

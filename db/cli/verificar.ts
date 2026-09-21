@@ -9,6 +9,7 @@
  * desplegar a Supabase, donde las mismas políticas se evalúan igual.
  */
 import '../entorno'
+import { exigirConfirmacionSiEsRemota } from './guarda'
 import { randomUUID } from 'node:crypto'
 import * as modulos from 'node:module'
 import { comoServicio, conSesion, type Sesion } from '../sesion'
@@ -1457,6 +1458,14 @@ async function main() {
   await (await obtenerBase()).cerrar()
   process.exit(fallaron === 0 ? 0 : 1)
 }
+
+exigirConfirmacionSiEsRemota({
+  variable: 'CONFIRMO_VERIFICAR',
+  que:
+    'La verificación crea sus propios usuarios, movimientos y entidades para poder ' +
+    'comprobar los permisos, y los saca al terminar. Si se corta en el medio, quedan.',
+  comando: 'npm run db:verificar',
+})
 
 main().catch((e) => {
   console.error(e)

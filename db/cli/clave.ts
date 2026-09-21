@@ -27,6 +27,7 @@
  * DATABASE_URL, igual que las migraciones.
  */
 import '../entorno'
+import { exigirConfirmacionSiEsRemota } from './guarda'
 import { randomInt } from 'node:crypto'
 import { createInterface } from 'node:readline/promises'
 import { comoServicio } from '../sesion'
@@ -286,6 +287,15 @@ async function principal() {
 
 const esEntrada = process.argv[1]?.replace(/\\/g, '/').endsWith('db/cli/clave.ts')
 if (esEntrada) {
+  // Éste sí está hecho para correrse contra la base real: es la salida del día
+  // que la única cuenta de coordinación se olvidó su contraseña. La guarda no
+  // está para desalentarlo, está para que se lea a qué base le va a cambiar la
+  // credencial antes de cambiársela.
+  exigirConfirmacionSiEsRemota({
+    variable: 'CONFIRMO_CLAVE',
+    que: 'Esto le pone una contraseña nueva a una cuenta de coordinación de esa base.',
+    comando: 'npm run db:clave -- --usuario <usuario>',
+  })
   principal()
     .then(async () => (await obtenerBase()).cerrar())
     .then(() => process.exit(0))

@@ -22,6 +22,7 @@
  * cargó esos vecinos.
  */
 import '../entorno'
+import { exigirConfirmacionSiEsRemota } from './guarda'
 import { writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { USUARIOS } from '../datos-base'
@@ -192,6 +193,11 @@ async function principal() {
 
 const esEntrada = process.argv[1]?.replace(/\\/g, '/').endsWith('db/cli/limpiar-usuarios.ts')
 if (esEntrada) {
+  exigirConfirmacionSiEsRemota({
+    variable: 'CONFIRMO_USUARIOS',
+    que: 'Esto desactiva los usuarios que dejaron rastro y elimina los que no dejaron ninguno.',
+    comando: 'npm run db:usuarios',
+  })
   principal()
     .then(() => process.exit(0))
     .catch((e) => {

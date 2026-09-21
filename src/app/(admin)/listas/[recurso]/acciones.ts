@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { consultarConSesion } from '@db/sesion'
 import { mensajeDeError } from '@/lib/datos'
-import { exigirAdmin } from '@/lib/sesion'
+import { exigirAdminCompleto } from '@/lib/sesion'
 import {
   UUID, identificador, recursoPorClave,
   type Campo, type Recurso,
@@ -197,7 +197,7 @@ export async function guardar(
   _previo: EstadoGuardado,
   datos: FormData,
 ): Promise<EstadoGuardado> {
-  const sesion = await exigirAdmin()
+  const sesion = await exigirAdminCompleto()
 
   const recurso = recursoPorClave(String(datos.get('recurso') ?? ''))
   if (!recurso) return { error: 'Esa lista no existe.' }
@@ -261,7 +261,7 @@ export async function guardar(
  * ya la usaron.
  */
 export async function cambiarEstado(datos: FormData): Promise<void> {
-  const sesion = await exigirAdmin()
+  const sesion = await exigirAdminCompleto()
 
   const recurso = recursoPorClave(String(datos.get('recurso') ?? ''))
   if (!recurso) return

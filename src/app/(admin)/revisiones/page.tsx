@@ -1,9 +1,8 @@
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
 import { consultarConSesion } from '@db/sesion'
 import { destinosAFormalizar, entidadesPendientes } from '@/lib/datos'
 import { ETIQUETA_ENTIDAD, ETIQUETA_FLUJO, fecha, fechaHora, haceCuanto, numero } from '@/lib/formato'
-import { exigirAdmin } from '@/lib/sesion'
+import { exigirPanel } from '@/lib/sesion'
 import { confirmar, descartar } from './acciones'
 import FormalizarDestino from './FormalizarDestino'
 import FusionarEntidad, { type Candidata } from './FusionarEntidad'
@@ -39,8 +38,7 @@ export default async function PantallaRevisiones({
 }: {
   searchParams: Promise<Busqueda>
 }) {
-  const sesion = await exigirAdmin().catch(() => null)
-  if (!sesion) redirect('/ingresar')
+  const sesion = await exigirPanel()
 
   const parametros = await searchParams
   const aviso = texto(parametros.aviso)

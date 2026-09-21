@@ -13,7 +13,7 @@ import {
 } from '@/lib/datos'
 import { consultarConSesion } from '@db/sesion'
 import { hojaDeMovimientos, hojaDeResumen, type DatosDeExportacion } from '@/lib/excel'
-import { ErrorSinPermiso, ErrorSinSesion, exigirAdmin } from '@/lib/sesion'
+import { ErrorCuentaIncompleta, ErrorSinPermiso, ErrorSinSesion, exigirAdminCompleto } from '@/lib/sesion'
 import { ETIQUETA_FLUJO, ETIQUETA_TIPO, numero, paraInputFechaHora } from '@/lib/formato'
 import type {
   EstadoMovimiento, FiltrosMovimientos, Flujo, MovimientoListado, TipoMovimiento,
@@ -143,8 +143,14 @@ function respuestaDeArchivo(cuerpo: ArrayBuffer, vista: string): Response {
 export async function GET(pedido: Request) {
   let sesion
   try {
-    sesion = await exigirAdmin()
+    sesion = await exigirAdminCompleto()
   } catch (e) {
+    // Una exportación es la planilla entera, con los datos de los vecinos
+    // adentro. La cuenta que todavía no terminó de configurarse no la baja por
+    // esta puerta sólo porque el portón vive del lado de las pantallas.
+    if (e instanceof ErrorCuentaIncompleta) {
+      return respuestaDeError('Antes de exportar, terminá de configurar tu cuenta en «Mi cuenta».', 403)
+    }
     if (e instanceof ErrorSinPermiso) return respuestaDeError('Las exportaciones son de la coordinación.', 403)
     if (e instanceof ErrorSinSesion) return respuestaDeError('Se cerró tu sesión. Entrá de nuevo y volvé a exportar.', 401)
     throw e

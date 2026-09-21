@@ -1,7 +1,6 @@
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
 import { buscarMovimientos, materialesVisibles, sitiosVisibles } from '@/lib/datos'
-import { exigirAdmin } from '@/lib/sesion'
+import { exigirPanel } from '@/lib/sesion'
 import { ETIQUETA_FLUJO, ETIQUETA_TIPO, cantidadDeMovimiento, fechaHora, numero } from '@/lib/formato'
 import type {
   EstadoMovimiento, FiltrosMovimientos, Flujo, MovimientoListado, TipoMovimiento,
@@ -83,8 +82,7 @@ export default async function PantallaMovimientos({
 }: {
   searchParams: Promise<Parametros>
 }) {
-  const sesion = await exigirAdmin().catch(() => null)
-  if (!sesion) redirect('/ingresar')
+  const sesion = await exigirPanel()
 
   const parametros = await searchParams
   const valores = leerValores(parametros)

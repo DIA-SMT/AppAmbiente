@@ -18,6 +18,8 @@ export interface PerfilParaAcciones {
   rol: 'admin' | 'vigilador'
   activo: boolean
   trabado: boolean
+  /** Ya escaneó el código y confirmó. Sólo entonces hay algo que restablecer. */
+  tieneSegundoFactor: boolean
   /** Lo que este usuario dejó hecho, en una frase. Null si no dejó nada. */
   rastro: string | null
   /** El usuario con el que está abierta esta pantalla. */
@@ -56,6 +58,7 @@ export function FormularioUsuario({ sitios }: { sitios: SitioParaUsuario[] }) {
   // equivocarse en el PIN obliga a volver a escribir todo lo demás.
   const [usuario, setUsuario] = useState('')
   const [nombre, setNombre] = useState('')
+  const [correo, setCorreo] = useState('')
 
   // Y se vacían recién cuando el alta salió bien. El alta de coordinación no
   // devuelve PIN —la contraseña la escribió quien la va a usar—, así que para
@@ -65,6 +68,7 @@ export function FormularioUsuario({ sitios }: { sitios: SitioParaUsuario[] }) {
       formulario.current?.reset()
       setUsuario('')
       setNombre('')
+      setCorreo('')
     }
   }, [estado.pin, estado.aviso, estado.error])
 
@@ -142,23 +146,49 @@ export function FormularioUsuario({ sitios }: { sitios: SitioParaUsuario[] }) {
         </div>
 
         {esCoordinacion ? (
-          <div className="campo">
-            <label htmlFor="clave">Contraseña</label>
-            <input
-              id="clave"
-              name="clave"
-              type="password"
-              className="control"
-              autoComplete="new-password"
-              minLength={6}
-              maxLength={128}
-              required
-            />
-            <span className="ayuda">
-              De 6 caracteres para arriba, y la elegís vos: el sistema no inventa
-              contraseñas de coordinación. No se vuelve a mostrar.
-            </span>
-          </div>
+          <>
+            <div className="campo">
+              <label htmlFor="correo">Correo institucional</label>
+              <input
+                id="correo"
+                name="correo"
+                type="email"
+                className="control"
+                value={correo}
+                onChange={(e) => setCorreo(e.target.value)}
+                inputMode="email"
+                autoComplete="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                placeholder="nombre@smt.gob.ar"
+                maxLength={160}
+                required
+              />
+              <span className="ayuda">
+                Con esto entra al panel, y tiene que terminar en @smt.gob.ar. Dos cuentas no
+                pueden compartir el mismo correo.
+              </span>
+            </div>
+
+            <div className="campo">
+              <label htmlFor="clave">Contraseña</label>
+              <input
+                id="clave"
+                name="clave"
+                type="password"
+                className="control"
+                autoComplete="new-password"
+                minLength={6}
+                maxLength={128}
+                required
+              />
+              <span className="ayuda">
+                De 6 caracteres para arriba, y la elegís vos: el sistema no inventa
+                contraseñas de coordinación. No se vuelve a mostrar. La primera vez que entre,
+                el sistema le va a pedir que configure el segundo factor en su celular.
+              </span>
+            </div>
+          </>
         ) : (
           <>
             <div className="campo">
@@ -283,6 +313,11 @@ export function AccionesUsuario({ perfil }: { perfil: PerfilParaAcciones }) {
   // aparece recién cuando alguien lo pide: una caja de contraseña abierta en
   // cada fila de una lista es ruido, y encima invita a tocarla sin querer.
   const [cambiando, setCambiando] = useState(false)
+  // Restablecer el segundo factor tampoco tiene vuelta atrás —los códigos de
+  // respaldo que la persona tenga anotados dejan de servir en el acto—, así que
+  // también va en dos pasos. Éstos sí viven en la fila, que no desaparece: la
+  // respuesta se dibuja donde estaba el botón.
+  const [restableciendo, setRestableciendo] = useState(false)
   // Eliminar no se deshace, así que va en dos pasos: el botón abre la pregunta
   // y recién la respuesta borra. Los dos pasos los lleva la lista, no la fila:
   // ver ListaDeUsuarios.
@@ -296,7 +331,7 @@ export function AccionesUsuario({ perfil }: { perfil: PerfilParaAcciones }) {
   const retenido = !perfil.esVos && perfil.rastro !== null
 
   useEffect(() => {
-    if (estado.aviso) setCambiando(false)
+    if (estado.aviso) { setCambiando(false); setRestableciendo(false) }
   }, [estado.aviso])
 
   return (
@@ -309,9 +344,20 @@ export function AccionesUsuario({ perfil }: { perfil: PerfilParaAcciones }) {
           <button
             type="button"
             className="boton chico secundario"
-            onClick={() => { setCambiando(true); borrado?.preguntar(null) }}
+            onClick={() => { setCambiando(true); setRestableciendo(false); borrado?.preguntar(null) }}
           >
             Cambiar contraseña
+          </button>
+        )}
+        {/* Sobre la cuenta propia no aparece: el segundo factor de uno se
+            maneja desde Mi cuenta, con el celular a mano. */}
+        {esCoordinacion && !perfil.esVos && perfil.tieneSegundoFactor && !restableciendo && (
+          <button
+            type="button"
+            className="boton chico secundario"
+            onClick={() => { setRestableciendo(true); setCambiando(false); borrado?.preguntar(null) }}
+          >
+            Restablecer segundo factor
           </button>
         )}
         <AccionDeFila
@@ -327,7 +373,7 @@ export function AccionesUsuario({ perfil }: { perfil: PerfilParaAcciones }) {
           <button
             type="button"
             className="boton chico secundario"
-            onClick={() => { borrado?.preguntar(perfil.id); setCambiando(false) }}
+            onClick={() => { borrado?.preguntar(perfil.id); setCambiando(false); setRestableciendo(false) }}
           >
             Eliminar
           </button>
@@ -363,6 +409,30 @@ export function AccionesUsuario({ perfil }: { perfil: PerfilParaAcciones }) {
           No se puede eliminar: {perfil.rastro}.{' '}
           {perfil.activo ? 'Desactivalo y deja de entrar.' : 'Ya está desactivado: no puede entrar.'}
         </span>
+      )}
+
+      {restableciendo && (
+        <div className={estilos.confirmarCuerpo}>
+          <span>
+            <span className="fuerte">{perfil.usuario}</span> vuelve a configurar el segundo factor
+            la próxima vez que entre: escanea el código con su celular y recibe códigos de respaldo
+            nuevos. Los que tenga anotados dejan de servir en el acto. La contraseña no cambia.
+          </span>
+          <div className={estilos.acciones}>
+            <form action={accion}>
+              <input type="hidden" name="id" value={perfil.id} />
+              <input type="hidden" name="accion" value="segundo_factor" />
+              <BotonFila rotulo="Sí, restablecer" clase="boton peligro chico" />
+            </form>
+            <button
+              type="button"
+              className="boton chico fantasma"
+              onClick={() => setRestableciendo(false)}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
       )}
 
       {esCoordinacion && cambiando && (

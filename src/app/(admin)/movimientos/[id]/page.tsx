@@ -1,8 +1,8 @@
 import Link from 'next/link'
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { consultarConSesion } from '@db/sesion'
 import { movimientoPorId, trazaDeSalida } from '@/lib/datos'
-import { exigirAdmin } from '@/lib/sesion'
+import { exigirPanel } from '@/lib/sesion'
 import {
   ETIQUETA_ENTIDAD, ETIQUETA_FLUJO, ETIQUETA_TIPO, ETIQUETA_VALORIZACION,
   cantidad, fechaHora, numero,
@@ -45,8 +45,7 @@ export default async function PantallaMovimiento({
   const { id } = await params
   if (!UUID.test(id)) notFound()
 
-  const sesion = await exigirAdmin().catch(() => null)
-  if (!sesion) redirect('/ingresar')
+  const sesion = await exigirPanel()
 
   const datos = await movimientoPorId(sesion, id)
   if (!datos) notFound()

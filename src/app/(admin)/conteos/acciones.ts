@@ -16,7 +16,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { guardarConteo } from '@/lib/datos'
 import { UUID } from '@/lib/recursos'
-import { exigirAdmin } from '@/lib/sesion'
+import { exigirAdminCompleto } from '@/lib/sesion'
 
 const FECHA = /^\d{4}-\d{2}-\d{2}$/
 
@@ -36,7 +36,7 @@ function volver(parametros: Record<string, string>, alFormulario = false): never
 }
 
 export async function registrarConteo(datos: FormData): Promise<void> {
-  const sesion = await exigirAdmin().catch(() => null)
+  const sesion = await exigirAdminCompleto().catch(() => null)
   if (!sesion) redirect('/ingresar')
 
   const sitioId = String(datos.get('sitio_id') ?? '').trim()

@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { conSesion } from '@db/sesion'
 import { fechaDeCalendario, fechaHora, numero } from '@/lib/formato'
 import type { Catalogo, Mapeo } from '@/lib/importacion'
-import { exigirAdmin } from '@/lib/sesion'
+import { exigirPanel } from '@/lib/sesion'
 import { revertir } from './acciones'
 import Importador from './Importador'
 import estilos from '../gente.module.css'
@@ -67,8 +67,7 @@ export default async function PantallaImportar({
 }: {
   searchParams: Promise<Parametros>
 }) {
-  const sesion = await exigirAdmin().catch(() => null)
-  if (!sesion) redirect('/ingresar')
+  const sesion = await exigirPanel()
 
   const sp = await searchParams
   const aviso = texto(sp.aviso)

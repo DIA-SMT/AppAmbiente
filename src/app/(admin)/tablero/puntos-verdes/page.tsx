@@ -1,6 +1,5 @@
 import { Fragment, type CSSProperties } from 'react'
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
 import { conSesion } from '@db/sesion'
 import {
   contarMovimientosEnTx, entidadesPendientesEnTx, resumenValorizacionEnTx, resumenVecinosEnTx,
@@ -9,7 +8,7 @@ import {
 import {
   ETIQUETA_VALORIZACION, cantidad, fecha, mesCorto, mesLargo, numero, paraInputFechaHora,
 } from '@/lib/formato'
-import { sesionActual } from '@/lib/sesion'
+import { exigirPanel } from '@/lib/sesion'
 import { VALORIZACIONES_PUNTO_VERDE } from '@/lib/recursos'
 import type { TipoValorizacion } from '@/lib/tipos'
 import SubNavegacion from '../SubNavegacion'
@@ -141,9 +140,7 @@ export default async function TableroPuntosVerdes({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  const sesion = await sesionActual()
-  if (!sesion) redirect('/ingresar')
-  if (sesion.rol !== 'admin') redirect('/turno')
+  const sesion = await exigirPanel()
 
   const parametros = await searchParams
   const pedido = Array.isArray(parametros.periodo) ? parametros.periodo[0] : parametros.periodo

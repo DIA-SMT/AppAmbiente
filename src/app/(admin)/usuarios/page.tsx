@@ -1,7 +1,6 @@
-import { redirect } from 'next/navigation'
 import { conSesion } from '@db/sesion'
 import { fechaHora, haceCuanto, numero } from '@/lib/formato'
-import { exigirAdmin } from '@/lib/sesion'
+import { exigirPanel } from '@/lib/sesion'
 import estilos from '../gente.module.css'
 import {
   AccionesUsuario,
@@ -18,6 +17,9 @@ interface FilaPerfil {
   nombre: string
   rol: 'admin' | 'vigilador'
   activo: boolean
+  correo: string | null
+  /** Escaneó el código y lo confirmó. Un usuario de punto nunca tiene. */
+  tiene_segundo_factor: boolean
   ultimo_acceso: string | null
   intentos_fallidos: number
   bloqueado_hasta: string | null
@@ -28,8 +30,7 @@ interface FilaPerfil {
 }
 
 export default async function PantallaUsuarios() {
-  const sesion = await exigirAdmin().catch(() => null)
-  if (!sesion) redirect('/ingresar')
+  const sesion = await exigirPanel()
 
   const { perfiles, sitios } = await conSesion(sesion, async (tx) => {
     /*
@@ -42,9 +43,21 @@ export default async function PantallaUsuarios() {
      * Preguntar primero si está cuesta una consulta que no puede fallar.
      * Mientras no esté, el rastro viaja en null: aparece «Eliminar» de más y la
      * base lo rechaza con su propio mensaje, que es un mal día mucho más chico.
+     *
+     * Lo mismo con el correo y el segundo factor, que llegan en la 0023: si el
+     * build sube antes que el SQL, nombrar p.correo tira la pantalla entera y
+     * justo ésta es desde donde se arregla cualquier problema de acceso. Una
+     * sola pregunta alcanza para las dos columnas: vienen en la misma
+     * migración, así que están las dos o no está ninguna.
      */
-    const [{ hay_rastro: hayRastro }] = await tx.consultar<{ hay_rastro: boolean }>(
-      `select to_regprocedure('app.rastro_de_perfil(uuid)') is not null as hay_rastro`,
+    const [{ hay_rastro: hayRastro, hay_correo: hayCorreo }] = await tx.consultar<{
+      hay_rastro: boolean
+      hay_correo: boolean
+    }>(
+      `select to_regprocedure('app.rastro_de_perfil(uuid)') is not null as hay_rastro,
+              exists (select 1 from pg_attribute
+                       where attrelid = 'public.perfiles'::regclass
+                         and attname = 'correo' and not attisdropped) as hay_correo`,
     )
 
     // El rastro viene con la fila, y no cuando alguien toca «Eliminar»: si la
@@ -53,6 +66,8 @@ export default async function PantallaUsuarios() {
     const perfiles = await tx.consultar<FilaPerfil>(
       `select p.id, p.usuario, p.nombre, p.rol, p.activo, p.ultimo_acceso,
               p.intentos_fallidos, p.bloqueado_hasta,
+              ${hayCorreo ? 'p.correo' : 'null::text'} as correo,
+              ${hayCorreo ? 'p.totp_confirmado_en is not null' : 'false'} as tiene_segundo_factor,
               s.nombre as sitio_nombre, s.codigo as sitio_codigo,
               ${hayRastro ? 'app.rastro_de_perfil(p.id)' : 'null::text'} as rastro
          from perfiles p
@@ -82,10 +97,13 @@ export default async function PantallaUsuarios() {
           Un usuario por punto, compartido por quienes estén de turno, y uno de coordinación por
           cada persona que administre. El PIN de un punto se muestra una sola vez al crearlo o al
           resetearlo; la contraseña de una cuenta de coordinación la elige quien la va a usar y no
-          se muestra nunca. Desactivar un usuario le corta el acceso en el próximo pedido, aunque
-          tenga la sesión abierta en el celular. Al que nunca llegó a cargar nada se lo puede
-          eliminar de la lista, y eso no tiene vuelta atrás; al que ya cargó algo sólo se lo
-          desactiva, para no perder quién hizo qué.
+          se muestra nunca. La coordinación entra con su correo institucional y un código de seis
+          dígitos que le da una app en el celular: el segundo factor lo configura cada uno la
+          primera vez que entra, y si alguien pierde el teléfono se lo restablecés desde acá.
+          Desactivar un usuario le corta el acceso en el próximo pedido, aunque tenga la sesión
+          abierta en el celular. Al que nunca llegó a cargar nada se lo puede eliminar de la lista,
+          y eso no tiene vuelta atrás; al que ya cargó algo sólo se lo desactiva, para no perder
+          quién hizo qué.
         </p>
       </header>
 
@@ -110,7 +128,14 @@ export default async function PantallaUsuarios() {
                 const trabado = Boolean(p.bloqueado_hasta && new Date(p.bloqueado_hasta).getTime() > ahora)
                 return (
                   <tr key={p.id}>
-                    <td className="mono">{p.usuario}</td>
+                    <td className="mono">
+                      <div className="pila-chica">
+                        <span>{p.usuario}</span>
+                        {/* El correo va pegado al usuario porque son lo mismo:
+                            las dos formas de escribir quién es al entrar. */}
+                        {p.correo && <span className="menor gris">{p.correo}</span>}
+                      </div>
+                    </td>
                     <td className="fuerte">{p.nombre}</td>
                     <td>
                       <span className="chip">{p.rol === 'admin' ? 'Coordinación' : 'Punto'}</span>
@@ -143,6 +168,20 @@ export default async function PantallaUsuarios() {
                             {numero(p.intentos_fallidos)} intento{p.intentos_fallidos === 1 ? '' : 's'} fallido{p.intentos_fallidos === 1 ? '' : 's'}
                           </span>
                         )}
+                        {/* Sólo en coordinación: al usuario de un punto no le
+                            corresponde ni correo ni segundo factor, y decir que
+                            le "falta" sería inventarle un problema. */}
+                        {p.rol === 'admin' && (
+                          p.tiene_segundo_factor
+                            ? <span className="chip">Segundo factor puesto</span>
+                            : <>
+                                <span className="chip pendiente">Segundo factor pendiente</span>
+                                <span className="menor gris">
+                                  {p.correo ? 'Lo configura' : 'Carga el correo y lo configura'} la
+                                  próxima vez que entre.
+                                </span>
+                              </>
+                        )}
                       </div>
                     </td>
                     <td className={estilos.columnaAcciones}>
@@ -153,6 +192,7 @@ export default async function PantallaUsuarios() {
                           rol: p.rol,
                           activo: p.activo,
                           trabado: trabado || p.intentos_fallidos > 0,
+                          tieneSegundoFactor: p.tiene_segundo_factor,
                           rastro: p.rastro,
                           esVos: p.id === sesion.perfilId,
                         }}

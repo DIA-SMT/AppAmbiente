@@ -1,0 +1,172 @@
+/* Lo propio de Mi cuenta: el correo con el que se entra y el segundo factor.
+   Todo lo demás sale de globals.css y de gente.module.css. */
+
+/* ── El enlace del encabezado ─────────────────────────────────────────── */
+/* Vive acá y no en PanelLayout.module.css porque es la puerta de esta
+   pantalla: quien venga a tocar una cosa va a querer tocar la otra. */
+
+.enlaceCuenta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 3px 11px 3px 4px;
+  border: 1px solid transparent;
+  border-radius: 99px;
+  color: inherit;
+  text-decoration: none;
+  transition: background var(--transicion), border-color var(--transicion);
+}
+.enlaceCuenta:hover {
+  background: rgba(7, 25, 61, .22);
+  border-color: rgba(255, 255, 255, .27);
+}
+
+/* El avatar y el nombre los esconde el encabezado en pantallas chicas. Sin algo
+   propio, el enlace se quedaría sin nada adentro y no habría dónde tocar. */
+.iconoCuenta { display: none; width: 22px; height: 22px; flex: 0 0 auto; color: #fff; }
+
+/* Que falte completar la cuenta se avisa con un punto y no con una palabra: al
+   lado de «Salir», en 375 px, una palabra más empuja el encabezado a dos
+   renglones. Lo que dice el punto va escrito para el lector de pantalla. */
+.puntoFalta {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--amarillo);
+  box-shadow: 0 0 0 3px rgba(242, 217, 28, .28);
+}
+
+@media (max-width: 520px) {
+  .iconoCuenta { display: block; }
+  .enlaceCuenta { padding-left: 9px; }
+}
+
+/* ── Los pasos ────────────────────────────────────────────────────────── */
+
+.paso {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 15px;
+  align-items: start;
+}
+
+.numero {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--linea-fuerte);
+  border-radius: 50%;
+  background: var(--panel-2);
+  color: var(--gris);
+  font-size: .95rem;
+  font-weight: 800;
+}
+.numero[data-hecho='true'] {
+  border-color: transparent;
+  background: var(--ingreso-bg);
+  color: var(--ingreso);
+}
+
+/* ── Escanear, o copiar a mano ────────────────────────────────────────── */
+
+.escaneo {
+  display: grid;
+  grid-template-columns: 208px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+/* El QR va sobre blanco siempre, también con el panel en oscuro: las cámaras
+   esperan cuadrados negros sobre fondo claro y uno invertido no se lee. */
+.placa {
+  padding: 12px;
+  border: 1px solid var(--linea-fuerte);
+  border-radius: var(--r-chico);
+  background: #fff;
+}
+.placa svg { display: block; width: 100%; height: auto; }
+
+.sinPlaca {
+  padding: 16px;
+  border: 2px dashed var(--linea-fuerte);
+  border-radius: var(--r-chico);
+  background: var(--panel-2);
+  color: var(--gris);
+  font-size: .84rem;
+}
+
+.secreto {
+  display: block;
+  padding: 12px 14px;
+  border: 2px dashed var(--linea-fuerte);
+  border-radius: var(--r-chico);
+  background: var(--panel-2);
+  color: var(--tinta);
+  font-family: var(--mono);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  line-height: 1.7;
+  word-break: break-word;
+  /* Un toque y queda todo seleccionado: la mitad de un secreto no sirve. */
+  user-select: all;
+}
+
+/* Seis dígitos que se escriben mirando el celular, no la pantalla. */
+.campoCodigo {
+  max-width: 230px;
+  font-family: var(--mono);
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: .38em;
+  /* Compensa el espacio que letter-spacing agrega después del último dígito. */
+  text-indent: .38em;
+  text-align: center;
+}
+
+/* ── Los ocho códigos de respaldo ─────────────────────────────────────── */
+
+.caja {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  border: 2px solid var(--salida);
+  border-radius: var(--r);
+  background: var(--salida-bg);
+  color: var(--tinta);
+  box-shadow: var(--sombra-alta);
+}
+
+.codigos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.codigos li {
+  padding: 11px 9px;
+  border: 1px solid var(--linea-fuerte);
+  border-radius: var(--r-chico);
+  background: var(--panel);
+  color: var(--tinta);
+  font-family: var(--mono);
+  font-size: 1.02rem;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-align: center;
+  user-select: all;
+}
+
+@media (max-width: 640px) {
+  .escaneo { grid-template-columns: minmax(0, 1fr); }
+  .placa { width: 100%; max-width: 260px; }
+  .paso { grid-template-columns: 28px minmax(0, 1fr); gap: 11px; }
+  .numero { width: 28px; height: 28px; font-size: .85rem; }
+  .caja { padding: 16px; }
+}

@@ -1,10 +1,9 @@
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
 import { conteosRecientes, puntosSinCarga, sitiosVisibles } from '@/lib/datos'
 import {
   claveDeCalendario, diaSemana, fecha, fechaDeCalendario, fechaHora, numero, paraInputFechaHora,
 } from '@/lib/formato'
-import { exigirAdmin } from '@/lib/sesion'
+import { exigirPanel } from '@/lib/sesion'
 import type { ConteoDiario, PuntoSinCarga } from '@/lib/tipos'
 import { registrarConteo } from './acciones'
 import estilos from './conteos.module.css'
@@ -82,8 +81,7 @@ export default async function PantallaConteos({
 }: {
   searchParams: Promise<Parametros>
 }) {
-  const sesion = await exigirAdmin().catch(() => null)
-  if (!sesion) redirect('/ingresar')
+  const sesion = await exigirPanel()
 
   const sp = await searchParams
   const aviso = uno(sp.aviso)

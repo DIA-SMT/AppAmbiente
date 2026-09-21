@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { consultarConSesion } from '@db/sesion'
 import { numero } from '@/lib/formato'
 import { RECURSOS, identificador } from '@/lib/recursos'
-import { exigirAdmin } from '@/lib/sesion'
+import { exigirPanel } from '@/lib/sesion'
 import estilos from './listas.module.css'
 
 export const dynamic = 'force-dynamic'
@@ -17,7 +17,7 @@ function Flecha() {
 }
 
 export default async function IndiceDeListas() {
-  const sesion = await exigirAdmin()
+  const sesion = await exigirPanel()
 
   // Una sola ida a la base para los seis conteos. Los nombres de tabla salen
   // de la definición y pasan por identificador(): nada viene del pedido.

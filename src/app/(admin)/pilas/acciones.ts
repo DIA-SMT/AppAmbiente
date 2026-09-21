@@ -18,7 +18,7 @@ import { z } from 'zod'
 import { consultarConSesion } from '@db/sesion'
 import { mensajeDeError } from '@/lib/datos'
 import { UUID } from '@/lib/recursos'
-import { exigirAdmin } from '@/lib/sesion'
+import { exigirAdminCompleto } from '@/lib/sesion'
 import type { EstadoPila } from '@/lib/tipos'
 
 export interface EstadoGuardado {
@@ -134,7 +134,7 @@ function traducir(e: unknown): string {
  * las que saben qué implica cada paso del ciclo.
  */
 async function guardar(id: string | null, datos: FormData): Promise<EstadoGuardado> {
-  const sesion = await exigirAdmin().catch(() => null)
+  const sesion = await exigirAdminCompleto().catch(() => null)
   if (!sesion) return { error: 'Se cerró la sesión. Entrá de nuevo.' }
 
   if (id !== null && !UUID.test(id)) {
@@ -236,7 +236,7 @@ class ErrorDePila extends Error {}
  * atado con bind desde la ficha.
  */
 export async function cerrarPila(id: string, datos: FormData): Promise<void> {
-  const sesion = await exigirAdmin().catch(() => null)
+  const sesion = await exigirAdminCompleto().catch(() => null)
   if (!sesion) redirect('/ingresar')
   if (!UUID.test(id)) redirect('/pilas')
 
@@ -284,7 +284,7 @@ export async function cerrarPila(id: string, datos: FormData): Promise<void> {
  * paso siguiente de un botón o una corrección elegida a mano.
  */
 export async function cambiarEstado(id: string, datos: FormData): Promise<void> {
-  const sesion = await exigirAdmin().catch(() => null)
+  const sesion = await exigirAdminCompleto().catch(() => null)
   if (!sesion) redirect('/ingresar')
   if (!UUID.test(id)) redirect('/pilas')
 

@@ -21,7 +21,7 @@ import { consultarConSesion } from '@db/sesion'
 import { cancelarPedido, confirmarRetiro, marcarAvisado, mensajeDeError } from '@/lib/datos'
 import { fechaHora, paraInputFechaHora } from '@/lib/formato'
 import { UUID } from '@/lib/recursos'
-import { exigirAdmin } from '@/lib/sesion'
+import { exigirAdminCompleto } from '@/lib/sesion'
 
 const FECHA = /^\d{4}-\d{2}-\d{2}$/
 
@@ -57,7 +57,7 @@ const IDS = z
  * anda también sin JavaScript.
  */
 export async function avisar(datos: FormData): Promise<void> {
-  const sesion = await exigirAdmin().catch(() => null)
+  const sesion = await exigirAdminCompleto().catch(() => null)
   if (!sesion) redirect('/ingresar')
 
   const analisis = IDS.safeParse(datos.getAll('id').map(String))
@@ -143,7 +143,7 @@ function instanteDelRetiro(fecha: string, hoy: string, avisadoEn: Date | string 
  * El id viaja atado con bind desde la ficha; el resto llega por el formulario.
  */
 export async function confirmar(id: string, datos: FormData): Promise<void> {
-  const sesion = await exigirAdmin().catch(() => null)
+  const sesion = await exigirAdminCompleto().catch(() => null)
   if (!sesion) redirect('/ingresar')
   if (!UUID.test(id)) volver('error', 'No se pudo identificar el pedido. Recargá la pantalla.')
 
@@ -204,7 +204,7 @@ const MOTIVO = z
  * cuenta en el tiempo de respuesta.
  */
 export async function cancelar(id: string, datos: FormData): Promise<void> {
-  const sesion = await exigirAdmin().catch(() => null)
+  const sesion = await exigirAdminCompleto().catch(() => null)
   if (!sesion) redirect('/ingresar')
   if (!UUID.test(id)) volver('error', 'No se pudo identificar el pedido. Recargá la pantalla.')
 
@@ -231,7 +231,7 @@ export async function cancelar(id: string, datos: FormData): Promise<void> {
  * y el rótulo de la barra dice «pendientes», no «sin avisar».
  */
 export async function contarRecambiosAbiertos(): Promise<number> {
-  const sesion = await exigirAdmin().catch(() => null)
+  const sesion = await exigirAdminCompleto().catch(() => null)
   if (!sesion) return 0
 
   try {

@@ -1,7 +1,6 @@
-import { redirect } from 'next/navigation'
 import { pedidosDeRecambio, respuestaDeRecambio } from '@/lib/datos'
 import { fecha, fechaHora, numero, paraInputFechaHora } from '@/lib/formato'
-import { exigirAdmin } from '@/lib/sesion'
+import { exigirPanel } from '@/lib/sesion'
 import type { PedidoRecambio } from '@/lib/tipos'
 import { avisar, cancelar } from './acciones'
 import ConfirmarRetiro, { CopiarParaWhatsApp } from './ConfirmarRetiro'
@@ -60,8 +59,7 @@ export default async function PantallaRecambios({
 }: {
   searchParams: Promise<Parametros>
 }) {
-  const sesion = await exigirAdmin().catch(() => null)
-  if (!sesion) redirect('/ingresar')
+  const sesion = await exigirPanel()
 
   const parametros = await searchParams
   const aviso = uno(parametros.aviso)

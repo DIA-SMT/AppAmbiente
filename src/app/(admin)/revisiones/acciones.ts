@@ -6,7 +6,7 @@ import { conSesion, consultarConSesion } from '@db/sesion'
 import { mensajeDeError } from '@/lib/datos'
 import { ETIQUETA_ENTIDAD } from '@/lib/formato'
 import { UUID } from '@/lib/recursos'
-import { exigirAdmin } from '@/lib/sesion'
+import { exigirAdminCompleto } from '@/lib/sesion'
 
 export interface EstadoFusion {
   error?: string
@@ -41,7 +41,7 @@ class ErrorDeRevision extends Error {}
  * usa, pero tiene que estar declarado para que el tipo cierre.
  */
 export async function confirmar(id: string, _datos?: FormData): Promise<void> {
-  const sesion = await exigirAdmin().catch(() => null)
+  const sesion = await exigirAdminCompleto().catch(() => null)
   if (!sesion) redirect('/ingresar')
   if (!UUID.test(id)) volver('error', 'No se pudo identificar el alta. Recargá la pantalla.')
 
@@ -83,7 +83,7 @@ export async function confirmar(id: string, _datos?: FormData): Promise<void> {
  * movimientos ya mudada, y nadie se enteraría.
  */
 export async function fusionar(idOrigen: string, idDestino: string): Promise<EstadoFusion> {
-  const sesion = await exigirAdmin().catch(() => null)
+  const sesion = await exigirAdminCompleto().catch(() => null)
   if (!sesion) redirect('/ingresar')
 
   if (!UUID.test(idOrigen)) {
@@ -150,7 +150,7 @@ export async function fusionar(idOrigen: string, idDestino: string): Promise<Est
  * entidad inactiva: por eso la pantalla empuja a fusionar cuando ya tiene uso.
  */
 export async function descartar(id: string, _datos?: FormData): Promise<void> {
-  const sesion = await exigirAdmin().catch(() => null)
+  const sesion = await exigirAdminCompleto().catch(() => null)
   if (!sesion) redirect('/ingresar')
   if (!UUID.test(id)) volver('error', 'No se pudo identificar el alta. Recargá la pantalla.')
 
@@ -203,7 +203,7 @@ export async function formalizarDestino(
   tipo: string,
   flujo: string,
 ): Promise<EstadoFormalizacion> {
-  const sesion = await exigirAdmin().catch(() => null)
+  const sesion = await exigirAdminCompleto().catch(() => null)
   if (!sesion) redirect('/ingresar')
 
   const escrito = texto.trim()
@@ -243,7 +243,7 @@ export async function formalizarDestino(
  * toque la barra, sumar v_destinos_a_formalizar y cambiar ese texto.
  */
 export async function contarPendientes(): Promise<number> {
-  const sesion = await exigirAdmin().catch(() => null)
+  const sesion = await exigirAdminCompleto().catch(() => null)
   if (!sesion) return 0
 
   try {

@@ -7,7 +7,7 @@ import {
   recursoPorClave, valorDeFila,
   type ClaveRecurso, type Opcion, type ValorFormulario,
 } from '@/lib/recursos'
-import { exigirAdmin } from '@/lib/sesion'
+import { exigirPanel } from '@/lib/sesion'
 import estilos from '../listas.module.css'
 import FormularioRecurso from './FormularioRecurso'
 import TablaRecurso from './TablaRecurso'
@@ -33,7 +33,7 @@ export default async function PantallaRecurso({
   params: Promise<{ recurso: string }>
   searchParams: Promise<Parametros>
 }) {
-  const sesion = await exigirAdmin()
+  const sesion = await exigirPanel()
 
   const { recurso: clave } = await params
   const recurso = recursoPorClave(clave)

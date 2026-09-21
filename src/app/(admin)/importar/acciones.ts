@@ -30,7 +30,7 @@ import type {
 } from '@/lib/importacion'
 import { TAMANO_MAXIMO, TOPE_FILAS, avisoDeTamano } from '@/lib/limites'
 import { UUID } from '@/lib/recursos'
-import { exigirAdmin } from '@/lib/sesion'
+import { exigirAdminCompleto } from '@/lib/sesion'
 
 /**
  * El análisis, recortado a lo que la pantalla realmente muestra.
@@ -425,7 +425,7 @@ export async function previsualizar(
   _previo: unknown,
   fd: FormData,
 ): Promise<ResultadoPrevisualizar> {
-  const sesion = await exigirAdmin().catch(() => null)
+  const sesion = await exigirAdminCompleto().catch(() => null)
   if (!sesion) return { ok: false, error: 'Se cerró la sesión. Entrá de nuevo.' }
 
   const archivo = await tomarArchivo(fd)
@@ -606,7 +606,7 @@ async function insertarPesosEnTx(
  * así que la mitad que hubiera entrado quedaría ahí para siempre.
  */
 export async function confirmar(_previo: unknown, fd: FormData): Promise<ResultadoConfirmar> {
-  const sesion = await exigirAdmin().catch(() => null)
+  const sesion = await exigirAdminCompleto().catch(() => null)
   if (!sesion) return { ok: false, error: 'Se cerró la sesión. Entrá de nuevo.' }
 
   const archivo = await tomarArchivo(fd)
@@ -821,7 +821,7 @@ export async function revertir(
   _previo: unknown,
   fd: FormData,
 ): Promise<{ ok: boolean; error?: string }> {
-  const sesion = await exigirAdmin().catch(() => null)
+  const sesion = await exigirAdminCompleto().catch(() => null)
   if (!sesion) return { ok: false, error: 'Se cerró la sesión. Entrá de nuevo.' }
 
   const id = texto(fd, 'id')

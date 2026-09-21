@@ -9,9 +9,9 @@ y los retiros pactados con grandes generadores.
 
 **Entregado:** la Planta de Valorización, los ocho Puntos Verdes, el seguimiento de
 las pilas de compost con la trazabilidad del camión, el conteo diario simplificado
-para los puntos donde no se puede usar el celular, y el recambio de contenedores.
-Falta la importación del Excel de pesos de la 9 de Julio, que necesita un archivo de
-muestra.
+para los puntos donde no se puede usar el celular, el recambio de contenedores, y el
+ingreso al panel con correo institucional y segundo factor. Falta la importación del
+Excel de pesos de la 9 de Julio, que necesita un archivo de muestra.
 
 El documento de validación con el modelo completo, las decisiones de diseño y las
 preguntas abiertas está en [`docs/fase-0-validacion.html`](docs/fase-0-validacion.html).
@@ -56,8 +56,9 @@ Una base que se entrega tiene **una sola puerta**:
 Con esa cuenta se entra a **Usuarios** y se crean las dos clases que existen:
 
 - **De coordinación**: ve los tres flujos, los datos de los vecinos y la auditoría.
-  La contraseña la escribe quien la va a usar, de 6 caracteres para arriba, y el
-  sistema nunca la inventa ni la vuelve a mostrar.
+  Entra con su **correo institucional** (`@smt.gob.ar`) y una contraseña que escribe
+  quien la va a usar, de 6 caracteres para arriba, que el sistema nunca inventa ni
+  vuelve a mostrar. Y después un **código de seis dígitos** del celular.
 - **De punto**: sólo carga movimientos del punto que se le asigne. Lleva un PIN de
   cuatro dígitos, que el sistema puede inventar y que se muestra una sola vez. Es
   corto a propósito: se teclea en la calle, y lo que lo protege es el bloqueo por
@@ -75,6 +76,73 @@ datos de ejemplo y no llegan a ninguna base de verdad.
 > `npm run db:verificar` falla contra un Postgres de verdad mientras siga puesta.
 > Lo mismo con `AUTH_SECRET`: con la clave de firma publicada, cualquiera puede
 > emitirse una sesión de coordinación.
+
+### Cómo se entra al panel
+
+En dos pasos. Primero el correo institucional y la contraseña; después un código de
+seis dígitos que da una app de autenticación en el celular —Google Authenticator,
+Aegis, la que sea—. El código cambia cada 30 segundos, sale del teléfono y no viaja
+por ningún lado: ni por correo, ni por SMS, ni por WhatsApp.
+
+**El ingreso del vigilador no cambió**: usuario del punto y PIN, sin correo, sin
+segundo factor y con la sesión que no vence. La cuenta es del punto y la comparten
+quienes estén de turno, trabajan en la calle y muchas veces sin señal.
+
+#### La primera vez, y las cuentas que ya estaban
+
+Una cuenta de coordinación a la que le falte el correo —las que existían antes de
+esto— **sigue entrando con su nombre de usuario**, como siempre. Nadie queda afuera
+por una actualización. Lo que pasa es que, mientras le falte el correo o el segundo
+factor, el panel la lleva a **Mi cuenta** y no la deja ir a ninguna otra pantalla.
+Ahí, de una sola vez: carga su correo institucional, escanea el código con el
+celular, escribe un código para confirmar que le anda —recién ahí queda guardado, así
+que nadie queda con un segundo factor que nunca llegó a configurar— y recibe **ocho
+códigos de respaldo**, que se muestran una sola vez.
+
+Los códigos de respaldo son para el día que el celular no está: cada uno entra una
+sola vez y se quema. Se regeneran desde Mi cuenta.
+
+#### Si alguien pierde el teléfono
+
+Otra cuenta de coordinación se lo restablece desde **Usuarios → Restablecer segundo
+factor**: la cuenta queda como recién creada y la próxima vez que entre vuelve a
+escanear el código. La contraseña no cambia.
+
+Y si se perdió el teléfono **y** los códigos de respaldo, y no hay otra cuenta de
+coordinación que pueda hacerlo —con una sola cuenta es exactamente lo que pasa—, se
+destraba desde cualquier máquina con acceso a la base:
+
+```bash
+DATABASE_URL="<cadena de sesión>" npm run db:2fa -- --usuario direccionia --reset
+```
+
+Sin `--reset` sólo informa quién tiene el segundo factor configurado y quién no.
+Con `--reset` pide confirmación y dice qué va a pasar antes de tocar nada.
+
+**Si el CLI no llega a la base**, que en esta red pasa seguido —la conexión directa
+de Supabase es sólo IPv6; ver «Poner la base en producción» más abajo—, el mismo
+reseteo se pega en **SQL Editor → New query → Run**. Es exactamente el `update` que
+corre el comando:
+
+```sql
+update perfiles
+   set totp_secreto = null, totp_confirmado_en = null, totp_ultimo_paso = null,
+       codigos_respaldo = '{}', intentos_fallidos = 0, bloqueado_hasta = null
+ where usuario = 'direccionia' and rol = 'admin';
+```
+
+Después de correrlo, esa cuenta entra con su correo y su contraseña y el panel la
+lleva de vuelta a **Mi cuenta** para configurar el segundo factor de nuevo.
+
+> Esta salida de emergencia no es un descuido: es la condición para que el segundo
+> factor se pueda exigir. Sin ella, un teléfono perdido con una sola cuenta de
+> coordinación deja la base inaccesible para siempre. Y por eso son dos caminos y
+> no uno: el día que haga falta no es el día para descubrir que el único que había
+> no conecta.
+
+**Antes de la presentación**, correr una vez `npm run db:2fa` *sin* `--reset` desde
+la máquina de la Dirección de IA. Sólo lee, y es la forma de saber si esa cadena de
+conexión llega de verdad a la base antes de necesitarla.
 
 ---
 
@@ -95,7 +163,7 @@ datos de ejemplo y no llegan a ninguna base de verdad.
 npm run db:verificar
 ```
 
-Cincuenta comprobaciones contra la base real, y es repetible: limpia sus propios
+Más de sesenta comprobaciones contra la base real, y es repetible: limpia sus propios
 rastros antes de empezar, así correrla dos veces da lo mismo. Sirve igual contra una
 base recién creada: se arma las filas que necesita —una entidad con CUIT, un
 movimiento, una pila— porque una comprobación sobre la nada engaña en las dos
@@ -129,6 +197,12 @@ Supabase, no llegue a nada. Ver la migración 0019.
 **Del conteo diario:** que corregir el conteo de un día no duplique la fila, que no se
 pueda cargar el de otro punto ni uno de hace meses, y —lo que hace que el indicador no
 mienta— que un punto que solo cuenta sume visitas pero **no** vecinos identificados.
+
+**Del ingreso al panel:** que un usuario de punto no pueda tener correo ni segundo
+factor, que dos cuentas no compartan el mismo correo ni escribiéndolo con otras
+mayúsculas, que un código de seis dígitos no entre dos veces, que un código de respaldo
+se use una sola vez, y que los códigos errados sumen al **mismo** bloqueo que la
+contraseña —si no, el segundo factor son seis dígitos que se prueban de a un millón—.
 
 Conviene correrlo después de tocar `db/migrations/0010_rls.sql` y antes de desplegar.
 
@@ -172,7 +246,7 @@ esperando sin decir por qué.
 npm run db:sql
 ```
 
-Escribe `db/produccion.sql` (unos 175 KB): las 22 migraciones en orden, las filas
+Escribe `db/produccion.sql` (unos 175 KB): las 23 migraciones en orden, las filas
 de `app.migraciones` y los datos base. Se pega entero en **SQL Editor → New query
 → Run**, y al final devuelve una tabla con lo que quedó cargado.
 
@@ -231,6 +305,11 @@ el editor son dos pasos sueltos. Primero se aplica el SQL y después se sube el 
 Al revés, la app queda pidiéndole a la base cosas que todavía no existen, y una
 pantalla que se apoya en una función nueva deja de abrir hasta que el SQL entre.
 
+> **Con la 0023 esto dejó de ser una pantalla rota.** El ingreso lee el correo, así
+> que un build nuevo contra una base sin la 0023 aplicada no deja entrar **a nadie**,
+> ni con el usuario de siempre. Se arregla aplicando el SQL —el build ya está bien—,
+> pero mientras tanto el sistema está cerrado. Primero el SQL.
+
 #### Lo que la base nueva NO trae
 
 Ningún dato inventado: ni choferes, ni patentes, ni destinos habilitados, ni pilas,
@@ -258,27 +337,38 @@ Sin `AUTH_SECRET` la app no arranca y lo dice. Se deja vacío en `.env.example` 
 propósito: con la clave de firma publicada, cualquiera podría emitirse una sesión de
 coordinación.
 
+> **`AUTH_SECRET` ahora vale más que antes.** Además de firmar las sesiones, de ahí
+> sale la clave con la que se cifran los secretos del segundo factor: guardados en
+> claro, cualquiera que lea la base se genera los códigos solo. Cambiarla no sólo
+> cierra las sesiones abiertas —eso ya pasaba—: también deja ilegibles los secretos
+> guardados, y cada cuenta de coordinación tiene que volver a configurar el segundo
+> factor con `npm run db:2fa -- --usuario <quien> --reset`. Se cambia con motivo, no
+> de rutina.
+
 ---
 
 ## Estructura
 
 ```
 db/
-  migrations/        22 migraciones SQL, en orden. Es la fuente de verdad del modelo.
+  migrations/        23 migraciones SQL, en orden. Es la fuente de verdad del modelo.
   client.ts          conexión: PGlite o postgres-js según DATABASE_URL
   sesion.ts          conSesion() pone la identidad en la base antes de consultar
   credenciales.ts    hasheo de PIN con scrypt
+  totp.ts            códigos de seis dígitos (RFC 6238) y cifrado del secreto
   migraciones.ts     aplicador que usan el CLI y el servidor de desarrollo
   datos-base.ts      los datos del relevamiento y las sentencias que los cargan
-  cli/               migrar · sembrar · reset · verificar · exportar-sql
+  cli/               migrar · sembrar · reset · verificar · exportar-sql ·
+                     segundo-factor (la salida de emergencia del 2FA)
 src/
   lib/               tipos, capa de datos, sesión, formato argentino
   app/
-    ingresar/        pantalla de acceso
+    ingresar/        pantalla de acceso, en dos pasos para la coordinación
     (vigilador)/     turno, carga de ingreso y salida, conteo diario, control de
                      pilas, listo, lo de hoy
     (admin)/         tablero (planta y puntos verdes), movimientos, trazabilidad,
-                     pilas, conteos, listas, revisiones, vecinos, usuarios, auditoría
+                     pilas, conteos, listas, revisiones, vecinos, usuarios, cuenta
+                     (correo y segundo factor), auditoría
     api/             exportar a Excel, sincronizar la cola offline
 docs/                documento de validación de fase 0
 assets/marca/        identidad institucional (logos y plantilla de referencia)
@@ -298,6 +388,8 @@ assets/marca/        identidad institucional (logos y plantilla de referencia)
 | `npm run db:usuarios` | Escribe db/usuarios.sql: deja en la base sólo los usuarios de datos-base.ts |
 | `npm run db:reset` | Borra la base local y la rehace desde cero |
 | `npm run db:verificar` | Comprueba que las políticas de seguridad hagan lo que dicen |
+| `npm run db:2fa` | Informa quién tiene el segundo factor configurado |
+| `npm run db:2fa -- --usuario <quien> --reset` | Se lo borra, para que lo configure de nuevo al entrar |
 | `npm run typecheck` | Chequeo de tipos |
 | `npm run build` | Compilación de producción |
 
@@ -322,7 +414,8 @@ Los dos supuestos que más pesaban quedaron resueltos con el relevamiento (exped
   muestra la cuenta hecha: “2 camiones = 12 m³”.
 - **Un usuario por punto**, no por persona: son unos 67 vigiladores con rotación
   permanente y sin asignación fija. El selector de quién está de turno quedó opcional
-  justamente por eso.
+  justamente por eso, y si eso cambia se ve con la devolución de la Secretaría
+  (*Anotado para después de la devolución de la Secretaría*, al final).
 - **No existe una lista formal de destinos habilitados.** El destino es un campo
   abierto y lo escrito a mano se formaliza desde **Revisiones**, que al convertirlo
   reapunta los movimientos anteriores.
@@ -431,3 +524,22 @@ Un archivo de muestra del Excel de pesos de contenedores de la planta de la
 punto verde. La importación está diseñada con mapeo de columnas configurable
 (`mapeos_importacion`), así que el archivo puede llegar tarde sin costo de
 desarrollo, pero el indicador no se puede validar hasta verlo.
+
+## Anotado para después de la devolución de la Secretaría
+
+**Asignar responsables con nombre desde el celular del punto.** Hoy la cuenta es del
+punto y la comparten quienes estén de turno, así que un movimiento queda a nombre de
+`pv04` y no de una persona. En *Turno* hay un selector opcional de quién está de
+turno —sale de *Listas maestras* y se guarda en ese celular— pero es opcional
+justamente porque son unos 67 vigiladores, rotan sin asignación fija y la lista nunca
+está al día: exigirlo hoy sería trabar la carga en la calle por un dato que nadie
+mantiene.
+
+Lo que se quiere mirar es si conviene que el vigilador pueda dejar el movimiento a
+nombre de una persona, y con qué obligatoriedad. No es una decisión técnica: depende
+de si la Secretaría va a mantener la lista de quién trabaja en cada punto, que es lo
+único que hace que el dato sirva. **Se retoma con la devolución de la Secretaría de
+Ambiente**, junto con el resto de lo que traigan de la presentación.
+
+No toca el ingreso: la cuenta del punto sigue siendo compartida, con PIN y sin
+segundo factor.

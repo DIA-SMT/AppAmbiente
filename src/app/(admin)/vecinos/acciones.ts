@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { consultarConSesion } from '@db/sesion'
-import { exigirAdmin } from '@/lib/sesion'
+import { exigirAdminCompleto } from '@/lib/sesion'
 
 /**
  * Anonimizar corre en la base (app.anonimizar_vecino): vacía nombre, teléfono
@@ -11,7 +11,7 @@ import { exigirAdmin } from '@/lib/sesion'
  * trajo ese vecino y el tablero quedan intactos.
  */
 export async function anonimizarVecino(datos: FormData): Promise<void> {
-  const sesion = await exigirAdmin().catch(() => null)
+  const sesion = await exigirAdminCompleto().catch(() => null)
   if (!sesion) redirect('/ingresar')
 
   const id = String(datos.get('id') ?? '').trim()

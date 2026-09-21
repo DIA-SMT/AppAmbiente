@@ -1,8 +1,7 @@
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
 import { conSesion } from '@db/sesion'
 import { fecha, numero } from '@/lib/formato'
-import { exigirAdmin } from '@/lib/sesion'
+import { exigirPanel } from '@/lib/sesion'
 import estilos from '../gente.module.css'
 import { anonimizarVecino } from './acciones'
 
@@ -34,8 +33,7 @@ export default async function PantallaVecinos({
 }: {
   searchParams: Promise<Busqueda>
 }) {
-  const sesion = await exigirAdmin().catch(() => null)
-  if (!sesion) redirect('/ingresar')
+  const sesion = await exigirPanel()
 
   const parametros = await searchParams
   const busqueda = texto(parametros.q).slice(0, 80)

@@ -1,8 +1,7 @@
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
 import { buscarMovimientos, trazabilidadDeSalidas } from '@/lib/datos'
 import { ZONA, fecha, fechaHora, numero } from '@/lib/formato'
-import { exigirAdmin } from '@/lib/sesion'
+import { exigirPanel } from '@/lib/sesion'
 import estilos from './trazabilidad.module.css'
 
 export const dynamic = 'force-dynamic'
@@ -79,8 +78,7 @@ export default async function PantallaTrazabilidad({
 }: {
   searchParams: Promise<Parametros>
 }) {
-  const sesion = await exigirAdmin().catch(() => null)
-  if (!sesion) redirect('/ingresar')
+  const sesion = await exigirPanel()
 
   const parametros = await searchParams
   // Una fecha mal escrita rompe el casteo en Postgres: lo que no tiene forma

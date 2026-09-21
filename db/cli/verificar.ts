@@ -9,13 +9,15 @@
  * desplegar a Supabase, donde las mismas políticas se evalúan igual.
  */
 import '../entorno'
-import { randomUUID } from 'node:crypto'
+import { createHmac, randomUUID } from 'node:crypto'
+import * as modulos from 'node:module'
 import { comoServicio, conSesion, type Sesion } from '../sesion'
 import { hashearCredencial } from '../credenciales'
 import { obtenerBase, describirMotor } from '../client'
 
 let pasaron = 0
 let fallaron = 0
+let omitidas = 0
 
 function revisar(descripcion: string, condicion: boolean, detalle = '') {
   if (condicion) {
@@ -25,6 +27,18 @@ function revisar(descripcion: string, condicion: boolean, detalle = '') {
     fallaron++
     console.log(`  ✗ ${descripcion}${detalle ? `  → ${detalle}` : ''}`)
   }
+}
+
+/**
+ * Lo que no se pudo probar, que no es lo mismo que lo que salió mal.
+ *
+ * Una comprobación que no corre no puede contarse como buena —sería decir que
+ * algo anda cuando nadie lo miró— ni como mala, porque entonces la verificación
+ * entera daría en rojo sin que haya nada roto. Se dice y se cuenta aparte.
+ */
+function omitir(descripcion: string, motivo: string) {
+  omitidas++
+  console.log(`  ~ ${descripcion}  → ${motivo}`)
 }
 
 /** Corre una consulta esperando que la base la rechace. */
@@ -137,6 +151,26 @@ const PERFILES_A_BORRAR: ReadonlyArray<readonly [string, string]> = [
 ]
 
 /**
+ * La cuenta de coordinación con la que se prueba el ingreso en dos pasos.
+ *
+ * Es la única de esta verificación que tiene que estar ACTIVA: el ingreso no le
+ * contesta a una cuenta desactivada, así que sin eso no hay forma de probar que
+ * un código se usa una sola vez ni que cinco errados traban la cuenta.
+ *
+ * Por eso es también la única con una contraseña que sirve. Se sortea en cada
+ * corrida, no sale de la memoria de este proceso y la cuenta queda desactivada
+ * antes de terminar: esto se corre contra la base de la Secretaría —para eso
+ * está la comprobación de las claves de fábrica— y una cuenta de coordinación
+ * abierta es exactamente lo que no puede dejar atrás. Si la corrida se corta por
+ * la mitad y queda activa, la contraseña se fue con el proceso: no hay con qué
+ * entrar, y la próxima corrida la borra antes de empezar.
+ */
+const USUARIO_2FA = 'verif_2fa'
+const CORREO_2FA = 'verificacion@smt.gob.ar'
+/** Los mismos que traban el ingreso en src/lib/acceso.ts. */
+const INTENTOS_HASTA_TRABAR = 5
+
+/**
  * Borra lo que dejó una corrida anterior, para que correr esto dos veces dé el
  * mismo resultado.
  *
@@ -169,7 +203,7 @@ async function limpiarRastros() {
     // Último: casi todas las tablas de arriba los referencian con `on delete
     // restrict`, así que hasta acá no se pueden sacar.
     await tx.consultar('delete from perfiles where usuario = any($1::text[])', [
-      [...PERFILES_PRUEBA.map((p) => p[0]), ...PERFILES_A_BORRAR.map((p) => p[0])],
+      [...PERFILES_PRUEBA.map((p) => p[0]), ...PERFILES_A_BORRAR.map((p) => p[0]), USUARIO_2FA],
     ])
   })
 }
@@ -210,6 +244,101 @@ async function sesionesDePrueba(): Promise<Record<'admin' | 'planta' | 'punto' |
     planta: buscar('verif_planta'),
     punto: buscar('verif_punto'),
     andes: buscar('verif_andes'),
+  }
+}
+
+/**
+ * El código de seis dígitos que muestra el teléfono en un paso dado.
+ *
+ * Está escrito de nuevo acá, a mano, a propósito: pedírselo a db/totp.ts sería
+ * comparar ese archivo consigo mismo, y lo que hay que saber es si el número
+ * que genera es el que arma cualquier otra implementación del RFC 6238 —o sea,
+ * el que va a mostrar el teléfono de la coordinadora—. Son tres pasos: el HMAC
+ * del número de intervalo, los últimos cuatro bits dicen de dónde se recortan
+ * cuatro bytes, y de ahí salen los seis dígitos. Antes de usarlo se lo ancla
+ * contra el vector de prueba del RFC.
+ */
+function codigoTotp(secretoBase32: string, paso: number): string {
+  const ALFABETO = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
+  const bits = [...secretoBase32.toUpperCase().replace(/[^A-Z2-7]/g, '')]
+    .map((c) => ALFABETO.indexOf(c).toString(2).padStart(5, '0'))
+    .join('')
+  const secreto = Buffer.from((bits.match(/.{8}/g) ?? []).map((b) => parseInt(b, 2)))
+
+  const contador = Buffer.alloc(8)
+  contador.writeBigUInt64BE(BigInt(paso))
+  const mac = createHmac('sha1', secreto).update(contador).digest()
+
+  const desde = mac[mac.length - 1] & 0x0f
+  return String((mac.readUInt32BE(desde) & 0x7fffffff) % 1_000_000).padStart(6, '0')
+}
+
+/** El intervalo de 30 segundos en el que estamos, que es lo que firma el código. */
+function pasoDeAhora(): number {
+  return Math.floor(Date.now() / 1000 / 30)
+}
+
+/**
+ * Seis dígitos que no son el código de ninguna ventana cercana.
+ *
+ * Se aceptan tres —el paso de ahora y uno para cada lado— y se descartan cinco
+ * por si el reloj cruza un intervalo en el medio de la prueba: un "código
+ * errado" que resulte válido daría por fallado el bloqueo sin que esté roto.
+ */
+function codigoQueNoVale(secreto: string, paso: number): string {
+  const validos = new Set([-2, -1, 0, 1, 2].map((d) => codigoTotp(secreto, paso + d)))
+  for (let n = 0; ; n++) {
+    const candidato = String(n).padStart(6, '0')
+    if (!validos.has(candidato)) return candidato
+  }
+}
+
+type ModuloIngreso = typeof import('../../src/lib/acceso')
+let porQueNoSeCargo = ''
+
+/**
+ * `server-only` lo resuelve el build de Next por su cuenta, pero no está en
+ * package.json: en un `tsx` suelto, importar src/lib/acceso.ts se caía con
+ * "Cannot find package 'server-only'" y las seis comprobaciones del ingreso se
+ * salteaban. Y se salteaban en silencio —la corrida igual terminaba en "0 mal"—,
+ * que es la peor forma de perder una prueba: la que se pierde sin avisar.
+ *
+ * Venía andando por un stub escrito a mano dentro de node_modules, sin
+ * versionar, que cualquier `npm install` se lleva puesto. Así que en vez de
+ * depender de ese archivo, acá se resuelve el nombre a un módulo vacío, que es
+ * exactamente lo que el paquete de verdad expone bajo la condición
+ * `react-server`. Fuera de esta CLI no cambia nada: la app la sigue armando Next.
+ */
+function resolverServerOnly() {
+  // registerHooks() existe desde Node 22.15. En uno anterior no se engancha
+  // nada y las seis comprobaciones se saltean como antes, avisando: vale más
+  // que corran las otras setenta que tumbar la verificación entera acá.
+  const registrar = modulos.registerHooks
+  if (typeof registrar !== 'function') return
+
+  registrar({
+    resolve(especificador, contexto, siguiente) {
+      if (especificador === 'server-only') {
+        return { url: 'data:text/javascript,', shortCircuit: true }
+      }
+      return siguiente(especificador, contexto)
+    },
+  })
+}
+
+/**
+ * Las funciones de ingreso, que viven del lado de la app y no de la base.
+ *
+ * Se piden con un import dinámico para poder decir por qué no se cargaron si
+ * algún día dejan de cargarse, en vez de tumbar las otras setenta.
+ */
+async function cargarIngreso(): Promise<ModuloIngreso | null> {
+  try {
+    resolverServerOnly()
+    return await import('../../src/lib/acceso')
+  } catch (e) {
+    porQueNoSeCargo = (e as Error).message.split('\n')[0].slice(0, 90)
+    return null
   }
 }
 
@@ -933,6 +1062,21 @@ async function main() {
     porLaAuditoria.slice(0, 80),
   )
 
+  // Se va con el correo y el segundo factor puestos. app.eliminar_perfil arma
+  // el jsonb de la auditoría por su cuenta —no pasa por el disparador de la
+  // 0009—, así que si la lista de campos reservados viviera solamente ahí
+  // adentro, el secreto de la cuenta que se borra quedaría escrito en la única
+  // tabla de la que no se borra nada.
+  await conSesion(admin, (tx) =>
+    tx.consultar(
+      `update perfiles
+          set correo = $2, totp_secreto = $3, totp_confirmado_en = now(),
+              codigos_respaldo = array[$4::text]
+        where id = $1`,
+      [efimero.id, 'efimero.verificar@smt.gob.ar', 'secreto-de-prueba', 'respaldo-de-prueba'],
+    ),
+  )
+
   const [borrado] = await conSesion(admin, (tx) =>
     tx.consultar<{ usuario: string }>('select app.eliminar_perfil($1) as usuario', [efimero.id]),
   )
@@ -949,10 +1093,16 @@ async function main() {
   // entera. La línea la escribe app.eliminar_perfil a mano, y sin ella la única
   // acción del sistema que no se puede deshacer sería la única sin registro.
   const [linea] = await conSesion(admin, (tx) =>
-    tx.consultar<{ borrado: string | null; actor: string | null; hash: string | null }>(
+    tx.consultar<{
+      borrado: string | null; actor: string | null; hash: string | null
+      correo: string | null; secreto: string | null; respaldo: string | null
+    }>(
       `select antes ->> 'usuario' as borrado,
               actor_id::text    as actor,
-              antes ->> 'credencial_hash' as hash
+              antes ->> 'credencial_hash' as hash,
+              antes ->> 'correo' as correo,
+              antes ->> 'totp_secreto' as secreto,
+              antes ->> 'codigos_respaldo' as respaldo
          from auditoria
         where tabla = 'perfiles' and accion = 'eliminar' and registro_id = $1`,
       [efimero.id],
@@ -964,6 +1114,323 @@ async function main() {
     linea
       ? `${linea.borrado} por ${linea.actor}${linea.hash === null ? '' : ', con la credencial adentro'}`
       : 'no quedó ninguna línea',
+  )
+  // El correo sí queda, y tiene que quedar: es lo que dice cuál de las cuentas
+  // era ésa. Lo que no puede quedar es con qué se entraba.
+  revisar(
+    'y queda sin el secreto ni los códigos de respaldo',
+    linea?.secreto === null && linea?.respaldo === null && linea?.correo !== null,
+    linea ? `correo ${linea.correo ?? 'perdido'}, secreto ${linea.secreto ?? 'fuera'}` : 'no quedó ninguna línea',
+  )
+
+  // ═══ Correo y segundo factor ══════════════════════════════════════════
+  //
+  // Entrar al panel pasa a ser correo institucional, contraseña y un código de
+  // seis dígitos. Lo que se prueba acá es lo que tiene que cumplirse aunque la
+  // pantalla se distraiga: que el vigilador quede afuera de todo esto, que dos
+  // cuentas no compartan correo, que un código sirva una sola vez y que
+  // equivocarlo cueste lo mismo que equivocar la contraseña.
+  console.log('\n  Correo y segundo factor')
+
+  // La cuenta del punto la comparten los turnos y se usa en la calle, muchas
+  // veces sin señal. Que no pueda tener correo ni segundo factor no es una
+  // convención de la pantalla de usuarios: lo frena el check de la 0023.
+  await debeFallar(
+    'un vigilador no puede tener correo',
+    admin,
+    'update perfiles set correo = $2 where id = $1',
+    [planta.perfilId, 'planta.verificar@smt.gob.ar'],
+  )
+  await debeFallar(
+    'ni secreto de segundo factor',
+    admin,
+    'update perfiles set totp_secreto = $2, totp_confirmado_en = now() where id = $1',
+    [planta.perfilId, 'cualquier cosa'],
+  )
+  await debeFallar(
+    'ni códigos de respaldo',
+    admin,
+    'update perfiles set codigos_respaldo = array[$2::text] where id = $1',
+    [planta.perfilId, 'cualquier cosa'],
+  )
+
+  // Que el correo pueda faltar es lo que hace que esta tanda no deje a nadie
+  // afuera: las cuentas de coordinación que hay hoy no tienen ninguno y tienen
+  // que seguir entrando mañana con su nombre de usuario. Lo exige el portón de
+  // /cuenta, no la columna. Si fuera obligatoria, esta verificación no habría
+  // podido crear ni sus propios usuarios de prueba.
+  const adminSinCorreo = await contar(
+    admin,
+    "select count(*) c from perfiles where rol = 'admin' and correo is null",
+  )
+  revisar(
+    'una cuenta de coordinación sin correo sigue siendo válida',
+    adminSinCorreo > 0,
+    `${adminSinCorreo} sin correo`,
+  )
+
+  const CORREO_UNICO = 'coordinacion.verificar@smt.gob.ar'
+  await conSesion(admin, (tx) =>
+    tx.consultar('update perfiles set correo = $2 where id = $1', [admin.perfilId, CORREO_UNICO]),
+  )
+  await debeFallar(
+    'dos cuentas no pueden compartir el correo',
+    admin,
+    'update perfiles set correo = $2 where id = $1',
+    [auditado.id, CORREO_UNICO],
+  )
+  // Direccion.IA@ y direccion.ia@ son la misma casilla. El índice va por
+  // lower() justamente para que la segunda no entre por escribirse distinto.
+  await debeFallar(
+    'ni escribiéndolo con otras mayúsculas',
+    admin,
+    'update perfiles set correo = $2 where id = $1',
+    [auditado.id, CORREO_UNICO.toUpperCase()],
+  )
+  // Un correo en blanco no es «sin correo»: pasaría por el portón como cargado,
+  // y el índice de arriba rechazaría a la segunda cuenta que lo dejara así con
+  // un error que habla de un correo repetido que nadie escribió.
+  await debeFallar(
+    'ni dejarlo en blanco',
+    admin,
+    'update perfiles set correo = $2 where id = $1',
+    [auditado.id, '   '],
+  )
+  // El correo de prueba se devuelve acá. La fila sobrevive hasta la próxima
+  // corrida y no tiene por qué quedarse con una dirección que mañana puede ser
+  // de alguien.
+  await conSesion(admin, (tx) =>
+    tx.consultar('update perfiles set correo = null where id = $1', [admin.perfilId]),
+  )
+
+  const ingreso = await cargarIngreso()
+  if (!ingreso) {
+    // El motivo se dice una vez y después se enumera lo que quedó sin correr:
+    // una comprobación que no se ejecutó no es una comprobación que salió bien.
+    console.log(`  · no se pudo cargar src/lib/acceso.ts → ${porQueNoSeCargo}`)
+    for (const queda of [
+      'la contraseña sola no alcanza para la coordinación',
+      'un código de la aplicación entra',
+      'y el mismo código no entra de nuevo',
+      'un código de respaldo se usa una sola vez',
+      'cinco códigos errados traban la cuenta, igual que cinco contraseñas',
+      'cinco contraseñas erradas a la vez cuentan las cinco',
+      'un secreto que el servidor ya no puede leer no gasta intentos',
+      'restablecer el segundo factor deja la cuenta como recién creada',
+    ]) {
+      omitir(queda, 'sin las funciones de ingreso')
+    }
+  } else {
+    const { verificarAcceso, verificarSegundoFactor, hashearCodigosDeRespaldo } = ingreso
+    const { generarSecreto, cifrarSecreto, generarCodigosDeRespaldo } = await import('../totp')
+
+    // El vector del RFC 6238: el secreto ASCII '12345678901234567890' escrito en
+    // base32, a los 59 segundos de la época, o sea el paso 1. Si esto no da
+    // 287082 el que está mal es el generador de esta verificación, y entonces no
+    // se puede afirmar nada sobre el del sistema.
+    if (codigoTotp('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', 1) !== '287082') {
+      throw new Error('El generador de códigos de esta verificación no da los del RFC 6238.')
+    }
+
+    const secreto = generarSecreto()
+    const respaldos = generarCodigosDeRespaldo(2)
+    const clave = randomUUID()
+    const [cuenta] = await comoServicio((tx) =>
+      tx.consultar<{ id: string }>(
+        `insert into perfiles (usuario, nombre, rol, correo, credencial_hash, sesion_horas,
+                               activo, totp_secreto, totp_confirmado_en, codigos_respaldo)
+         values ($1, $2, 'admin', $3, $4, 12, true, $5, now(), $6::text[])
+         returning id`,
+        [
+          USUARIO_2FA, 'Verificación — segundo factor', CORREO_2FA, hashearCredencial(clave),
+          cifrarSecreto(secreto), hashearCodigosDeRespaldo(respaldos),
+        ],
+      ),
+    )
+
+    // Con el segundo factor configurado, la contraseña correcta no devuelve la
+    // sesión sino el paso intermedio. Es todo el punto de esta tanda: que tener
+    // la contraseña no alcance.
+    const primerPaso = await verificarAcceso(CORREO_2FA, clave)
+    revisar(
+      'la contraseña sola no alcanza para la coordinación',
+      primerPaso.ok === 'segundo_factor',
+      `devolvió ${JSON.stringify(primerPaso.ok)}`,
+    )
+
+    const pasoUsado = pasoDeAhora()
+    const codigo = codigoTotp(secreto, pasoUsado)
+    const conCodigo = await verificarSegundoFactor(cuenta.id, codigo)
+    revisar(
+      'un código de la aplicación entra',
+      conCodigo.ok === true,
+      `devolvió ${JSON.stringify(conCodigo.ok)}`,
+    )
+
+    // Un código dura medio minuto y la tolerancia lo estira a minuto y medio:
+    // sin esto, el que lo lee por encima del hombro tiene todo ese rato para
+    // entrar con el mismo número. Por eso se guarda el paso que se usó.
+    const repetido = await verificarSegundoFactor(cuenta.id, codigo)
+    const pasoGuardado = await contar(
+      admin,
+      'select totp_ultimo_paso c from perfiles where id = $1',
+      [cuenta.id],
+    )
+    revisar(
+      'y el mismo código no entra de nuevo',
+      repetido.ok === false && pasoGuardado === pasoUsado,
+      `devolvió ${JSON.stringify(repetido.ok)}, paso guardado ${pasoGuardado}`,
+    )
+
+    // Los códigos de respaldo son el único camino cuando el teléfono no está.
+    // Se anotan a mano en un papel, así que cada uno vale una vez y se va.
+    const conRespaldo = await verificarSegundoFactor(cuenta.id, respaldos[0])
+    const deVuelta = await verificarSegundoFactor(cuenta.id, respaldos[0])
+    const quedan = await contar(
+      admin,
+      'select cardinality(codigos_respaldo) c from perfiles where id = $1',
+      [cuenta.id],
+    )
+    revisar(
+      'un código de respaldo se usa una sola vez',
+      conRespaldo.ok === true && deVuelta.ok === false && quedan === 1,
+      `entró ${JSON.stringify(conRespaldo.ok)}, repetido ${JSON.stringify(deVuelta.ok)}, quedan ${quedan} de 2`,
+    )
+
+    // Los códigos errados suman al MISMO contador que la contraseña. Si cada
+    // paso llevara el suyo, seis dígitos se prueban de a un millón desde un
+    // script, y quien llegó hasta acá ya tiene la contraseña.
+    //
+    // El fallo del código repetido de recién se limpia primero, para que los
+    // cinco que vienen sean los cinco que cuenta el bloqueo.
+    await comoServicio((tx) =>
+      tx.consultar(
+        'update perfiles set intentos_fallidos = 0, bloqueado_hasta = null where id = $1',
+        [cuenta.id],
+      ),
+    )
+    const errado = codigoQueNoVale(secreto, pasoDeAhora())
+    let ultimoIntento = await verificarSegundoFactor(cuenta.id, errado)
+    for (let i = 1; i < INTENTOS_HASTA_TRABAR; i++) {
+      ultimoIntento = await verificarSegundoFactor(cuenta.id, errado)
+    }
+    const conLaClaveBuena = await verificarAcceso(CORREO_2FA, clave)
+    revisar(
+      'cinco códigos errados traban la cuenta, igual que cinco contraseñas',
+      ultimoIntento.ok === false && ultimoIntento.motivo === 'bloqueado' &&
+        conLaClaveBuena.ok === false && conLaClaveBuena.motivo === 'bloqueado',
+      `el código dijo ${JSON.stringify(ultimoIntento)}, la contraseña ${JSON.stringify(conLaClaveBuena)}`,
+    )
+
+    /*
+     * Cinco intentos que llegan juntos tienen que contar cinco.
+     *
+     * El bloqueo es la única defensa del PIN de cuatro dígitos del vigilador y
+     * del código de seis del segundo paso. Si el contador se lee en JavaScript
+     * y se escribe después, los pedidos que leyeron antes de que el otro
+     * escribiera guardan todos el mismo número, y una ráfaga entera cuesta un
+     * solo intento: cuatro dígitos se recorren en horas.
+     *
+     * Honestidad sobre esta comprobación: contra PGlite pasa igual con el
+     * defecto puesto, porque ahí las transacciones se serializan. Sirve cuando
+     * esta verificación corre contra el Postgres de verdad, que es donde el
+     * defecto existía.
+     */
+    await comoServicio((tx) =>
+      tx.consultar(
+        'update perfiles set intentos_fallidos = 0, bloqueado_hasta = null where id = $1',
+        [cuenta.id],
+      ),
+    )
+    await Promise.all(
+      Array.from({ length: INTENTOS_HASTA_TRABAR }, () => verificarAcceso(CORREO_2FA, 'no-es-la-clave')),
+    )
+    const contados = await contar(
+      admin,
+      'select intentos_fallidos c from perfiles where id = $1',
+      [cuenta.id],
+    )
+    revisar(
+      'cinco contraseñas erradas a la vez cuentan las cinco',
+      contados === INTENTOS_HASTA_TRABAR,
+      `contó ${contados} de ${INTENTOS_HASTA_TRABAR}`,
+    )
+
+    /*
+     * Un secreto que el servidor ya no puede descifrar no es un código mal
+     * tecleado, y no se le puede contestar lo mismo.
+     *
+     * Pasa cuando rotan AUTH_SECRET: lo guardado queda ilegible y el teléfono
+     * muestra números que no van a entrar nunca. Si eso cuenta como intento
+     * fallido, la persona que escribe el código correcto se traba la cuenta
+     * sola en cinco intentos, por algo que no está de su lado, y la pantalla le
+     * dice que revise el reloj del celular.
+     */
+    await comoServicio((tx) =>
+      tx.consultar(
+        `update perfiles
+            set totp_secreto = $2, intentos_fallidos = 0, bloqueado_hasta = null
+          where id = $1`,
+        [cuenta.id, 'gcm1$no$se$puede-descifrar'],
+      ),
+    )
+    const ilegible = await verificarSegundoFactor(cuenta.id, '000000')
+    const gastados = await contar(
+      admin,
+      'select intentos_fallidos c from perfiles where id = $1',
+      [cuenta.id],
+    )
+    revisar(
+      'un secreto que el servidor ya no puede leer no gasta intentos',
+      ilegible.ok === false && ilegible.motivo === 'secreto_ilegible' && gastados === 0,
+      `devolvió ${JSON.stringify(ilegible)}, con ${gastados} intentos gastados`,
+    )
+
+    // La salida de emergencia: db:2fa --reset y el botón de la pantalla de
+    // usuarios dejan la cuenta como recién creada, para que en el próximo
+    // ingreso se configure de nuevo. Que los checks de la 0023 no lo frenen es
+    // lo que separa un segundo factor de una trampa: con una sola cuenta de
+    // coordinación, un teléfono perdido sin esto es la base sin dueño.
+    await comoServicio((tx) =>
+      tx.consultar(
+        `update perfiles
+            set totp_secreto = null, totp_confirmado_en = null, totp_ultimo_paso = null,
+                codigos_respaldo = '{}', intentos_fallidos = 0, bloqueado_hasta = null
+          where id = $1`,
+        [cuenta.id],
+      ),
+    )
+    const otraVez = await verificarAcceso(CORREO_2FA, clave)
+    revisar(
+      'restablecer el segundo factor deja la cuenta como recién creada',
+      otraVez.ok === true,
+      `el ingreso devolvió ${JSON.stringify(otraVez.ok)}`,
+    )
+
+    // Y se cierra: sin correo no le estorba a nadie el día que la Secretaría
+    // cargue el suyo, y desactivada no entra. La fila la borra la próxima
+    // corrida, al principio.
+    await comoServicio((tx) =>
+      tx.consultar('update perfiles set activo = false, correo = null where id = $1', [cuenta.id]),
+    )
+  }
+
+  // Nada de esto puede haber quedado copiado en la auditoría. La escriben dos
+  // lugares distintos —el disparador de la 0009 y app.eliminar_perfil, que arma
+  // su jsonb a mano— y de esa tabla no se borra nada: un secreto que entra ahí
+  // no sale más. La lista de campos es la misma que mira la base.
+  const enLaAuditoria = await contar(
+    admin,
+    `select count(*) c from auditoria
+      where exists (
+        select 1 from unnest(app.campos_reservados()) campo
+         where jsonb_exists(antes, campo) or jsonb_exists(despues, campo)
+      )`,
+  )
+  revisar(
+    'ni un secreto ni un hash de credencial en toda la auditoría',
+    enLaAuditoria === 0,
+    `${enLaAuditoria} líneas`,
   )
 
   // ═══ Credenciales de fábrica ══════════════════════════════════════════
@@ -1063,7 +1530,7 @@ async function main() {
   })
 
   console.log(
-    `\n  ${pasaron} bien · ${fallaron} mal\n`,
+    `\n  ${pasaron} bien · ${fallaron} mal${omitidas ? ` · ${omitidas} sin correr` : ''}\n`,
   )
   await (await obtenerBase()).cerrar()
   process.exit(fallaron === 0 ? 0 : 1)

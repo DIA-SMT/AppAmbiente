@@ -26,7 +26,7 @@
  */
 import { NextResponse } from 'next/server'
 import { conSesion } from '@db/sesion'
-import { ErrorSinPermiso, ErrorSinSesion, exigirAdmin } from '@/lib/sesion'
+import { ErrorCuentaIncompleta, ErrorSinPermiso, ErrorSinSesion, exigirAdminCompleto } from '@/lib/sesion'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,10 +49,14 @@ function respuesta(cuentas: Cuentas, estado = 200) {
 export async function GET() {
   let sesion
   try {
-    sesion = await exigirAdmin()
+    sesion = await exigirAdminCompleto()
   } catch (e) {
     // Sin sesión o sin permiso la barra se queda sin números y sigue andando,
     // que es lo mismo que hacía antes: un contador no justifica romper el panel.
+    // La cuenta a medio configurar cuenta como sin permiso: mientras esté en
+    // /cuenta no tiene barra que llenar, y este camino no puede ser la rendija
+    // por la que el panel igual le contesta.
+    if (e instanceof ErrorCuentaIncompleta) return respuesta({ pendientes: 0, recambios: 0 }, 403)
     if (e instanceof ErrorSinPermiso) return respuesta({ pendientes: 0, recambios: 0 }, 403)
     if (e instanceof ErrorSinSesion) return respuesta({ pendientes: 0, recambios: 0 }, 401)
     throw e

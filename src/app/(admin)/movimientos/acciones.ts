@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { anularMovimiento } from '@/lib/datos'
-import { exigirAdmin } from '@/lib/sesion'
+import { exigirAdminCompleto } from '@/lib/sesion'
 
 export interface EstadoAnulacion {
   ok?: boolean
@@ -12,7 +12,7 @@ export interface EstadoAnulacion {
 export async function anular(id: string, motivo: string): Promise<EstadoAnulacion> {
   let sesion
   try {
-    sesion = await exigirAdmin()
+    sesion = await exigirAdminCompleto()
   } catch {
     return { error: 'Tu sesión venció o no tenés permiso para anular. Volvé a entrar.' }
   }

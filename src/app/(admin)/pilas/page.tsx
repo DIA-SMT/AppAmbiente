@@ -1,10 +1,9 @@
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
 import { consultarConSesion } from '@db/sesion'
 import { pilas, sitiosVisibles } from '@/lib/datos'
 import { claveDeCalendario, fechaDeCalendario, numero, paraInputFechaHora } from '@/lib/formato'
 import { UUID } from '@/lib/recursos'
-import { exigirAdmin } from '@/lib/sesion'
+import { exigirPanel } from '@/lib/sesion'
 import type { EstadoPila, FilaPila } from '@/lib/tipos'
 import FormularioPila, { type Opcion, type ValoresPila } from './FormularioPila'
 import estilos from './pilas.module.css'
@@ -84,8 +83,7 @@ export default async function PantallaPilas({
 }: {
   searchParams: Promise<Parametros>
 }) {
-  const sesion = await exigirAdmin().catch(() => null)
-  if (!sesion) redirect('/ingresar')
+  const sesion = await exigirPanel()
 
   const sp = await searchParams
   const ver = texto(sp.ver)

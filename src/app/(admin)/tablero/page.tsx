@@ -1,10 +1,9 @@
 import { Fragment, type CSSProperties } from 'react'
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
 import { resumenMensualEnTx, sitiosVisiblesEnTx } from '@/lib/datos'
 import { mesCorto, mesLargo, numero, paraInputFechaHora } from '@/lib/formato'
 import { conSesion } from '@db/sesion'
-import { sesionActual } from '@/lib/sesion'
+import { exigirPanel } from '@/lib/sesion'
 import GraficoMensual, { type MesGrafico } from './GraficoMensual'
 import SubNavegacion from './SubNavegacion'
 
@@ -145,9 +144,7 @@ export default async function Tablero({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  const sesion = await sesionActual()
-  if (!sesion) redirect('/ingresar')
-  if (sesion.rol !== 'admin') redirect('/turno')
+  const sesion = await exigirPanel()
 
   const parametros = await searchParams
   const pedido = Number(Array.isArray(parametros.meses) ? parametros.meses[0] : parametros.meses)

@@ -1,8 +1,7 @@
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
 import { conSesion } from '@db/sesion'
 import { fechaHora, numero } from '@/lib/formato'
-import { exigirAdmin } from '@/lib/sesion'
+import { exigirPanel } from '@/lib/sesion'
 import estilos from '../gente.module.css'
 
 export const dynamic = 'force-dynamic'
@@ -49,8 +48,7 @@ export default async function PantallaAuditoria({
 }: {
   searchParams: Promise<Busqueda>
 }) {
-  const sesion = await exigirAdmin().catch(() => null)
-  if (!sesion) redirect('/ingresar')
+  const sesion = await exigirPanel()
 
   const parametros = await searchParams
   const accion = ACCIONES[texto(parametros.accion)] ? texto(parametros.accion) : ''

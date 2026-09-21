@@ -210,18 +210,19 @@ const CORRIENTES_CON_CONTENEDOR = ['Plástico', 'Cartón', 'Vidrio y metal', 'Po
  * Sembrar diez cuentas con el PIN 1234 era cómodo para desarrollar y una puerta
  * abierta en producción: nadie se acuerda de desactivar las que no usa.
  *
- * CREDENCIAL DE FÁBRICA, publicada en el repositorio. Se cambia desde Usuarios →
- * Cambiar contraseña antes de darle el link a nadie, y contra un Postgres de
- * verdad `npm run db:verificar` falla mientras siga puesta.
+ * CREDENCIAL DE FÁBRICA, publicada en el repositorio, y por eso dura un solo
+ * ingreso. El insert de más abajo no toca `credencial_cambiada_en`, así que
+ * queda en null, y con ella en null el panel no deja ir a ninguna pantalla que
+ * no sea /cuenta hasta elegir una contraseña propia. O sea que la clave de
+ * fábrica alcanza para abrir la puerta la primera vez y nada más. Contra un
+ * Postgres de verdad `npm run db:verificar` falla igual mientras siga puesta.
  *
- * SIN CORREO Y SIN SEGUNDO FACTOR, a propósito, aunque desde la 0023 la
- * coordinación entra con su correo institucional. La cuenta sembrada entra con
- * su nombre de usuario —el correo es nullable justamente para esto— y lo
- * primero que ve es /cuenta, donde carga su correo y escanea el código en su
- * celular. Es la única forma de que el primer ingreso a una base nueva no
- * dependa de un correo que acá tendríamos que inventar: un correo de fábrica no
- * es de nadie, nadie lo cambia, y el segundo factor terminaría configurado
- * contra una casilla que no existe.
+ * SIN CORREO, a propósito, aunque desde la 0023 la coordinación entra con su
+ * correo institucional. La cuenta sembrada entra con su nombre de usuario —el
+ * correo es nullable justamente para esto— y lo primero que ve es /cuenta,
+ * donde carga su correo y elige su contraseña. Es la única forma de que el
+ * primer ingreso a una base nueva no dependa de un correo que acá tendríamos
+ * que inventar: un correo de fábrica no es de nadie y nadie lo cambia.
  *
  * No hay un rol por encima de `admin`: el modelo tiene dos roles —admin y
  * vigilador— y admin ya puede todo.

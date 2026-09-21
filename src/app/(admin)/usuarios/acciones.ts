@@ -9,16 +9,17 @@
  * Las dos clases de cuenta no se tratan igual. La de punto lleva un PIN de
  * cuatro dígitos que el sistema puede inventar: se teclea en la calle, y lo que
  * la protege no es el largo sino el bloqueo por intentos y que solo pueda
- * escribir movimientos de su propio sitio. La de coordinación lleva una
- * contraseña escrita de seis caracteres para arriba, que la elige una persona y
- * el sistema nunca inventa, más un correo institucional con el que entra y un
- * segundo factor que configura ella misma la primera vez: ve los teléfonos de
- * los vecinos y la auditoría entera.
+ * escribir movimientos de su propio sitio. La de coordinación lleva un correo
+ * institucional con el que entra y una contraseña escrita de seis caracteres
+ * para arriba: ve los teléfonos de los vecinos y la auditoría entera.
  *
- * El segundo factor no se carga desde acá. Lo único que esta pantalla puede
- * hacer con él es borrarlo —«Restablecer segundo factor», para el día que
- * alguien pierde el teléfono—, porque el secreto lo tiene que escanear la
- * persona en su propio celular y nadie más lo ve.
+ * LA CONTRASEÑA QUE SE ESCRIBE ACÁ ES PRESTADA. La cuenta nace con
+ * credencial_cambiada_en en null, y eso es lo que hace que el panel, la primera
+ * vez que entre, no la deje ir a ninguna pantalla hasta que elija una propia.
+ * Por eso quien crea la cuenta puede escribir la primera sin culpa: le sirve
+ * para pasarla por teléfono y deja de valer apenas la usan. Lo mismo con
+ * «Cambiar contraseña» sobre una cuenta ajena, que es la salida para el que se
+ * olvidó la suya.
  *
  * Eliminar un usuario es lo único que este sistema borra de verdad, y solo
  * cuando no hay nada que perder. Quién puede y cuándo lo decide
@@ -27,9 +28,10 @@
 
 import { randomInt } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
-import { esClaveValida, esPinValido, hashearCredencial } from '@db/credenciales'
-import { consultarConSesion } from '@db/sesion'
+import { esClaveValida, esPinValido, hashearCredencial, verificarCredencial } from '@db/credenciales'
+import { conSesion, consultarConSesion, type Sesion } from '@db/sesion'
 import { mensajeDeError } from '@/lib/datos'
+import { DOMINIO_PRINCIPAL, esCorreoInstitucional, normalizarCorreo } from '@/lib/correo'
 import { exigirAdminCompleto } from '@/lib/sesion'
 
 export interface EstadoUsuario {
@@ -42,25 +44,6 @@ export interface EstadoUsuario {
 
 const FORMATO_USUARIO = /^[a-z0-9][a-z0-9._-]{2,31}$/
 
-/**
- * Los dominios con los que se entra al panel.
- *
- * La misma lista que usa src/app/(admin)/cuenta/acciones.ts, donde cada uno
- * carga el suyo. Vive en el código y no en un check de la base a propósito: el
- * día que la Secretaría aparezca con una casilla de otro dominio, agregarlo son
- * dos líneas y un despliegue, y no una migración sobre una base en uso.
- */
-const DOMINIOS_INSTITUCIONALES = ['smt.gob.ar']
-
-function normalizarCorreo(bruto: string): string {
-  return bruto.trim().toLowerCase()
-}
-
-function esCorreoInstitucional(correo: string): boolean {
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) return false
-  return DOMINIOS_INSTITUCIONALES.some((d) => correo.endsWith(`@${d}`))
-}
-
 function pinAlAzar(): string {
   return String(randomInt(0, 10_000)).padStart(4, '0')
 }
@@ -70,8 +53,11 @@ function traducir(e: unknown): string {
   if (m.includes('perfiles_usuario_idx')) return 'Ya hay un usuario con ese nombre. Probá con otro.'
   if (m.includes('perfiles_correo_idx')) return 'Ese correo ya lo usa otra cuenta. Cada persona entra con el suyo.'
   if (m.includes('perfil_sitio_coherente')) return 'Un usuario de punto tiene que tener un punto asignado.'
+  // El nombre del check quedó más largo en la 0023 y más corto en la 0024; el
+  // prefijo es el mismo en las dos, así que este `includes` los agarra a los dos
+  // y no depende de cuál de las dos migraciones tenga aplicada la base.
   if (m.includes('perfil_vigilador_sin_correo')) {
-    return 'El usuario de un punto no lleva correo ni segundo factor: la cuenta es del punto y la comparten los que estén de turno.'
+    return 'El usuario de un punto no lleva correo: la cuenta es del punto y la comparten los que estén de turno.'
   }
   if (m.includes('perfiles_sitio_id_fkey')) return 'Ese punto ya no existe. Actualizá la pantalla.'
   // El despliegue son dos pasos sueltos —el SQL a la base y el build a Vercel—
@@ -120,10 +106,10 @@ export async function crearUsuario(
   if (rol === 'admin') {
     // Una cuenta de coordinación no tiene sitio: ve los tres flujos.
     if (!esCorreoInstitucional(correo)) {
-      return { error: `El correo tiene que ser el institucional, terminado en @${DOMINIOS_INSTITUCIONALES[0]}. Es con lo que va a entrar al panel.` }
+      return { error: `El correo tiene que ser el institucional, terminado en @${DOMINIO_PRINCIPAL}. Es con lo que va a entrar al panel.` }
     }
     if (!esClaveValida(clavePedida)) {
-      return { error: 'La contraseña de una cuenta de coordinación va de 6 caracteres para arriba. Elegila vos: el sistema no la inventa.' }
+      return { error: 'La contraseña de una cuenta de coordinación va de 6 caracteres para arriba. Es sólo para que entre la primera vez.' }
     }
   } else {
     if (!sitioId) return { error: 'Elegí a qué punto pertenece.' }
@@ -135,6 +121,11 @@ export async function crearUsuario(
   const credencial = rol === 'admin' ? clavePedida.trim() : pinPedido || pinAlAzar()
 
   try {
+    // credencial_cambiada_en no se nombra, y queda en null: es lo que le pide
+    // una contraseña propia la primera vez que entre. No nombrarla también es
+    // lo que deja que el alta funcione contra una base sin la 0024 todavía
+    // aplicada, que es el orden en el que se despliega este cambio.
+    //
     // La sesión del punto no vence a propósito: el vigilador no puede quedarse
     // afuera en la calle. La de coordinación sí, porque ve datos personales.
     const filas = await consultarConSesion<{ id: string }>(
@@ -161,15 +152,94 @@ export async function crearUsuario(
 
   revalidatePath('/usuarios')
 
-  // La contraseña de coordinación la escribió quien la va a usar: no hace falta
-  // devolvérsela, y mostrarla sería dejarla en pantalla sin motivo.
+  // La contraseña de coordinación no se devuelve: la escribió quien está
+  // mirando la pantalla y dura hasta que la persona entre y elija la suya.
   if (rol === 'admin') {
     return {
       aviso: `Cuenta de coordinación ${usuario} creada. Entra con ${correo} y la contraseña que escribiste, `
-        + 'y la primera vez el sistema le pide configurar el segundo factor en su celular.',
+        + 'y lo primero que le pide el panel es elegir una propia: de ahí en más vos no la sabés.',
     }
   }
   return { pin: credencial, usuario, aviso: `Usuario ${usuario} creado.` }
+}
+
+/**
+ * Cambiar la contraseña de una cuenta de coordinación, incluida la propia.
+ *
+ * Va escrita: el sistema no inventa contraseñas largas porque nadie las anota
+ * bien, y una cuenta de coordinación no se puede resetear a ciegas.
+ *
+ * LO QUE DECIDE TODO ES DE QUIÉN ES LA CUENTA. Sobre la propia queda elegida, y
+ * credencial_cambiada_en se completa. Sobre una ajena la escribió otro —quien
+ * está mirando esta lista—, así que vuelve a null y el panel le va a pedir una
+ * propia a su dueño la próxima vez que entre. Es la diferencia entre una
+ * contraseña que eligió su dueño y una que alguien le pasó por teléfono.
+ *
+ * SOBRE LA PROPIA SE PIDE LA ACTUAL, igual que en /cuenta. Esa exigencia está
+ * ahí porque la pantalla se abre sola en cualquier sesión viva —una notebook
+ * abierta en la oficina, una cookie robada—, y esta lista se abre desde la misma
+ * sesión y con la misma facilidad: sin pedirla acá, la de allá no frena nada,
+ * porque al lado quedaba una segunda puerta que hacía lo mismo sin preguntar.
+ * Con una sola cuenta de coordinación, eso es el dueño legítimo afuera.
+ *
+ * Sobre una cuenta ajena no corresponde pedir nada: quien la cambia no es el
+ * dueño, no la sabe, y ya está autenticado como coordinación. Ésa es justamente
+ * la salida para el que se olvidó la suya.
+ *
+ * La columna se pregunta antes de nombrarla, y acá no es una precaución de más:
+ * la 0024 se aplica DESPUÉS de subir el build, así que hay un rato garantizado
+ * en el que no existe. Mientras tanto la contraseña se cambia igual y lo único
+ * que no pasa es la marca; el portón no la puede exigir todavía de todos modos.
+ */
+async function cambiarClave(
+  sesion: Sesion,
+  id: string,
+  clave: string,
+  credencialActual: string,
+): Promise<{ usuario: string } | { error: string } | null> {
+  const propia = id === sesion.perfilId
+
+  return conSesion(sesion, async (tx) => {
+    const [{ hay_credencial: hayCredencial }] = await tx.consultar<{ hay_credencial: boolean }>(
+      `select exists (select 1 from pg_attribute
+                       where attrelid = 'public.perfiles'::regclass
+                         and attname = 'credencial_cambiada_en'
+                         and not attisdropped) as hay_credencial`,
+    )
+
+    /*
+     * El hash se lee adentro de la misma transacción que escribe, y por eso se
+     * lee acá y no antes: lo que se compara tiene que ser lo que hay en la fila
+     * que se está por pisar.
+     *
+     * No suma al contador de intentos fallidos, igual que en /cuenta: si sumara,
+     * alguien con una cookie podría trabarle la cuenta a la coordinación
+     * escribiendo cualquier cosa cinco veces.
+     */
+    if (propia) {
+      const [fila] = await tx.consultar<{ credencial_hash: string }>(
+        `select credencial_hash from perfiles where id = $1`,
+        [id],
+      )
+      if (!fila) return null
+      if (!credencialActual) {
+        return { error: 'Escribí tu contraseña actual para confirmar que sos vos.' }
+      }
+      if (!verificarCredencial(credencialActual, fila.credencial_hash)) {
+        return { error: 'Esa no es tu contraseña actual. Es la misma con la que entrás al panel.' }
+      }
+    }
+
+    const filas = await tx.consultar<{ usuario: string }>(
+      `update perfiles
+          set credencial_hash = $2, intentos_fallidos = 0, bloqueado_hasta = null
+              ${hayCredencial ? `, credencial_cambiada_en = ${propia ? 'now()' : 'null'}` : ''}
+        where id = $1 and rol = 'admin'
+        returning usuario`,
+      [id, hashearCredencial(clave.trim())],
+    )
+    return filas[0] ?? null
+  })
 }
 
 export async function accionSobreUsuario(
@@ -187,13 +257,6 @@ export async function accionSobreUsuario(
   }
   if (accion === 'eliminar' && id === sesion.perfilId) {
     return { error: 'No podés eliminar tu propio usuario.' }
-  }
-  // El propio segundo factor se maneja desde Mi cuenta, con el celular en la
-  // mano. Borrárselo uno mismo desde acá es quedarse a mitad de camino: la
-  // sesión abierta sigue valiendo y el sistema lo vuelve a pedir recién en el
-  // próximo ingreso, cuando ya nadie se acuerda de por qué.
-  if (accion === 'segundo_factor' && id === sesion.perfilId) {
-    return { error: 'Tu propio segundo factor se maneja desde Mi cuenta.' }
   }
 
   try {
@@ -215,59 +278,22 @@ export async function accionSobreUsuario(
       return { pin, usuario: filas[0].usuario }
     }
 
-    // Cambiar la contraseña de una cuenta de coordinación, incluida la propia.
-    // Va escrita: el sistema no inventa contraseñas largas porque nadie las
-    // anota bien, y una cuenta de coordinación no se puede resetear a ciegas.
     if (accion === 'clave') {
       const clave = String(datos.get('clave') ?? '')
       if (!esClaveValida(clave)) {
         return { error: 'La contraseña va de 6 caracteres para arriba.' }
       }
-      const filas = await consultarConSesion<{ usuario: string }>(
-        sesion,
-        `update perfiles
-            set credencial_hash = $2, intentos_fallidos = 0, bloqueado_hasta = null
-          where id = $1 and rol = 'admin'
-          returning usuario`,
-        [id, hashearCredencial(clave.trim())],
-      )
-      if (!filas.length) {
+      const fila = await cambiarClave(sesion, id, clave, String(datos.get('credencial') ?? ''))
+      if (!fila) {
         return { error: 'Ese usuario no existe, o es de punto: ahí va "Resetear PIN".' }
       }
+      if ('error' in fila) return { error: fila.error }
       revalidatePath('/usuarios')
       return {
         aviso: id === sesion.perfilId
           ? 'Tu contraseña quedó cambiada. La sesión abierta sigue valiendo hasta que venza.'
-          : `Contraseña de ${filas[0].usuario} cambiada.`,
-      }
-    }
-
-    // El teléfono perdido. Deja la cuenta como recién creada —sin secreto, sin
-    // códigos de respaldo— y en el próximo ingreso el sistema le hace escanear
-    // el código de nuevo. No le toca la contraseña: son dos cosas distintas y
-    // quien pierde el celular no perdió la contraseña.
-    //
-    // Limpia también el bloqueo, y no es de más: el que perdió el teléfono
-    // primero probó los códigos de respaldo de memoria, quemó los cinco
-    // intentos y quedó trabado. Restablecer el factor y dejarlo trabado es
-    // mandarlo a esperar cinco minutos sin decírselo.
-    if (accion === 'segundo_factor') {
-      const filas = await consultarConSesion<{ usuario: string }>(
-        sesion,
-        `update perfiles
-            set totp_secreto = null, totp_confirmado_en = null, totp_ultimo_paso = null,
-                codigos_respaldo = '{}', intentos_fallidos = 0, bloqueado_hasta = null
-          where id = $1 and rol = 'admin'
-          returning usuario`,
-        [id],
-      )
-      if (!filas.length) {
-        return { error: 'Ese usuario no existe, o es de punto: el usuario de un punto no tiene segundo factor.' }
-      }
-      revalidatePath('/usuarios')
-      return {
-        aviso: `${filas[0].usuario} vuelve a configurar el segundo factor la próxima vez que entre. `
-          + 'La contraseña es la misma de antes.',
+          : `Contraseña de ${fila.usuario} cambiada. Pasásela, y cuando entre el panel le pide `
+            + 'que elija una propia: ahí dejás de saberla.',
       }
     }
 
@@ -307,15 +333,19 @@ export async function accionSobreUsuario(
     }
 
     if (accion === 'desbloquear') {
-      const filas = await consultarConSesion<{ usuario: string }>(
+      // Vuelve también el rol: una cuenta de punto se traba probando el PIN y
+      // una de coordinación probando la contraseña, y decirle «PIN» a quien
+      // nunca tuvo uno es mandarlo a buscar algo que no existe.
+      const filas = await consultarConSesion<{ usuario: string; rol: string }>(
         sesion,
         `update perfiles set intentos_fallidos = 0, bloqueado_hasta = null
-          where id = $1 returning usuario`,
+          where id = $1 returning usuario, rol`,
         [id],
       )
       if (!filas.length) return { error: 'Ese usuario no existe.' }
       revalidatePath('/usuarios')
-      return { aviso: `${filas[0].usuario} puede volver a probar el PIN.` }
+      const conQue = filas[0].rol === 'admin' ? 'su contraseña' : 'el PIN'
+      return { aviso: `${filas[0].usuario} puede volver a probar ${conQue}.` }
     }
 
     return { error: 'Esa acción no existe.' }

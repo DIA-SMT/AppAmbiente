@@ -34,18 +34,18 @@ export default async function LayoutPanel({ children }: { children: React.ReactN
    * fuente» y con el JavaScript apagado.
    *
    * Falla abierto a propósito, igual que exigirPanel. Si esta consulta revienta
-   * —la base todavía sin la actualización del correo y el segundo factor, que
-   * es un orden posible cuando el SQL y el despliegue son dos pasos sueltos—,
-   * el panel sigue andando como antes. Un portón roto que deja pasar es una
-   * molestia de un rato; uno roto que no deja pasar es la coordinación entera
-   * afuera del sistema, y con una sola cuenta no hay quien lo destrabe desde
-   * adentro.
+   * —la base todavía sin la actualización del correo y la contraseña propia,
+   * que es el orden normal, porque esa migración se aplica después de subir el
+   * código—, el panel sigue andando como antes. Un portón roto que deja pasar
+   * es una molestia de un rato; uno roto que no deja pasar es la coordinación
+   * entera afuera del sistema, y con una sola cuenta no hay quien lo destrabe
+   * desde adentro.
    */
   const pendientes = await pendientesDeCuenta(sesion).catch(() => ({
     correo: false,
-    segundoFactor: false,
+    credencial: false,
   }))
-  const falta = pendientes.correo || pendientes.segundoFactor
+  const falta = pendientes.correo || pendientes.credencial
 
   return (
     <div className={estilos.marco}>

@@ -1,43 +1,43 @@
 'use client'
 
 /**
- * Mi cuenta, y el portón que lleva hasta acá.
+ * Mi cuenta: con qué correo y con qué contraseña se entra al panel.
  *
- * La pantalla va en un solo componente que no se desmonta nunca, con o sin
- * correo y con o sin segundo factor. Los ocho códigos de respaldo llegan en la
- * respuesta de la acción y viven en el estado de este componente: si la
- * pantalla cambiara de forma al quedar completa, React lo desmontaría en el
- * mismo instante en que aparecen y se irían sin que nadie llegue a anotarlos.
- * Después ya no se pueden volver a mostrar, porque en la base están hasheados.
+ * Mientras falte algo, la pantalla es un solo formulario que guarda las dos
+ * cosas juntas. Por acá tienen que pasar las cuentas de coordinación que todavía
+ * usan la contraseña con la que las crearon, y cuantos menos pasos haya, menos
+ * lugares hay donde abandonarla por la mitad.
+ *
+ * Con la cuenta ya completa se parte en dos tarjetas, porque a partir de ahí no
+ * es un trámite sino dos cosas que se cambian por separado y en momentos
+ * distintos, cada una con su confirmación.
  */
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useActionState, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useActionState, useCallback, useEffect, useId, useState, type ReactNode } from 'react'
 import { useFormStatus } from 'react-dom'
 import { fechaHora } from '@/lib/formato'
-import { accionDeSegundoFactor, guardarCorreo, type EstadoCuenta } from './acciones'
+import { cambiarClave, completarCuenta, guardarCorreo, type EstadoCuenta } from './acciones'
 import comunes from '../gente.module.css'
-import estilos from './cuenta.module.css'
 
 export interface DatosDeCuenta {
   usuario: string
-  nombre: string
   correo: string | null
-  confirmadoEn: string | null
+  /** Null = la cuenta sigue con la contraseña con la que la crearon. */
+  credencialCambiadaEn: string | null
   /**
-   * Está confirmado pero el secreto guardado no se puede descifrar: rotaron
-   * AUTH_SECRET y el teléfono muestra códigos que ya no entran.
+   * Si la base ya tiene dónde anotar que la contraseña la eligió su dueño.
+   *
+   * Es false nada más que en el rato que va entre que sube el código y se
+   * aplica la migración. Ahí esa mitad de la pantalla no se dibuja: un
+   * formulario que no puede guardar lo que pide es peor que no estar.
    */
-  secretoIlegible: boolean
-  codigosRestantes: number
-  /** El secreto en claro, para escanear o copiar. Sólo mientras falte confirmar. */
-  secreto: string | null
-  /** El QR ya dibujado en el servidor, o null si no se pudo: el secreto alcanza. */
-  qr: string | null
+  puedeElegirClave: boolean
 }
 
-const CUANTOS_CODIGOS = 8
+/** El mismo mínimo que revisa el servidor (esClaveValida, db/credenciales.ts). */
+const LARGO_MINIMO = 6
 
 /**
  * El cartel que acompaña al portón, no el portón.
@@ -88,93 +88,151 @@ function Boton({
   )
 }
 
-/**
- * Copiar al portapapeles, que no está en todos lados.
- *
- * Sin HTTPS el navegador no da el portapapeles, y entonces hay que decirlo: un
- * botón que parece que copió y no copió es la forma de perder los ocho códigos
- * creyendo que están guardados.
- */
-function Copiar({ texto, rotulo = 'Copiar' }: { texto: string; rotulo?: string }) {
-  const [estado, setEstado] = useState<'listo' | 'copiado' | 'nada'>('listo')
-
-  useEffect(() => {
-    if (estado === 'listo') return
-    const reloj = setTimeout(() => setEstado('listo'), 4000)
-    return () => clearTimeout(reloj)
-  }, [estado])
-
-  return (
-    <span className="fila">
-      <button
-        type="button"
-        className="boton chico secundario"
-        onClick={async () => {
-          try {
-            await navigator.clipboard.writeText(texto)
-            setEstado('copiado')
-          } catch {
-            setEstado('nada')
-          }
-        }}
-      >
-        {estado === 'copiado' ? 'Copiado' : rotulo}
-      </button>
-      {estado === 'nada' && (
-        <span className={comunes.mensajeError} role="alert">
-          No se pudo copiar. Seleccionalo con el dedo y copialo a mano.
-        </span>
-      )}
-    </span>
-  )
-}
-
-function Paso({
-  numero,
-  titulo,
-  hecho,
-  children,
-}: {
-  numero: number
-  titulo: string
-  hecho: boolean
-  children: ReactNode
-}) {
-  return (
-    <section className="tarjeta">
-      <div className={estilos.paso}>
-        <span className={estilos.numero} data-hecho={hecho ? 'true' : 'false'} aria-hidden="true">
-          {hecho ? '✓' : numero}
-        </span>
-        <div className="pila">
-          <h2>
-            {titulo}
-            {hecho && <span className="sr-solo"> — ya está listo</span>}
-          </h2>
-          {children}
-        </div>
+function Mensajes({ estado }: { estado: EstadoCuenta }) {
+  if (estado.error) {
+    return (
+      <div className="aviso error" role="alert">
+        {estado.error}
       </div>
-    </section>
-  )
+    )
+  }
+  if (estado.aviso) {
+    return (
+      <div className="aviso exito" role="status">
+        {estado.aviso}
+      </div>
+    )
+  }
+  return null
 }
 
 /**
- * El campo de la contraseña que va adentro de las confirmaciones.
+ * El campo del correo, igual en los dos formularios que lo piden.
  *
- * Apagar el segundo factor, renovar los ocho códigos y cambiar el correo con el
- * que se entra son las tres cosas que una sesión abierta en un escritorio no
- * puede hacer sola. Se pide la contraseña y no el código del celular porque
- * estos botones se usan justo el día que el celular no está.
+ * Va controlado porque React vacía los campos no controlados apenas termina una
+ * server action, salga bien o mal: sin esto, equivocarse en el dominio obliga a
+ * escribir la dirección entera de nuevo.
  */
-function Contrasena({ id, ayuda }: { id: string; ayuda: string }) {
+function CampoCorreo({
+  valor,
+  cambiar,
+  usuario,
+  foco,
+}: {
+  valor: string
+  cambiar: (v: string) => void
+  usuario: string
+  foco: boolean
+}) {
+  // Los dos formularios que piden el correo no se ven nunca a la vez, pero los
+  // dos que piden la contraseña actual sí: el id sale de React para que cada
+  // etiqueta apunte a su propio campo.
+  const id = useId()
+
   return (
     <div className="campo">
-      <label htmlFor={id}>Tu contraseña</label>
+      <label htmlFor={id}>Tu correo del municipio</label>
+      <input
+        id={id}
+        name="correo"
+        type="email"
+        className="control"
+        value={valor}
+        onChange={(e) => cambiar(e.target.value)}
+        inputMode="email"
+        autoComplete="email"
+        autoCapitalize="none"
+        spellCheck={false}
+        placeholder="nombre@smt.gob.ar"
+        maxLength={160}
+        autoFocus={foco}
+        required
+      />
+      <span className="ayuda">
+        Tiene que terminar en @smt.gob.ar, o en el subdominio de tu dependencia. Desde que lo
+        guardes entrás con esto y no con{' '}
+        <span className="mono">{usuario}</span>, así que fijate que esté bien escrito.
+      </span>
+    </div>
+  )
+}
+
+/** Los dos campos de la contraseña nueva, escrita dos veces. */
+function CamposClaveNueva({
+  nueva,
+  repetida,
+  cambiarNueva,
+  cambiarRepetida,
+  foco = false,
+}: {
+  nueva: string
+  repetida: string
+  cambiarNueva: (v: string) => void
+  cambiarRepetida: (v: string) => void
+  foco?: boolean
+}) {
+  const id = useId()
+
+  return (
+    <div className="pila-chica">
+      <div className={comunes.grilla}>
+        <div className="campo">
+          <label htmlFor={`${id}-nueva`}>Contraseña nueva</label>
+          <input
+            id={`${id}-nueva`}
+            name="nueva"
+            type="password"
+            className="control"
+            value={nueva}
+            onChange={(e) => cambiarNueva(e.target.value)}
+            autoComplete="new-password"
+            maxLength={128}
+            autoFocus={foco}
+            required
+          />
+        </div>
+        <div className="campo">
+          <label htmlFor={`${id}-repetida`}>Escribila otra vez</label>
+          <input
+            id={`${id}-repetida`}
+            name="repetida"
+            type="password"
+            className="control"
+            value={repetida}
+            onChange={(e) => cambiarRepetida(e.target.value)}
+            autoComplete="new-password"
+            maxLength={128}
+            required
+          />
+        </div>
+      </div>
+      <span className="ayuda">
+        De {LARGO_MINIMO} caracteres para arriba, y distinta de la que estás usando ahora. Si el
+        navegador o el gestor de contraseñas te ofrece guardarla, aceptá: es la que vas a escribir
+        cada vez que entres.
+      </span>
+    </div>
+  )
+}
+
+/** La contraseña de ahora, para las dos cosas que no alcanza con tener la sesión abierta. */
+function CampoClaveActual({ valor, cambiar, ayuda }: {
+  valor: string
+  cambiar: (v: string) => void
+  ayuda: string
+}) {
+  const id = useId()
+
+  return (
+    <div className="campo">
+      <label htmlFor={id}>Tu contraseña actual</label>
       <input
         id={id}
         name="credencial"
         type="password"
         className="control"
+        value={valor}
+        onChange={(e) => cambiar(e.target.value)}
         autoComplete="current-password"
         maxLength={128}
         required
@@ -184,58 +242,90 @@ function Contrasena({ id, ayuda }: { id: string; ayuda: string }) {
   )
 }
 
-/** Los ocho, una sola vez en la vida de esa cuenta. */
-function CodigosDeRespaldo({ codigos }: { codigos: string[] }) {
-  const caja = useRef<HTMLDivElement>(null)
-
-  // Aparecen abajo de todo, después de un formulario que se envió: si la
-  // pantalla no se mueve, lo único que se ve es que el campo se vació.
-  useEffect(() => {
-    caja.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }, [])
+/**
+ * Lo obligatorio, en un formulario y un botón.
+ *
+ * El correo viene cargado cuando ya existe —pasa cuando otra cuenta de
+ * coordinación le puso una contraseña provisoria a ésta— y lo único que falta
+ * ahí es elegir la propia.
+ *
+ * Y en ese caso se muestra escrito, sin campo para tocarlo: cambiar un correo ya
+ * cargado es mudarle la puerta a la cuenta y eso pide la contraseña actual, que
+ * acá justamente no se pide. Si el que está cargado está mal, primero se elige
+ * la contraseña y después se lo corrige desde la tarjeta del correo, que es la
+ * que sabe pedirla.
+ */
+function Completar({
+  datos,
+  estado,
+  accion,
+}: {
+  datos: DatosDeCuenta
+  estado: EstadoCuenta
+  accion: (datos: FormData) => void
+}) {
+  // Vacío y no `datos.correo`: el campo sólo se dibuja cuando no hay ninguno.
+  const [correo, setCorreo] = useState('')
+  const [nueva, setNueva] = useState('')
+  const [repetida, setRepetida] = useState('')
+  const tieneCorreo = Boolean(datos.correo)
 
   return (
-    <div className={estilos.caja} ref={caja} role="status">
-      <div className="pila-chica">
-        <h2>Anotá estos ocho códigos ahora</h2>
-        <p style={{ margin: 0 }}>
-          Son la manera de entrar el día que no tengas el teléfono. Cada uno sirve una sola vez
-          y <span className="fuerte">no se vuelven a mostrar</span>: guardalos donde guardás las
-          contraseñas, o escribilos en un papel y metelo en un cajón con llave.
-        </p>
-      </div>
+    <section className="tarjeta pila">
+      <h2>{tieneCorreo ? 'Elegí tu contraseña' : 'Tu correo y tu contraseña'}</h2>
 
-      <ul className={estilos.codigos}>
-        {codigos.map((c) => (
-          <li key={c}>{c}</li>
-        ))}
-      </ul>
+      {estado.error && (
+        <div className="aviso error" role="alert">
+          {estado.error}
+        </div>
+      )}
 
-      <Copiar texto={codigos.join('\n')} rotulo="Copiar los ocho" />
-    </div>
+      <form action={accion} className="pila" noValidate>
+        {tieneCorreo ? (
+          <p className="menor gris" style={{ margin: 0 }}>
+            Entrás con <span className="fuerte mono">{datos.correo}</span>. Lo podés cambiar
+            desde acá mismo apenas elijas tu contraseña.
+          </p>
+        ) : (
+          <CampoCorreo valor={correo} cambiar={setCorreo} usuario={datos.usuario} foco />
+        )}
+        <CamposClaveNueva
+          nueva={nueva}
+          repetida={repetida}
+          cambiarNueva={setNueva}
+          cambiarRepetida={setRepetida}
+          foco={tieneCorreo}
+        />
+        <div className={comunes.acciones}>
+          <Boton rotulo="Guardar y seguir" esperando="Guardando…" />
+        </div>
+      </form>
+    </section>
   )
 }
 
-export function Cuenta({ datos }: { datos: DatosDeCuenta }) {
-  const [estadoCorreo, accionCorreo] = useActionState<EstadoCuenta, FormData>(guardarCorreo, {})
-  const [estadoFactor, accionFactor] = useActionState<EstadoCuenta, FormData>(
-    accionDeSegundoFactor,
-    {},
-  )
-  const [editando, setEditando] = useState(false)
-  const [preguntando, setPreguntando] = useState<'regenerar' | 'reconfigurar' | null>(null)
-  // El campo va controlado porque React vacía los no controlados apenas termina
-  // una server action, salga bien o mal: sin esto, equivocarse en el dominio
-  // obliga a escribir la dirección entera de nuevo.
+/**
+ * El correo solo.
+ *
+ * Es la tarjeta de la cuenta ya completa, y también la pantalla entera en el
+ * rato en que la base todavía no puede guardar la contraseña propia: ahí el
+ * formulario nace abierto y no pide la contraseña actual, porque cargar el
+ * correo es lo único que saca a esta cuenta de /cuenta.
+ */
+function TarjetaCorreo({ datos, alGuardar }: { datos: DatosDeCuenta; alGuardar: () => void }) {
+  const [estado, accion] = useActionState<EstadoCuenta, FormData>(guardarCorreo, {})
+  const [abierto, setAbierto] = useState(false)
   const [correo, setCorreo] = useState(datos.correo ?? '')
-
-  const confirmado = Boolean(datos.confirmadoEn)
+  const [actual, setActual] = useState('')
   const tieneCorreo = Boolean(datos.correo)
-  const falta = !tieneCorreo || !confirmado
+  const editando = abierto || !tieneCorreo
 
   useEffect(() => {
-    if (estadoCorreo.aviso) setEditando(false)
-  }, [estadoCorreo.aviso])
+    if (!estado.aviso) return
+    setAbierto(false)
+    setActual('')
+    alGuardar()
+  }, [estado.aviso, alGuardar])
 
   // Lo guardado manda: cuando el correo cambió de verdad, el campo se pone al
   // día. Un intento rechazado no lo cambia, así que lo escrito sigue ahí.
@@ -243,338 +333,226 @@ export function Cuenta({ datos }: { datos: DatosDeCuenta }) {
     setCorreo(datos.correo ?? '')
   }, [datos.correo])
 
-  useEffect(() => {
-    if (estadoFactor.aviso || estadoFactor.error) setPreguntando(null)
-  }, [estadoFactor.aviso, estadoFactor.error])
+  return (
+    <section className="tarjeta pila">
+      <h2>Correo institucional</h2>
+      <Mensajes estado={estado} />
 
-  const editandoCorreo = editando || !tieneCorreo
+      {tieneCorreo && (
+        <div className="fila-entre">
+          <span className="crecer">
+            Entrás con <span className="fuerte mono">{datos.correo}</span>
+            <span className="menor gris"> · tu usuario era {datos.usuario}</span>
+          </span>
+          {!abierto && (
+            <button type="button" className="boton chico secundario" onClick={() => setAbierto(true)}>
+              Cambiarlo
+            </button>
+          )}
+        </div>
+      )}
+
+      {editando && (
+        <form action={accion} className="pila" noValidate>
+          <CampoCorreo valor={correo} cambiar={setCorreo} usuario={datos.usuario} foco />
+          {/* Cambiar un correo ya cargado es mudarle la puerta a la cuenta;
+              cargarlo la primera vez es la única forma de salir de acá. */}
+          {tieneCorreo && (
+            <CampoClaveActual
+              valor={actual}
+              cambiar={setActual}
+              ayuda="Cambiar el correo cambia con qué entrás al panel, así que lo confirmamos con tu contraseña."
+            />
+          )}
+          <div className={comunes.acciones}>
+            <Boton rotulo="Guardar el correo" esperando="Guardando…" />
+            {tieneCorreo && (
+              <button
+                type="button"
+                className="boton chico fantasma"
+                onClick={() => {
+                  setAbierto(false)
+                  setActual('')
+                  setCorreo(datos.correo ?? '')
+                }}
+              >
+                Cancelar
+              </button>
+            )}
+          </div>
+        </form>
+      )}
+    </section>
+  )
+}
+
+/** Con la cuenta completa: cambiar la contraseña, escribiendo la de ahora. */
+function TarjetaClave({ datos, alGuardar }: { datos: DatosDeCuenta; alGuardar: () => void }) {
+  const [estado, accion] = useActionState<EstadoCuenta, FormData>(cambiarClave, {})
+  const [abierto, setAbierto] = useState(false)
+  const [actual, setActual] = useState('')
+  const [nueva, setNueva] = useState('')
+  const [repetida, setRepetida] = useState('')
+
+  useEffect(() => {
+    if (!estado.aviso) return
+    setAbierto(false)
+    setActual('')
+    setNueva('')
+    setRepetida('')
+    alGuardar()
+  }, [estado.aviso, alGuardar])
+
+  // La base todavía no tiene dónde anotar quién eligió la contraseña, así que
+  // tampoco hay forma de cambiarla desde acá. Dura lo que tarda en aplicarse la
+  // actualización; mientras tanto se entra con la de siempre.
+  if (!datos.puedeElegirClave) {
+    return (
+      <section className="tarjeta pila">
+        <h2>Contraseña</h2>
+        <p className="gris" style={{ margin: 0 }}>
+          Elegir tu propia contraseña va a estar disponible en un rato, cuando la base termine de
+          actualizarse. Hasta entonces entrás con la que tenés. Si tarda, avisale a la Dirección de
+          Inteligencia Artificial.
+        </p>
+      </section>
+    )
+  }
+
+  return (
+    <section className="tarjeta pila">
+      <h2>Contraseña</h2>
+      <Mensajes estado={estado} />
+
+      <div className="fila-entre">
+        <span className="crecer">
+          La elegiste vos
+          <span className="menor gris"> · desde el {fechaHora(datos.credencialCambiadaEn)}</span>
+        </span>
+        {!abierto && (
+          <button type="button" className="boton chico secundario" onClick={() => setAbierto(true)}>
+            Cambiarla
+          </button>
+        )}
+      </div>
+
+      {abierto && (
+        <form action={accion} className="pila" noValidate>
+          <CampoClaveActual
+            valor={actual}
+            cambiar={setActual}
+            ayuda="Esta pantalla se abre en cualquier sesión abierta, así que la contraseña nueva se confirma con la de ahora."
+          />
+          <CamposClaveNueva
+            nueva={nueva}
+            repetida={repetida}
+            cambiarNueva={setNueva}
+            cambiarRepetida={setRepetida}
+          />
+          <div className={comunes.acciones}>
+            <Boton rotulo="Cambiar la contraseña" esperando="Cambiando…" />
+            <button
+              type="button"
+              className="boton chico fantasma"
+              onClick={() => {
+                setAbierto(false)
+                setActual('')
+                setNueva('')
+                setRepetida('')
+              }}
+            >
+              Cancelar
+            </button>
+          </div>
+        </form>
+      )}
+    </section>
+  )
+}
+
+/** Qué le falta a esta cuenta, dicho en la línea del aviso de arriba. */
+function queFalta(tieneCorreo: boolean, faltaLaClave: boolean): string {
+  if (!faltaLaClave) {
+    return 'Cargá el correo del municipio con el que vas a entrar de ahora en más.'
+  }
+  if (tieneCorreo) {
+    return 'La contraseña que estás usando la eligió otra persona. Poné una tuya y seguimos.'
+  }
+  return 'Son dos datos y es una sola vez: tu correo del municipio y una contraseña que elijas vos.'
+}
+
+export function Cuenta({ datos }: { datos: DatosDeCuenta }) {
+  /*
+   * El estado de la acción obligatoria vive acá arriba y no adentro del
+   * formulario. Al guardar, la pantalla pasa de un formulario a dos tarjetas:
+   * si el estado viviera en el formulario, React lo desmontaría junto con él y
+   * el «listo» se iría en el mismo instante en que aparece.
+   */
+  const [estadoCompletar, accionCompletar] = useActionState<EstadoCuenta, FormData>(
+    completarCuenta,
+    {},
+  )
+
+  /*
+   * Ese «listo» se va apenas la persona guarda otra cosa. Si se quedara, quien
+   * completa la cuenta y acto seguido corrige una letra del correo termina con
+   * dos avisos verdes: el de abajo con la dirección nueva y el de arriba
+   * repitiendo la vieja como si siguiera siendo con la que entra.
+   */
+  const [tapadoPorOtro, setTapadoPorOtro] = useState(false)
+  const taparElListo = useCallback(() => setTapadoPorOtro(true), [])
+
+  const tieneCorreo = Boolean(datos.correo)
+  // Mientras la base no tenga la columna no hay nada que saber, y no saber no
+  // deja a nadie afuera: en ese rato lo único que puede faltar es el correo.
+  const faltaLaClave = datos.puedeElegirClave && !datos.credencialCambiadaEn
+  const falta = !tieneCorreo || faltaLaClave
 
   return (
     <div className="pila">
       <header className="pila-chica">
         <h1>Mi cuenta</h1>
         <p className="menor gris">
-          Con qué correo entrás al panel, y el código de seis dígitos que el sistema te va a
-          pedir después de la contraseña. Es tuyo y de nadie más: ni la Dirección de IA ni otra
-          cuenta de coordinación pueden ver tu código ni tus contraseñas.
+          Con qué correo y con qué contraseña entrás al panel. La contraseña es tuya y de nadie
+          más: ni la Dirección de IA ni otra cuenta de coordinación pueden verla.
         </p>
       </header>
+
+      {estadoCompletar.aviso && !falta && !tapadoPorOtro && (
+        <div className="aviso exito" role="status">
+          <p className="fuerte" style={{ margin: 0 }}>{estadoCompletar.aviso}</p>
+          <p style={{ margin: '4px 0 0' }}>Ya podés usar el resto del panel.</p>
+        </div>
+      )}
 
       {falta && (
         <div className="aviso atencion" role="status">
           <p className="fuerte" style={{ margin: 0 }}>
-            El resto del panel se abre cuando termines estos dos pasos.
+            El resto del panel se abre cuando completes esto.
           </p>
-          <p style={{ margin: '4px 0 0' }}>
-            Son una sola vez. Tené el celular a mano: en el segundo paso hace falta.
-          </p>
+          <p style={{ margin: '4px 0 0' }}>{queFalta(tieneCorreo, faltaLaClave)}</p>
         </div>
       )}
 
-      <Paso numero={1} titulo="Correo institucional" hecho={tieneCorreo}>
-        {estadoCorreo.error && (
-          <div className="aviso error" role="alert">
-            {estadoCorreo.error}
-          </div>
-        )}
-        {estadoCorreo.aviso && !estadoCorreo.error && (
-          <div className="aviso exito" role="status">
-            {estadoCorreo.aviso}
-          </div>
-        )}
-
-        {!editandoCorreo ? (
-          <div className="fila-entre">
-            <span className="crecer">
-              Entrás con <span className="fuerte mono">{datos.correo}</span>
-              <span className="menor gris"> · tu usuario era {datos.usuario}</span>
-            </span>
-            <button type="button" className="boton chico secundario" onClick={() => setEditando(true)}>
-              Cambiarlo
-            </button>
-          </div>
-        ) : (
-          <form action={accionCorreo} className="pila" noValidate>
-            <div className="campo">
-              <label htmlFor="correo">Tu correo del municipio</label>
-              <input
-                id="correo"
-                name="correo"
-                type="email"
-                className="control"
-                value={correo}
-                onChange={(e) => setCorreo(e.target.value)}
-                inputMode="email"
-                autoComplete="email"
-                autoCapitalize="none"
-                spellCheck={false}
-                placeholder="nombre@smt.gob.ar"
-                maxLength={160}
-                autoFocus={!tieneCorreo}
-                required
-              />
-              <span className="ayuda">
-                Tiene que terminar en @smt.gob.ar. Desde que lo guardes entrás con esto y no con
-                tu nombre de usuario, así que fijate que esté bien escrito.
-              </span>
-            </div>
-            {tieneCorreo && (
-              <Contrasena
-                id="clave-correo"
-                ayuda="Cambiar el correo cambia con qué entrás al panel, así que lo confirmamos con tu contraseña."
-              />
-            )}
-            <div className={comunes.acciones}>
-              <Boton rotulo="Guardar el correo" esperando="Guardando…" />
-              {tieneCorreo && (
-                <button
-                  type="button"
-                  className="boton chico fantasma"
-                  onClick={() => {
-                    setEditando(false)
-                    setCorreo(datos.correo ?? '')
-                  }}
-                >
-                  Cancelar
-                </button>
-              )}
-            </div>
-          </form>
-        )}
-      </Paso>
-
-      <Paso numero={2} titulo="Código del celular" hecho={confirmado && !datos.secretoIlegible}>
-        {estadoFactor.error && (
-          <div className="aviso error" role="alert">
-            {estadoFactor.error}
-          </div>
-        )}
-        {estadoFactor.aviso && !estadoFactor.error && (
-          <div className="aviso exito" role="status">
-            {estadoFactor.aviso}
-          </div>
-        )}
-
-        {!tieneCorreo && (
-          <p className="gris" style={{ margin: 0 }}>
-            Primero guardá tu correo acá arriba: el código del celular se va a guardar con ese
-            nombre y así lo reconocés entre los demás.
-          </p>
-        )}
-
-        {tieneCorreo && !confirmado && datos.secreto && (
-          <div className="pila">
-            <p style={{ margin: 0 }}>
-              Abrí en el celular la aplicación de códigos —Google Authenticator, Microsoft
-              Authenticator, Authy, 1Password, la que uses—, elegí agregar una cuenta y escaneá
-              esto. Si no podés escanear, cargá el texto a mano.
-            </p>
-
-            <div className={estilos.escaneo}>
-              {datos.qr ? (
-                <div
-                  className={estilos.placa}
-                  role="img"
-                  aria-label="Código para escanear con la aplicación del celular"
-                  dangerouslySetInnerHTML={{ __html: datos.qr }}
-                />
-              ) : (
-                <div className={estilos.sinPlaca}>
-                  No se pudo dibujar el código para escanear. Cargá el texto de al lado a mano:
-                  funciona igual.
-                </div>
-              )}
-
-              <div className="pila-chica">
-                <span className="etiqueta">O cargalo a mano</span>
-                <code className={estilos.secreto}>{enGrupos(datos.secreto)}</code>
-                <span className="ayuda">
-                  En la aplicación elegí «ingresar clave» o «entrada manual», poné{' '}
-                  <span className="fuerte">Residuos SMT</span> como nombre y pegá esto. Los
-                  espacios no importan.
-                </span>
-                <Copiar texto={datos.secreto} rotulo="Copiar el texto" />
-              </div>
-            </div>
-
-            <form action={accionFactor} className="pila">
-              <input type="hidden" name="accion" value="confirmar" />
-              <div className="campo">
-                <label htmlFor="codigo">Escribí el código que muestra la aplicación</label>
-                <input
-                  id="codigo"
-                  name="codigo"
-                  className={`control ${estilos.campoCodigo}`}
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  pattern="[0-9]*"
-                  maxLength={6}
-                  placeholder="000000"
-                  autoFocus
-                  required
-                />
-                <span className="ayuda">
-                  Son seis dígitos y cambian cada treinta segundos. Hasta que no escribas uno, el
-                  sistema no te lo va a pedir para entrar: así nadie queda afuera por haber
-                  cerrado esta pantalla a mitad de camino.
-                </span>
-              </div>
-              <div className={comunes.acciones}>
-                <Boton rotulo="Confirmar y activar" esperando="Comprobando…" />
-              </div>
-            </form>
-          </div>
-        )}
-
-        {tieneCorreo && !confirmado && !datos.secreto && (
-          <div className="aviso error" role="alert">
-            No se pudo preparar el código para escanear. Actualizá la pantalla; si sigue igual,
-            avisale a la Dirección de Inteligencia Artificial.
-          </div>
-        )}
-
-        {confirmado && (
-          <div className="pila">
-            {datos.secretoIlegible ? (
-              // Decir «Activado» acá sería afirmar que anda algo que no anda, y
-              // dejar escondido el único botón que lo arregla.
-              <div className="aviso error" role="alert">
-                <p className="fuerte" style={{ margin: 0 }}>
-                  El código de tu celular dejó de servir para esta cuenta.
-                </p>
-                <p style={{ margin: '4px 0 0' }}>
-                  Cambió una clave del servidor y lo que estaba guardado ya no se puede leer: la
-                  aplicación del celular te va a seguir mostrando números, pero ninguno va a
-                  entrar. Tocá <span className="fuerte">Cambié de teléfono</span> acá abajo y
-                  configuralo de nuevo; mientras tanto entrás con un código de respaldo.
-                </p>
-              </div>
-            ) : (
-              <>
-                <div className="fila">
-                  <span className="chip ingreso">Activado</span>
-                  <span className="menor gris">desde el {fechaHora(datos.confirmadoEn)}</span>
-                </div>
-                <p style={{ margin: 0 }}>
-                  Cada vez que entres, después de la contraseña te vamos a pedir el código de seis
-                  dígitos de tu celular.
-                </p>
-              </>
-            )}
-
-            <div className="pila-chica">
-              <span className="etiqueta">Códigos de respaldo</span>
-              <span>
-                {datos.codigosRestantes > 0 ? (
-                  <>
-                    Te quedan <span className="fuerte">{datos.codigosRestantes}</span> de{' '}
-                    {CUANTOS_CODIGOS} sin usar.
-                  </>
-                ) : (
-                  <span className="fuerte">No te queda ninguno sin usar.</span>
-                )}{' '}
-                Son los que te dejan entrar el día que no tengas el teléfono. Si no sabés dónde
-                quedaron, generá ocho nuevos: los de antes dejan de servir en el acto.
-              </span>
-            </div>
-
-            <div className={comunes.acciones}>
-              {preguntando !== 'regenerar' && (
-                <button
-                  type="button"
-                  className="boton chico secundario"
-                  onClick={() => setPreguntando('regenerar')}
-                >
-                  Generar ocho códigos nuevos
-                </button>
-              )}
-              {preguntando !== 'reconfigurar' && (
-                <button
-                  type="button"
-                  className="boton chico secundario"
-                  onClick={() => setPreguntando('reconfigurar')}
-                >
-                  Cambié de teléfono
-                </button>
-              )}
-            </div>
-
-            {preguntando === 'regenerar' && (
-              <div className={comunes.confirmarCuerpo}>
-                <span>
-                  Se generan ocho nuevos y los que tengas anotados dejan de servir. Tenelos a la
-                  vista cuando aparezcan: se muestran una sola vez.
-                </span>
-                <form action={accionFactor} className="pila-chica">
-                  <input type="hidden" name="accion" value="regenerar" />
-                  <Contrasena
-                    id="clave-regenerar"
-                    ayuda="Los códigos que tengas anotados dejan de servir, así que lo confirmamos con tu contraseña."
-                  />
-                  <div className={comunes.acciones}>
-                    <Boton rotulo="Sí, generar ocho nuevos" esperando="Generando…" clase="boton chico" />
-                    <button
-                      type="button"
-                      className="boton chico fantasma"
-                      onClick={() => setPreguntando(null)}
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
-
-            {preguntando === 'reconfigurar' && (
-              <div className={comunes.confirmarCuerpo}>
-                <span>
-                  Se borra lo que está configurado y arrancás de cero con el teléfono nuevo: hay
-                  que escanear otro código y confirmarlo acá. Los códigos de respaldo de ahora
-                  también se van, y al final te damos ocho nuevos. Mientras tanto entrás sólo con
-                  tu contraseña y el panel te trae de vuelta a esta pantalla.
-                </span>
-                <form action={accionFactor} className="pila-chica">
-                  <input type="hidden" name="accion" value="reconfigurar" />
-                  <Contrasena
-                    id="clave-reconfigurar"
-                    ayuda="Hasta que confirmes el teléfono nuevo se entra con la contraseña sola, así que lo confirmamos con ella."
-                  />
-                  <div className={comunes.acciones}>
-                    <Boton
-                      rotulo="Sí, empezar de nuevo"
-                      esperando="Borrando…"
-                      clase="boton peligro chico"
-                    />
-                    <button
-                      type="button"
-                      className="boton chico fantasma"
-                      onClick={() => setPreguntando(null)}
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
-          </div>
-        )}
-      </Paso>
-
-      {estadoFactor.codigos && estadoFactor.codigos.length > 0 && (
-        <CodigosDeRespaldo codigos={estadoFactor.codigos} />
+      {faltaLaClave ? (
+        <Completar datos={datos} estado={estadoCompletar} accion={accionCompletar} />
+      ) : (
+        <>
+          <TarjetaCorreo datos={datos} alGuardar={taparElListo} />
+          <TarjetaClave datos={datos} alGuardar={taparElListo} />
+        </>
       )}
 
       <p className="menor gris">
-        Si perdés el teléfono y también los códigos de respaldo, otra cuenta de coordinación te
-        restablece el segundo factor desde Usuarios. Si no hay ninguna otra, se hace desde una
-        máquina con acceso a la base con{' '}
-        <code className="mono">npm run db:2fa -- --usuario {datos.usuario} --reset</code>.
+        Si olvidás tu contraseña, otra cuenta de coordinación te la cambia desde Usuarios y vos
+        elegís una nueva al entrar. Si no hay ninguna otra, se hace desde una máquina con acceso a
+        la base con{' '}
+        <code className="mono">
+          DATABASE_URL=&quot;…&quot; npm run db:clave -- --usuario {datos.usuario}
+        </code>
+        . La cadena va escrita adelante, en la misma línea: los comandos de base que se corren
+        pelados van a la que esté configurada en esa máquina, que puede no ser ésta.
       </p>
     </div>
   )
-}
-
-/** El secreto en grupos de cuatro, que es como se copia a mano sin perderse. */
-function enGrupos(secreto: string): string {
-  return secreto.replace(/(.{4})/g, '$1 ').trim()
 }

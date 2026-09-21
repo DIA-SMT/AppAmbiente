@@ -18,8 +18,15 @@ interface FilaPerfil {
   rol: 'admin' | 'vigilador'
   activo: boolean
   correo: string | null
-  /** Escaneó el código y lo confirmó. Un usuario de punto nunca tiene. */
-  tiene_segundo_factor: boolean
+  /**
+   * Cuenta de coordinación cuya contraseña todavía la escribió otro.
+   *
+   * Es un estado y no un origen, y por eso no se llama «de fábrica»: la columna
+   * queda en null en los tres caminos —la cuenta recién creada, la reseteada
+   * desde esta misma lista y la que pasó por db:clave—, así que decir «con la
+   * que la crearon» desmiente al aviso que la propia pantalla acaba de dar.
+   */
+  sin_clave_propia: boolean
   ultimo_acceso: string | null
   intentos_fallidos: number
   bloqueado_hasta: string | null
@@ -44,20 +51,32 @@ export default async function PantallaUsuarios() {
      * Mientras no esté, el rastro viaja en null: aparece «Eliminar» de más y la
      * base lo rechaza con su propio mensaje, que es un mal día mucho más chico.
      *
-     * Lo mismo con el correo y el segundo factor, que llegan en la 0023: si el
-     * build sube antes que el SQL, nombrar p.correo tira la pantalla entera y
-     * justo ésta es desde donde se arregla cualquier problema de acceso. Una
-     * sola pregunta alcanza para las dos columnas: vienen en la misma
-     * migración, así que están las dos o no está ninguna.
+     * Con el correo (0023) el razonamiento es el mismo. Con
+     * credencial_cambiada_en (0024) ya no es que puede pasar: pasa seguro. Esa
+     * migración borra columnas que el código que está en el aire todavía
+     * nombra, así que se aplica DESPUÉS de subir el build —al revés el ingreso
+     * se cae para todos—, y en el rato que va de una cosa a la otra esta
+     * pantalla corre contra una base donde la columna no existe. Mientras
+     * tanto no hay forma de saber quién conserva la contraseña con la que la
+     * crearon, así que no se avisa nada: mejor callado que inventando.
      */
-    const [{ hay_rastro: hayRastro, hay_correo: hayCorreo }] = await tx.consultar<{
+    const [{
+      hay_rastro: hayRastro,
+      hay_correo: hayCorreo,
+      hay_credencial: hayCredencial,
+    }] = await tx.consultar<{
       hay_rastro: boolean
       hay_correo: boolean
+      hay_credencial: boolean
     }>(
       `select to_regprocedure('app.rastro_de_perfil(uuid)') is not null as hay_rastro,
               exists (select 1 from pg_attribute
                        where attrelid = 'public.perfiles'::regclass
-                         and attname = 'correo' and not attisdropped) as hay_correo`,
+                         and attname = 'correo' and not attisdropped) as hay_correo,
+              exists (select 1 from pg_attribute
+                       where attrelid = 'public.perfiles'::regclass
+                         and attname = 'credencial_cambiada_en'
+                         and not attisdropped) as hay_credencial`,
     )
 
     // El rastro viene con la fila, y no cuando alguien toca «Eliminar»: si la
@@ -67,7 +86,9 @@ export default async function PantallaUsuarios() {
       `select p.id, p.usuario, p.nombre, p.rol, p.activo, p.ultimo_acceso,
               p.intentos_fallidos, p.bloqueado_hasta,
               ${hayCorreo ? 'p.correo' : 'null::text'} as correo,
-              ${hayCorreo ? 'p.totp_confirmado_en is not null' : 'false'} as tiene_segundo_factor,
+              ${hayCredencial
+                ? `p.rol = 'admin' and p.credencial_cambiada_en is null`
+                : 'false'} as sin_clave_propia,
               s.nombre as sitio_nombre, s.codigo as sitio_codigo,
               ${hayRastro ? 'app.rastro_de_perfil(p.id)' : 'null::text'} as rastro
          from perfiles p
@@ -96,14 +117,12 @@ export default async function PantallaUsuarios() {
         <p className="menor gris">
           Un usuario por punto, compartido por quienes estén de turno, y uno de coordinación por
           cada persona que administre. El PIN de un punto se muestra una sola vez al crearlo o al
-          resetearlo; la contraseña de una cuenta de coordinación la elige quien la va a usar y no
-          se muestra nunca. La coordinación entra con su correo institucional y un código de seis
-          dígitos que le da una app en el celular: el segundo factor lo configura cada uno la
-          primera vez que entra, y si alguien pierde el teléfono se lo restablecés desde acá.
-          Desactivar un usuario le corta el acceso en el próximo pedido, aunque tenga la sesión
-          abierta en el celular. Al que nunca llegó a cargar nada se lo puede eliminar de la lista,
-          y eso no tiene vuelta atrás; al que ya cargó algo sólo se lo desactiva, para no perder
-          quién hizo qué.
+          resetearlo. Una cuenta de coordinación se crea con su correo institucional y una
+          contraseña para la primera vez: apenas entra, el sistema le pide que elija la suya, así
+          que quien la creó deja de saberla. Desactivar un usuario le corta el acceso en el próximo
+          pedido, aunque tenga la sesión abierta en el celular. Al que nunca llegó a cargar nada se
+          lo puede eliminar de la lista, y eso no tiene vuelta atrás; al que ya cargó algo sólo se
+          lo desactiva, para no perder quién hizo qué.
         </p>
       </header>
 
@@ -126,6 +145,9 @@ export default async function PantallaUsuarios() {
             <tbody>
               {perfiles.map((p) => {
                 const trabado = Boolean(p.bloqueado_hasta && new Date(p.bloqueado_hasta).getTime() > ahora)
+                // Lo mismo que mira el portón del panel antes de dejarla pasar
+                // a cualquier pantalla que no sea Mi cuenta.
+                const sinTerminar = p.rol === 'admin' && (!p.correo || p.sin_clave_propia)
                 return (
                   <tr key={p.id}>
                     <td className="mono">
@@ -169,18 +191,20 @@ export default async function PantallaUsuarios() {
                           </span>
                         )}
                         {/* Sólo en coordinación: al usuario de un punto no le
-                            corresponde ni correo ni segundo factor, y decir que
-                            le "falta" sería inventarle un problema. */}
-                        {p.rol === 'admin' && (
-                          p.tiene_segundo_factor
-                            ? <span className="chip">Segundo factor puesto</span>
-                            : <>
-                                <span className="chip pendiente">Segundo factor pendiente</span>
-                                <span className="menor gris">
-                                  {p.correo ? 'Lo configura' : 'Carga el correo y lo configura'} la
-                                  próxima vez que entre.
-                                </span>
-                              </>
+                            corresponde correo ni contraseña propia —la cuenta
+                            es del punto—, y decir que le "falta" sería
+                            inventarle un problema. */}
+                        {sinTerminar && (
+                          <>
+                            {!p.correo && <span className="chip pendiente">Sin correo</span>}
+                            {p.sin_clave_propia && (
+                              <span className="chip pendiente">Todavía no eligió la suya</span>
+                            )}
+                            <span className="menor gris">
+                              La próxima vez que entre, el panel la lleva a Mi cuenta y no la deja
+                              ir a otra pantalla hasta que lo complete.
+                            </span>
+                          </>
                         )}
                       </div>
                     </td>
@@ -192,7 +216,6 @@ export default async function PantallaUsuarios() {
                           rol: p.rol,
                           activo: p.activo,
                           trabado: trabado || p.intentos_fallidos > 0,
-                          tieneSegundoFactor: p.tiene_segundo_factor,
                           rastro: p.rastro,
                           esVos: p.id === sesion.perfilId,
                         }}

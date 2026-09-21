@@ -18,8 +18,6 @@ export interface PerfilParaAcciones {
   rol: 'admin' | 'vigilador'
   activo: boolean
   trabado: boolean
-  /** Ya escaneó el código y confirmó. Sólo entonces hay algo que restablecer. */
-  tieneSegundoFactor: boolean
   /** Lo que este usuario dejó hecho, en una frase. Null si no dejó nada. */
   rastro: string | null
   /** El usuario con el que está abierta esta pantalla. */
@@ -165,13 +163,13 @@ export function FormularioUsuario({ sitios }: { sitios: SitioParaUsuario[] }) {
                 required
               />
               <span className="ayuda">
-                Con esto entra al panel, y tiene que terminar en @smt.gob.ar. Dos cuentas no
-                pueden compartir el mismo correo.
+                Con esto entra al panel, y tiene que terminar en @smt.gob.ar o en el subdominio
+                de su dependencia. Dos cuentas no pueden compartir el mismo correo.
               </span>
             </div>
 
             <div className="campo">
-              <label htmlFor="clave">Contraseña</label>
+              <label htmlFor="clave">Contraseña para la primera vez</label>
               <input
                 id="clave"
                 name="clave"
@@ -183,9 +181,8 @@ export function FormularioUsuario({ sitios }: { sitios: SitioParaUsuario[] }) {
                 required
               />
               <span className="ayuda">
-                De 6 caracteres para arriba, y la elegís vos: el sistema no inventa
-                contraseñas de coordinación. No se vuelve a mostrar. La primera vez que entre,
-                el sistema le va a pedir que configure el segundo factor en su celular.
+                De 6 caracteres para arriba. Se la pasás y dura hasta que entre: lo primero
+                que le pide el panel es elegir una propia, y ahí dejás de saberla.
               </span>
             </div>
           </>
@@ -313,11 +310,6 @@ export function AccionesUsuario({ perfil }: { perfil: PerfilParaAcciones }) {
   // aparece recién cuando alguien lo pide: una caja de contraseña abierta en
   // cada fila de una lista es ruido, y encima invita a tocarla sin querer.
   const [cambiando, setCambiando] = useState(false)
-  // Restablecer el segundo factor tampoco tiene vuelta atrás —los códigos de
-  // respaldo que la persona tenga anotados dejan de servir en el acto—, así que
-  // también va en dos pasos. Éstos sí viven en la fila, que no desaparece: la
-  // respuesta se dibuja donde estaba el botón.
-  const [restableciendo, setRestableciendo] = useState(false)
   // Eliminar no se deshace, así que va en dos pasos: el botón abre la pregunta
   // y recién la respuesta borra. Los dos pasos los lleva la lista, no la fila:
   // ver ListaDeUsuarios.
@@ -331,7 +323,7 @@ export function AccionesUsuario({ perfil }: { perfil: PerfilParaAcciones }) {
   const retenido = !perfil.esVos && perfil.rastro !== null
 
   useEffect(() => {
-    if (estado.aviso) { setCambiando(false); setRestableciendo(false) }
+    if (estado.aviso) setCambiando(false)
   }, [estado.aviso])
 
   return (
@@ -344,20 +336,9 @@ export function AccionesUsuario({ perfil }: { perfil: PerfilParaAcciones }) {
           <button
             type="button"
             className="boton chico secundario"
-            onClick={() => { setCambiando(true); setRestableciendo(false); borrado?.preguntar(null) }}
+            onClick={() => { setCambiando(true); borrado?.preguntar(null) }}
           >
             Cambiar contraseña
-          </button>
-        )}
-        {/* Sobre la cuenta propia no aparece: el segundo factor de uno se
-            maneja desde Mi cuenta, con el celular a mano. */}
-        {esCoordinacion && !perfil.esVos && perfil.tieneSegundoFactor && !restableciendo && (
-          <button
-            type="button"
-            className="boton chico secundario"
-            onClick={() => { setRestableciendo(true); setCambiando(false); borrado?.preguntar(null) }}
-          >
-            Restablecer segundo factor
           </button>
         )}
         <AccionDeFila
@@ -373,7 +354,7 @@ export function AccionesUsuario({ perfil }: { perfil: PerfilParaAcciones }) {
           <button
             type="button"
             className="boton chico secundario"
-            onClick={() => { borrado?.preguntar(perfil.id); setCambiando(false); setRestableciendo(false) }}
+            onClick={() => { borrado?.preguntar(perfil.id); setCambiando(false) }}
           >
             Eliminar
           </button>
@@ -411,37 +392,38 @@ export function AccionesUsuario({ perfil }: { perfil: PerfilParaAcciones }) {
         </span>
       )}
 
-      {restableciendo && (
-        <div className={estilos.confirmarCuerpo}>
-          <span>
-            <span className="fuerte">{perfil.usuario}</span> vuelve a configurar el segundo factor
-            la próxima vez que entre: escanea el código con su celular y recibe códigos de respaldo
-            nuevos. Los que tenga anotados dejan de servir en el acto. La contraseña no cambia.
-          </span>
-          <div className={estilos.acciones}>
-            <form action={accion}>
-              <input type="hidden" name="id" value={perfil.id} />
-              <input type="hidden" name="accion" value="segundo_factor" />
-              <BotonFila rotulo="Sí, restablecer" clase="boton peligro chico" />
-            </form>
-            <button
-              type="button"
-              className="boton chico fantasma"
-              onClick={() => setRestableciendo(false)}
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
-
       {esCoordinacion && cambiando && (
         <form action={accion} className="pila-chica">
           <input type="hidden" name="id" value={perfil.id} />
           <input type="hidden" name="accion" value="clave" />
+          {/* Sobre la propia cuenta va primero la actual. Esta lista se abre
+              sola en cualquier sesión viva, igual que Mi cuenta: sin este campo,
+              la sesión que quedó abierta en una notebook se queda con la cuenta
+              escribiendo dos veces en un formulario. Sobre una cuenta ajena no
+              va, porque ahí quien cambia no es el dueño y no la sabe. */}
+          {perfil.esVos && (
+            <div className="campo">
+              <label htmlFor={`actual-${perfil.id}`} className="menor">
+                Tu contraseña actual
+              </label>
+              <input
+                id={`actual-${perfil.id}`}
+                name="credencial"
+                type="password"
+                className="control"
+                autoComplete="current-password"
+                maxLength={128}
+                autoFocus
+                required
+              />
+              <span className="ayuda">La misma con la que entrás al panel.</span>
+            </div>
+          )}
           <div className="campo">
             <label htmlFor={`clave-${perfil.id}`} className="menor">
-              Contraseña nueva de {perfil.usuario}
+              {perfil.esVos
+                ? 'Tu contraseña nueva'
+                : `Contraseña para que ${perfil.usuario} vuelva a entrar`}
             </label>
             <input
               id={`clave-${perfil.id}`}
@@ -451,10 +433,21 @@ export function AccionesUsuario({ perfil }: { perfil: PerfilParaAcciones }) {
               autoComplete="new-password"
               minLength={6}
               maxLength={128}
-              autoFocus
+              // Sobre la propia cuenta el foco arranca en la contraseña actual,
+              // que es el campo de arriba.
+              autoFocus={!perfil.esVos}
               required
             />
-            <span className="ayuda">De 6 caracteres para arriba. No se vuelve a mostrar.</span>
+            {/* Sobre una cuenta ajena esto no es "ponerle la contraseña": es
+                prestarle una para que entre. El panel le va a pedir la propia
+                apenas entre, que es lo que hace que pasarla por teléfono no
+                deje a nadie sabiendo la contraseña de otro. */}
+            <span className="ayuda">
+              {perfil.esVos
+                ? 'De 6 caracteres para arriba. No se vuelve a mostrar.'
+                : 'De 6 caracteres para arriba. Se la pasás y dura hasta que entre: ahí el panel '
+                  + 'le pide que elija una propia.'}
+            </span>
           </div>
           <div className={estilos.acciones}>
             <BotonFila rotulo="Guardar contraseña" />

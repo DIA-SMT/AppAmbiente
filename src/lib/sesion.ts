@@ -10,26 +10,24 @@
  * La de la coordinadora vence (perfiles.sesion_horas, 12 por defecto): tiene
  * acceso a datos personales y al panel completo.
  *
- * Hay dos cookies. La de sesión, que es la de siempre, y una de cinco minutos
- * para el hueco entre la contraseña y el código del segundo factor. Los dos
- * tokens se firman con la misma clave y viajan al mismo navegador, así que
- * cada uno dice para qué es (`aud`) y quien lo lee exige el suyo: sin eso,
- * copiar el token del paso intermedio a la cookie de sesión sería entrar sin
- * haber pasado el segundo factor.
+ * El token dice para qué es (`aud: 'sesion'`) y quien lo lee exige eso. Hoy es
+ * la única clase de token que se firma con esta clave, así que no separa nada;
+ * se deja puesto porque no cuesta nada y porque el día que haya un segundo
+ * token —uno de invitación, uno de recuperación— el que valga para una cosa no
+ * va a valer para la otra sin que nadie se acuerde de comprobarlo.
  */
 import 'server-only'
 import { cache } from 'react'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { SignJWT, jwtVerify } from 'jose'
-import { comoServicio, consultarConSesion } from '@db/sesion'
+import { comoServicio, conSesion } from '@db/sesion'
 import type { Sesion } from '@db/sesion'
+import type { Conexion } from '@db/client'
 
 export type { Sesion }
 
 const COOKIE = 'ambiente_sesion'
-const COOKIE_PREVIA = 'ambiente_previo'
-const MINUTOS_PASO_PREVIO = 5
 
 function clave(): Uint8Array {
   const secreto = process.env.AUTH_SECRET
@@ -39,17 +37,6 @@ function clave(): Uint8Array {
     )
   }
   return new TextEncoder().encode(secreto)
-}
-
-/** Las mismas opciones para las dos cookies; lo único que cambia es cuánto duran. */
-function opcionesDeCookie(segundos: number) {
-  return {
-    httpOnly: true,
-    sameSite: 'lax' as const,
-    secure: process.env.NODE_ENV === 'production',
-    path: '/',
-    maxAge: segundos,
-  }
 }
 
 export async function crearCookieDeSesion(perfil: {
@@ -77,58 +64,18 @@ export async function crearCookieDeSesion(perfil: {
   // seguido. Un año para el vigilador; el vencimiento real lo controla el JWT
   // en el caso de la coordinadora.
   const segundos = horas ? horas * 3600 : 60 * 60 * 24 * 365
-  almacen.set(COOKIE, await token.sign(clave()), opcionesDeCookie(segundos))
-  // Con la sesión hecha, el token del paso intermedio no tiene nada más que
-  // hacer en el navegador.
-  almacen.delete(COOKIE_PREVIA)
+  almacen.set(COOKIE, await token.sign(clave()), {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: segundos,
+  })
 }
 
 export async function cerrarSesion() {
   const almacen = await cookies()
   almacen.delete(COOKIE)
-}
-
-/**
- * El paso intermedio: la contraseña ya está bien, falta el código.
- *
- * Cinco minutos alcanzan de sobra para abrir la aplicación del teléfono y no
- * dejan la puerta entornada si alguien se va del escritorio. Lo único que
- * guarda es de quién es el ingreso a medio hacer: el rol y el nombre salen del
- * perfil recién cuando la sesión existe de verdad.
- */
-export async function crearCookiePrevia(perfilId: string): Promise<void> {
-  const token = await new SignJWT({})
-    .setProtectedHeader({ alg: 'HS256' })
-    .setSubject(perfilId)
-    .setAudience('previo')
-    .setIssuedAt()
-    .setExpirationTime(`${MINUTOS_PASO_PREVIO}m`)
-    .sign(clave())
-
-  const almacen = await cookies()
-  almacen.set(COOKIE_PREVIA, token, opcionesDeCookie(MINUTOS_PASO_PREVIO * 60))
-}
-
-/** El perfil que está a mitad de camino, o null si no hay o ya venció. */
-export async function leerCookiePrevia(): Promise<string | null> {
-  const almacen = await cookies()
-  const bruto = almacen.get(COOKIE_PREVIA)?.value
-  if (!bruto) return null
-
-  try {
-    // Acá adentro sólo vale el token del paso intermedio. Una cookie de sesión
-    // copiada en este lugar no serviría para saltear nada, pero tampoco hay
-    // motivo para darla por buena.
-    const { payload } = await jwtVerify(bruto, clave(), { audience: 'previo' })
-    return payload.sub ?? null
-  } catch {
-    return null
-  }
-}
-
-export async function borrarCookiePrevia(): Promise<void> {
-  const almacen = await cookies()
-  almacen.delete(COOKIE_PREVIA)
 }
 
 /**
@@ -149,11 +96,11 @@ export const sesionActual = cache(async (): Promise<Sesion | null> => {
   let sub: string
   try {
     const { payload } = await jwtVerify(bruto, clave())
-    // Una sesión es una sesión y el paso intermedio es el paso intermedio: el
-    // token de 'previo' pegado en esta cookie no abre el panel.
+    // Un token de sesión abre el panel; cualquier otro que se firme algún día
+    // con esta misma clave, no.
     //
-    // Los tokens sin `aud` son los que ya estaban emitidos antes de que
-    // existiera el segundo paso, y se aceptan: para fabricar uno hace falta
+    // Los tokens sin `aud` son los que ya estaban emitidos antes de que se
+    // empezara a ponerlo, y se aceptan: para fabricar uno hace falta
     // AUTH_SECRET, y rechazarlos es sacar de la sesión, todos juntos y sin
     // aviso, a los vigiladores que están en la calle. Se pueden dejar de
     // aceptar cuando haya pasado una temporada con todos los puntos adentro.
@@ -179,8 +126,43 @@ export const sesionActual = cache(async (): Promise<Sesion | null> => {
 })
 
 export interface PendientesDeCuenta {
+  /** Es de coordinación y todavía no cargó su correo institucional. */
   correo: boolean
-  segundoFactor: boolean
+  /** Es de coordinación y sigue usando la contraseña con la que la crearon. */
+  credencial: boolean
+}
+
+/**
+ * Si la base ya tiene la columna que marca la contraseña propia.
+ *
+ * La migración que la agrega se aplica DESPUÉS de subir el código —al revés
+ * dejaría a todos afuera, porque el código que está en el aire todavía nombra
+ * las columnas que esa migración borra—, así que hay un rato en el que esta
+ * columna no existe. Nombrarla sin preguntar rompería el portón, y un portón
+ * roto acá es la coordinación entera mirando /cuenta sin poder salir de ahí.
+ *
+ * Se recuerda sólo el sí, por lo mismo que en src/lib/acceso.ts: una columna
+ * que existe no desaparece, pero el no dura hasta que alguien aplique la
+ * migración y una instancia que lo hubiera guardado no se enteraría nunca.
+ */
+let laBaseMarcaLaCredencial = false
+
+async function marcaLaCredencial(tx: Conexion): Promise<boolean> {
+  if (laBaseMarcaLaCredencial) return true
+
+  // pg_attribute y no information_schema: esto corre con el rol
+  // `authenticated`, que en information_schema no ve las columnas sobre las que
+  // no tiene permisos. Es la misma consulta que hace el ingreso.
+  const [fila] = await tx.consultar<{ cuantas: number }>(
+    `select count(*)::int as cuantas
+       from pg_attribute
+      where attrelid = 'public.perfiles'::regclass
+        and not attisdropped
+        and attname = 'credencial_cambiada_en'`,
+  )
+
+  laBaseMarcaLaCredencial = (fila?.cuantas ?? 0) === 1
+  return laBaseMarcaLaCredencial
 }
 
 /**
@@ -189,26 +171,36 @@ export interface PendientesDeCuenta {
  * Es lo que mira el portón del panel para mandar a /cuenta. Va en cache() por
  * lo mismo que sesionActual: el layout y la página preguntan lo mismo dos veces
  * por navegación, y la respuesta no puede sobrevivir al pedido —si sobreviviera,
- * quien acaba de cargar su correo seguiría viendo que le falta—.
+ * quien acaba de elegir su contraseña seguiría viendo que le falta—.
  *
- * Al vigilador no le falta nada nunca: no tiene correo ni segundo factor, y el
- * portón no existe de su lado.
+ * `credencial_cambiada_en` en null quiere decir que la contraseña que abre esta
+ * cuenta la sabe quien la creó, no sólo quien la usa. Es el estado en el que
+ * nace toda cuenta de coordinación y del que se sale eligiendo una propia.
+ *
+ * Al vigilador no le falta nada nunca: no tiene correo, su PIN es del punto y
+ * lo comparten los que estén de turno, y el portón no existe de su lado.
  */
 export const pendientesDeCuenta = cache(async (s: Sesion): Promise<PendientesDeCuenta> => {
-  if (s.rol !== 'admin') return { correo: false, segundoFactor: false }
+  if (s.rol !== 'admin') return { correo: false, credencial: false }
 
-  const filas = await consultarConSesion<{ correo: string | null; totp_confirmado_en: string | null }>(
-    s,
-    `select correo, totp_confirmado_en from perfiles where id = $1`,
-    [s.perfilId],
-  )
+  return conSesion(s, async (tx) => {
+    const marca = await marcaLaCredencial(tx)
+    const columna = marca ? 'credencial_cambiada_en' : 'null::timestamptz as credencial_cambiada_en'
 
-  const p = filas[0]
-  // Si el perfil no se pudo leer, no se traba a nadie. El portón está para
-  // empujar a completar la cuenta, no para dejar afuera a quien ya entró.
-  if (!p) return { correo: false, segundoFactor: false }
+    const filas = await tx.consultar<{ correo: string | null; credencial_cambiada_en: string | null }>(
+      `select correo, ${columna} from perfiles where id = $1`,
+      [s.perfilId],
+    )
 
-  return { correo: !p.correo, segundoFactor: !p.totp_confirmado_en }
+    const p = filas[0]
+    // Si el perfil no se pudo leer, no se traba a nadie. El portón está para
+    // empujar a completar la cuenta, no para dejar afuera a quien ya entró.
+    if (!p) return { correo: false, credencial: false }
+
+    // Sin la columna no hay nada que saber, y no saber no deja a nadie afuera:
+    // en ese rato se entra igual y lo único que no anda es esta marca.
+    return { correo: !p.correo, credencial: marca && !p.credencial_cambiada_en }
+  })
 })
 
 /** Para páginas que exigen sesión. Devuelve null si no hay; el layout redirige. */
@@ -243,18 +235,19 @@ export async function exigirAdmin(): Promise<Sesion> {
  * corta antes de consultar una sola fila.
  *
  * Falla abierto, igual que el layout: si no se puede saber qué falta —la base
- * todavía sin la 0023, que es un orden posible cuando el SQL y el despliegue
- * son dos pasos sueltos— se deja pasar. Un portón roto que deja pasar es una
- * molestia de un rato; uno roto que no deja pasar es la coordinación entera
- * afuera, y con una sola cuenta no hay quien lo destrabe desde adentro.
+ * todavía sin la migración que agrega `credencial_cambiada_en`, que es el orden
+ * normal, porque esa migración se aplica DESPUÉS de subir el código— se deja
+ * pasar. Un portón roto que deja pasar es una molestia de un rato; uno roto que
+ * no deja pasar es la coordinación entera afuera, y con una sola cuenta no hay
+ * quien lo destrabe desde adentro.
  */
 export async function exigirAdminCompleto(): Promise<Sesion> {
   const s = await exigirAdmin()
   const pendientes = await pendientesDeCuenta(s).catch(() => ({
     correo: false,
-    segundoFactor: false,
+    credencial: false,
   }))
-  if (pendientes.correo || pendientes.segundoFactor) throw new ErrorCuentaIncompleta()
+  if (pendientes.correo || pendientes.credencial) throw new ErrorCuentaIncompleta()
   return s
 }
 

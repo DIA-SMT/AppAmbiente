@@ -10,7 +10,7 @@ y los retiros pactados con grandes generadores.
 **Entregado:** la Planta de Valorización, los ocho Puntos Verdes, el seguimiento de
 las pilas de compost con la trazabilidad del camión, el conteo diario simplificado
 para los puntos donde no se puede usar el celular, el recambio de contenedores, y el
-ingreso al panel con correo institucional y segundo factor. Falta la importación del
+ingreso al panel con correo institucional y contraseña propia. Falta la importación del
 Excel de pesos de la 9 de Julio, que necesita un archivo de muestra.
 
 El documento de validación con el modelo completo, las decisiones de diseño y las
@@ -56,9 +56,11 @@ Una base que se entrega tiene **una sola puerta**:
 Con esa cuenta se entra a **Usuarios** y se crean las dos clases que existen:
 
 - **De coordinación**: ve los tres flujos, los datos de los vecinos y la auditoría.
-  Entra con su **correo institucional** (`@smt.gob.ar`) y una contraseña que escribe
-  quien la va a usar, de 6 caracteres para arriba, que el sistema nunca inventa ni
-  vuelve a mostrar. Y después un **código de seis dígitos** del celular.
+  Entra con su **correo institucional** (`@smt.gob.ar`, o cualquier subdominio suyo
+  como `@ia.smt.gob.ar`, que el municipio reparte por dependencia) y una contraseña de 6
+  caracteres para arriba **que elige ella misma**. Quien crea la cuenta escribe una
+  primera para pasársela por teléfono, y deja de saberla apenas la persona entra: lo
+  primero que el panel le pide es elegir la suya.
 - **De punto**: sólo carga movimientos del punto que se le asigne. Lleva un PIN de
   cuatro dígitos, que el sistema puede inventar y que se muestra una sola vez. Es
   corto a propósito: se teclea en la calle, y lo que lo protege es el bloqueo por
@@ -71,78 +73,106 @@ En la base local, `npm run db:sembrar` agrega además los usuarios de desarrollo
 —`coordinacion` / `ambiente2026`, `planta` y `pv01`…`pv08` con PIN `1234`—, que son
 datos de ejemplo y no llegan a ninguna base de verdad.
 
-> **La clave de fábrica está publicada en este repositorio.** Se cambia desde
-> **Usuarios → Cambiar contraseña** antes de darle el link a nadie, y
+> **La clave de fábrica está publicada en este repositorio**, y por eso dura un solo
+> ingreso: la cuenta sembrada entra con ella y el panel no la deja ir a ninguna
+> pantalla hasta que cargue su correo y elija una contraseña propia. Igual
 > `npm run db:verificar` falla contra un Postgres de verdad mientras siga puesta.
 > Lo mismo con `AUTH_SECRET`: con la clave de firma publicada, cualquiera puede
 > emitirse una sesión de coordinación.
 
 ### Cómo se entra al panel
 
-En dos pasos. Primero el correo institucional y la contraseña; después un código de
-seis dígitos que da una app de autenticación en el celular —Google Authenticator,
-Aegis, la que sea—. El código cambia cada 30 segundos, sale del teléfono y no viaja
-por ningún lado: ni por correo, ni por SMS, ni por WhatsApp.
+Correo institucional y contraseña, y adentro. Nada más.
 
-**El ingreso del vigilador no cambió**: usuario del punto y PIN, sin correo, sin
-segundo factor y con la sesión que no vence. La cuenta es del punto y la comparten
-quienes estén de turno, trabajan en la calle y muchas veces sin señal.
+Estuvo armado con un segundo factor —código de seis dígitos de una app del celular,
+QR, códigos de respaldo— y se sacó después de probarlo: resultó más ceremonia de la
+que esta herramienta necesita. La identidad la da el correo institucional, la
+contraseña la elige cada uno, y lo que cuida estas cuentas es el bloqueo por intentos
+fallidos y que la sesión venza a las doce horas.
+
+**El ingreso del vigilador no cambió**: usuario del punto y PIN, sin correo y con la
+sesión que no vence. La cuenta es del punto y la comparten quienes estén de turno,
+trabajan en la calle y muchas veces sin señal.
 
 #### La primera vez, y las cuentas que ya estaban
 
 Una cuenta de coordinación a la que le falte el correo —las que existían antes de
 esto— **sigue entrando con su nombre de usuario**, como siempre. Nadie queda afuera
-por una actualización. Lo que pasa es que, mientras le falte el correo o el segundo
-factor, el panel la lleva a **Mi cuenta** y no la deja ir a ninguna otra pantalla.
-Ahí, de una sola vez: carga su correo institucional, escanea el código con el
-celular, escribe un código para confirmar que le anda —recién ahí queda guardado, así
-que nadie queda con un segundo factor que nunca llegó a configurar— y recibe **ocho
-códigos de respaldo**, que se muestran una sola vez.
+por una actualización. Lo que pasa es que, mientras le falte el correo o mientras siga
+con la contraseña que le escribió otro, el panel la lleva a **Mi cuenta** y no la deja
+ir a ninguna otra pantalla. Ahí, de una sola vez, carga su correo institucional y
+elige su contraseña, escrita dos veces.
 
-Los códigos de respaldo son para el día que el celular no está: cada uno entra una
-sola vez y se quema. Se regeneran desde Mi cuenta.
+Ese portón corta **del lado del servidor**, y no en el navegador. Un layout que decide
+en el cliente no frena nada: la página ajena se arma igual en el servidor y viaja como
+parte de la respuesta, así que con «ver código fuente» o con el JavaScript apagado la
+cuenta a medio hacer leería el panel entero.
 
-#### Si alguien pierde el teléfono
+Y de paso arregla, sin que nadie tenga que acordarse, el problema que venía
+arrastrándose: una cuenta creada con una contraseña que escribió otra persona —la de
+fábrica incluida— no puede seguir usándola.
 
-Otra cuenta de coordinación se lo restablece desde **Usuarios → Restablecer segundo
-factor**: la cuenta queda como recién creada y la próxima vez que entre vuelve a
-escanear el código. La contraseña no cambia.
+#### Si alguien se olvida la contraseña
 
-Y si se perdió el teléfono **y** los códigos de respaldo, y no hay otra cuenta de
-coordinación que pueda hacerlo —con una sola cuenta es exactamente lo que pasa—, se
-destraba desde cualquier máquina con acceso a la base:
+Otra cuenta de coordinación se la cambia desde **Usuarios → Cambiar contraseña**. La
+nueva se pasa por teléfono y vale para entrar esa vez nomás: al entrar, el panel le
+pide elegir una propia, así que nadie queda sabiendo la contraseña de otro.
+
+Con **una sola cuenta de coordinación** eso no alcanza —no hay otra que lo haga—, y
+entonces se destraba desde cualquier máquina con acceso a la base:
 
 ```bash
-DATABASE_URL="<cadena de sesión>" npm run db:2fa -- --usuario direccionia --reset
+DATABASE_URL="<cadena de sesión>" npm run db:clave -- --usuario direccionia
 ```
 
-Sin `--reset` sólo informa quién tiene el segundo factor configurado y quién no.
-Con `--reset` pide confirmación y dice qué va a pasar antes de tocar nada.
+Inventa una contraseña, la muestra una sola vez y deja la cuenta pidiendo una propia
+al entrar. Pide confirmación y dice qué va a pasar antes de tocar nada.
 
 **Si el CLI no llega a la base**, que en esta red pasa seguido —la conexión directa
 de Supabase es sólo IPv6; ver «Poner la base en producción» más abajo—, el mismo
-reseteo se pega en **SQL Editor → New query → Run**. Es exactamente el `update` que
-corre el comando:
+arreglo se hace en dos tiempos. Primero se calcula el hash en la máquina propia, que
+es lo único que el editor SQL no puede hacer solo:
+
+```bash
+npx tsx -e "import { hashearCredencial } from './db/credenciales.ts'; console.log(hashearCredencial('la-que-elijas'))"
+```
+
+Y después se pega esto en **SQL Editor → New query → Run**, con lo que imprimió:
 
 ```sql
 update perfiles
-   set totp_secreto = null, totp_confirmado_en = null, totp_ultimo_paso = null,
-       codigos_respaldo = '{}', intentos_fallidos = 0, bloqueado_hasta = null
+   set credencial_hash = 'scrypt$16384$8$1$…',
+       credencial_cambiada_en = null,
+       intentos_fallidos = 0, bloqueado_hasta = null
  where usuario = 'direccionia' and rol = 'admin';
 ```
 
-Después de correrlo, esa cuenta entra con su correo y su contraseña y el panel la
-lleva de vuelta a **Mi cuenta** para configurar el segundo factor de nuevo.
+`credencial_cambiada_en = null` es lo que hace que el panel le pida elegir la suya
+apenas entre: la que se escribió acá la sabe quien corrió el comando.
 
-> Esta salida de emergencia no es un descuido: es la condición para que el segundo
-> factor se pueda exigir. Sin ella, un teléfono perdido con una sola cuenta de
+> Esta salida de emergencia no es un descuido: es la condición para poder exigir una
+> contraseña propia. Sin ella, una contraseña olvidada con una sola cuenta de
 > coordinación deja la base inaccesible para siempre. Y por eso son dos caminos y
 > no uno: el día que haga falta no es el día para descubrir que el único que había
 > no conecta.
 
-**Antes de la presentación**, correr una vez `npm run db:2fa` *sin* `--reset` desde
-la máquina de la Dirección de IA. Sólo lee, y es la forma de saber si esa cadena de
-conexión llega de verdad a la base antes de necesitarla.
+**Antes de la presentación**, correr una vez esto desde la máquina de la Dirección de
+IA:
+
+```bash
+DATABASE_URL="<cadena de sesión>" npm run db:clave
+```
+
+Sin `--usuario` sólo lista: dice qué cuentas de coordinación hay y cuál todavía no
+eligió su contraseña, y no escribe una sola fila. Sirve para dos cosas a la vez —saber
+que esa cadena llega de verdad a la base, y que llega **el comando de rescate**, que es
+el que va a hacer falta el día que haga falta—.
+
+> No usar `db:verificar` para esto. Escribe: se arma sus propios usuarios de prueba
+> para probar las políticas, y quedan desactivados en la lista de *Usuarios*. Y además
+> falla a propósito mientras alguna cuenta conserve la contraseña de fábrica —que es
+> el estado de la base hoy—, así que un rojo no diría si el problema es la conexión o
+> la contraseña.
 
 ---
 
@@ -198,11 +228,11 @@ Supabase, no llegue a nada. Ver la migración 0019.
 pueda cargar el de otro punto ni uno de hace meses, y —lo que hace que el indicador no
 mienta— que un punto que solo cuenta sume visitas pero **no** vecinos identificados.
 
-**Del ingreso al panel:** que un usuario de punto no pueda tener correo ni segundo
-factor, que dos cuentas no compartan el mismo correo ni escribiéndolo con otras
-mayúsculas, que un código de seis dígitos no entre dos veces, que un código de respaldo
-se use una sola vez, y que los códigos errados sumen al **mismo** bloqueo que la
-contraseña —si no, el segundo factor son seis dígitos que se prueban de a un millón—.
+**Del ingreso al panel:** que un usuario de punto no pueda tener correo, que dos cuentas
+no compartan el mismo correo ni escribiéndolo con otras mayúsculas, que una cuenta
+recién creada quede pidiendo contraseña propia, que cambiarse la propia deje de
+pedirla, y que cambiarle la contraseña a **otro** se la siga pidiendo a esa persona —si
+no, quien creó la cuenta se queda sabiendo con qué entra—.
 
 Conviene correrlo después de tocar `db/migrations/0010_rls.sql` y antes de desplegar.
 
@@ -246,7 +276,7 @@ esperando sin decir por qué.
 npm run db:sql
 ```
 
-Escribe `db/produccion.sql` (unos 175 KB): las 23 migraciones en orden, las filas
+Escribe `db/produccion.sql` (unos 175 KB): las 24 migraciones en orden, las filas
 de `app.migraciones` y los datos base. Se pega entero en **SQL Editor → New query
 → Run**, y al final devuelve una tabla con lo que quedó cargado.
 
@@ -272,8 +302,13 @@ transacción. La app, al revés, abre una conexión por invocación y sin pooler
 el servidor.
 
 ```bash
-DATABASE_URL="<cadena de sesión>" npm run db:migrar
+CONFIRMO_MIGRAR=si DATABASE_URL="<cadena de sesión>" npm run db:migrar
 ```
+
+`CONFIRMO_MIGRAR=si` lo pide el propio comando cuando la base no es la local. Es para
+que un `npm run db:migrar` a secas —con una `DATABASE_URL` que quedó puesta en
+`.env.local`— no le aplique lo que haya pendiente a la base de la Secretaría sin
+preguntar. La **0024** es justamente la que no puede adelantarse al build.
 
 ```bash
 DATABASE_URL="<cadena de sesión>" npm run db:sembrar
@@ -310,6 +345,14 @@ pantalla que se apoya en una función nueva deja de abrir hasta que el SQL entre
 > ni con el usuario de siempre. Se arregla aplicando el SQL —el build ya está bien—,
 > pero mientras tanto el sistema está cerrado. Primero el SQL.
 
+> **La 0024 es la única excepción, y va exactamente al revés: primero el build.** Esa
+> migración *borra* las columnas del segundo factor, y el código que está hoy en el
+> aire todavía las nombra: aplicarla antes de subir el build deja a toda la
+> coordinación afuera. Se sube el build, se comprueba que se entra, y recién ahí se
+> pega el SQL. En el medio no se rompe nada: lo único que falta es el aviso de la
+> lista de usuarios que marca quién sigue con la contraseña que le escribieron, porque
+> esa columna todavía no existe.
+
 #### Lo que la base nueva NO trae
 
 Ningún dato inventado: ni choferes, ni patentes, ni destinos habilitados, ni pilas,
@@ -337,13 +380,10 @@ Sin `AUTH_SECRET` la app no arranca y lo dice. Se deja vacío en `.env.example` 
 propósito: con la clave de firma publicada, cualquiera podría emitirse una sesión de
 coordinación.
 
-> **`AUTH_SECRET` ahora vale más que antes.** Además de firmar las sesiones, de ahí
-> sale la clave con la que se cifran los secretos del segundo factor: guardados en
-> claro, cualquiera que lea la base se genera los códigos solo. Cambiarla no sólo
-> cierra las sesiones abiertas —eso ya pasaba—: también deja ilegibles los secretos
-> guardados, y cada cuenta de coordinación tiene que volver a configurar el segundo
-> factor con `npm run db:2fa -- --usuario <quien> --reset`. Se cambia con motivo, no
-> de rutina.
+> **Cambiar `AUTH_SECRET` cierra todas las sesiones abiertas**, incluidas las de los
+> celulares de los puntos, que no vencen nunca: cada uno vuelve a pedir el usuario y
+> el PIN, y eso es un rato de puntos verdes que no pueden anotar. Se cambia con
+> motivo, no de rutina.
 
 ---
 
@@ -351,24 +391,23 @@ coordinación.
 
 ```
 db/
-  migrations/        23 migraciones SQL, en orden. Es la fuente de verdad del modelo.
+  migrations/        24 migraciones SQL, en orden. Es la fuente de verdad del modelo.
   client.ts          conexión: PGlite o postgres-js según DATABASE_URL
   sesion.ts          conSesion() pone la identidad en la base antes de consultar
-  credenciales.ts    hasheo de PIN con scrypt
-  totp.ts            códigos de seis dígitos (RFC 6238) y cifrado del secreto
+  credenciales.ts    hasheo de PIN y contraseña con scrypt
   migraciones.ts     aplicador que usan el CLI y el servidor de desarrollo
   datos-base.ts      los datos del relevamiento y las sentencias que los cargan
   cli/               migrar · sembrar · reset · verificar · exportar-sql ·
-                     segundo-factor (la salida de emergencia del 2FA)
+                     clave (la salida para el que se olvidó la suya)
 src/
   lib/               tipos, capa de datos, sesión, formato argentino
   app/
-    ingresar/        pantalla de acceso, en dos pasos para la coordinación
+    ingresar/        pantalla de acceso
     (vigilador)/     turno, carga de ingreso y salida, conteo diario, control de
                      pilas, listo, lo de hoy
     (admin)/         tablero (planta y puntos verdes), movimientos, trazabilidad,
                      pilas, conteos, listas, revisiones, vecinos, usuarios, cuenta
-                     (correo y segundo factor), auditoría
+                     (correo y contraseña), auditoría
     api/             exportar a Excel, sincronizar la cola offline
 docs/                documento de validación de fase 0
 assets/marca/        identidad institucional (logos y plantilla de referencia)
@@ -380,7 +419,7 @@ assets/marca/        identidad institucional (logos y plantilla de referencia)
 |---|---|
 | `npm run dev` | Servidor de desarrollo |
 | `npm run preparar` | Migrar y sembrar, en un paso |
-| `npm run db:migrar` | Aplica las migraciones pendientes |
+| `npm run db:migrar` | Aplica las migraciones pendientes. Contra un Postgres remoto pide `CONFIRMO_MIGRAR=si` |
 | `npm run db:sembrar` | Datos base. En la base local, además, datos de ejemplo (idempotente) |
 | `npm run db:sembrar -- --sin-ejemplos` | Solo los datos base, aunque sea la base local |
 | `npm run db:sql` | Escribe db/produccion.sql: una base nueva, de cero |
@@ -388,8 +427,8 @@ assets/marca/        identidad institucional (logos y plantilla de referencia)
 | `npm run db:usuarios` | Escribe db/usuarios.sql: deja en la base sólo los usuarios de datos-base.ts |
 | `npm run db:reset` | Borra la base local y la rehace desde cero |
 | `npm run db:verificar` | Comprueba que las políticas de seguridad hagan lo que dicen |
-| `npm run db:2fa` | Informa quién tiene el segundo factor configurado |
-| `npm run db:2fa -- --usuario <quien> --reset` | Se lo borra, para que lo configure de nuevo al entrar |
+| `DATABASE_URL="…" npm run db:clave` | Lista las cuentas de coordinación y cuál todavía no eligió su contraseña. No toca nada |
+| `DATABASE_URL="…" npm run db:clave -- --usuario <quien>` | Le pone una contraseña al azar, la muestra una sola vez y le deja elegir la suya al entrar |
 | `npm run typecheck` | Chequeo de tipos |
 | `npm run build` | Compilación de producción |
 
@@ -541,5 +580,4 @@ de si la Secretaría va a mantener la lista de quién trabaja en cada punto, que
 único que hace que el dato sirva. **Se retoma con la devolución de la Secretaría de
 Ambiente**, junto con el resto de lo que traigan de la presentación.
 
-No toca el ingreso: la cuenta del punto sigue siendo compartida, con PIN y sin
-segundo factor.
+No toca el ingreso: la cuenta del punto sigue siendo compartida, con PIN y sin correo.

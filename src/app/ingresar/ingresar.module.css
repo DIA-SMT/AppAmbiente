@@ -149,33 +149,6 @@
    depender de en qué orden salgan las hojas de estilo. */
 .panel :global(.campo) :global(.ayuda) { color: #93a09a; }
 
-/* ── El segundo paso de la coordinación ─────────────────────────────────
-   El vigilador no llega acá: su ingreso sigue siendo de un solo paso. */
-
-.cuenta {
-  margin: 0;
-  font-size: .86rem;
-  color: #93a09a;
-}
-/* El correo institucional no entra en 375 px sin partirse en algún lado. */
-.cuenta span { color: #f2f6f3; font-weight: 700; overflow-wrap: anywhere; }
-
-/* Seis dígitos que se copian del teléfono mirando de reojo. El text-indent
-   compensa el espacio que letter-spacing agrega después del último dígito y
-   que, sin esto, corre el número medio caracter a la izquierda. */
-.codigo {
-  font-size: 1.6rem;
-  font-weight: 700;
-  letter-spacing: .42em;
-  text-indent: .42em;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Pegado al botón de arriba: los dos son la misma cosa —qué hacer cuando el
-   código no aparece— y no dos pasos distintos del ingreso. */
-.volver { margin-top: -10px; }
-
 /* En vertical el encuadre necesita otro centro: la máquina está a la izquierda. */
 @media (max-width: 880px) {
   .pantalla { background-position: 38% 58%; }

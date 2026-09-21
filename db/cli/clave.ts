@@ -231,7 +231,7 @@ async function principal() {
   Los usuarios de punto no aparecen: su PIN se cambia desde el panel.
 
   Para ponerle una contraseña nueva a una que se la olvidó:
-    DATABASE_URL="<cadena de sesión>" npm run db:clave -- --usuario ${cuentas[0]!.usuario}
+    CONFIRMO_CLAVE=si DATABASE_URL="<cadena de sesión>" npm run db:clave -- --usuario ${cuentas[0]!.usuario}
 `)
     return
   }

@@ -31,7 +31,7 @@ import { revalidatePath } from 'next/cache'
 import { esClaveValida, esPinValido, hashearCredencial, verificarCredencial } from '@db/credenciales'
 import { conSesion, consultarConSesion, type Sesion } from '@db/sesion'
 import { mensajeDeError } from '@/lib/datos'
-import { DOMINIO_PRINCIPAL, esCorreoInstitucional, normalizarCorreo } from '@/lib/correo'
+import { esCorreoValido, normalizarCorreo } from '@/lib/correo'
 import { exigirAdminCompleto } from '@/lib/sesion'
 
 export interface EstadoUsuario {
@@ -105,8 +105,8 @@ export async function crearUsuario(
 
   if (rol === 'admin') {
     // Una cuenta de coordinación no tiene sitio: ve los tres flujos.
-    if (!esCorreoInstitucional(correo)) {
-      return { error: `El correo tiene que ser el institucional, terminado en @${DOMINIO_PRINCIPAL}. Es con lo que va a entrar al panel.` }
+    if (!esCorreoValido(correo)) {
+      return { error: 'Ese correo no tiene forma de correo. Es con lo que va a entrar al panel.' }
     }
     if (!esClaveValida(clavePedida)) {
       return { error: 'La contraseña de una cuenta de coordinación va de 6 caracteres para arriba. Es sólo para que entre la primera vez.' }

@@ -1085,7 +1085,21 @@ async function main() {
 
   // ═══ Correo y contraseña propia ═══════════════════════════════════════
   //
-  // Entrar al panel es correo institucional y contraseña. Lo que la 0024 agrega
+  // Un correo que no es del municipio tiene que entrar igual: la cuenta de
+  // coordinación que usa la app no tiene casilla institucional, y cargar el
+  // correo es el único camino que saca a una cuenta de la pantalla Mi cuenta.
+  // Si esto vuelve a exigir el dominio, esa persona queda encerrada ahí sin
+  // salida desde adentro.
+  const { esCorreoValido } = await import('../../src/lib/correo')
+  const aceptados = ['rocio.fernandez@gmail.com', 'alguien@smt.gob.ar', 'alguien@ia.smt.gob.ar']
+  const rechazados = ['sin arroba', 'falta@elpunto', '']
+  revisar(
+    'un correo de cualquier proveedor sirve para entrar',
+    aceptados.every(esCorreoValido) && !rechazados.some(esCorreoValido),
+    aceptados.join(', '),
+  )
+
+  // Entrar al panel es correo y contraseña. Lo que la 0024 agrega
   // es que esa contraseña la tenga que elegir su dueño: mientras
   // `credencial_cambiada_en` esté en null, la que abre la cuenta la sabe también
   // quien la creó, y el portón no la deja ir a ninguna pantalla que no sea

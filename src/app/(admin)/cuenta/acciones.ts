@@ -31,7 +31,7 @@ import { esClaveValida, hashearCredencial, verificarCredencial } from '@db/crede
 import { conSesion } from '@db/sesion'
 import type { Conexion } from '@db/client'
 import { mensajeDeError } from '@/lib/datos'
-import { DOMINIO_PRINCIPAL, esCorreoInstitucional, normalizarCorreo } from '@/lib/correo'
+import { esCorreoValido, normalizarCorreo } from '@/lib/correo'
 import { exigirAdmin, type Sesion } from '@/lib/sesion'
 
 export interface EstadoCuenta {
@@ -194,11 +194,8 @@ export async function completarCuenta(
       let correoNuevo: string | null = null
       if (!p.correo) {
         const correo = normalizarCorreo(String(datos.get('correo') ?? ''))
-        if (!esCorreoInstitucional(correo)) {
-          return {
-            error: `El correo tiene que ser el institucional, terminado en @${DOMINIO_PRINCIPAL}. `
-              + 'Es con lo que vas a entrar al panel.',
-          }
+        if (!esCorreoValido(correo)) {
+          return { error: 'Ese correo no tiene forma de correo. Es con lo que vas a entrar al panel.' }
         }
         correoNuevo = correo
       }
@@ -264,11 +261,8 @@ export async function guardarCorreo(
   if (!sesion) return { error: 'Se cerró la sesión. Entrá de nuevo.' }
 
   const correo = normalizarCorreo(String(datos.get('correo') ?? ''))
-  if (!esCorreoInstitucional(correo)) {
-    return {
-      error: `El correo tiene que ser el institucional, terminado en @${DOMINIO_PRINCIPAL}. `
-        + 'Es con lo que entrás al panel.',
-    }
+  if (!esCorreoValido(correo)) {
+    return { error: 'Ese correo no tiene forma de correo. Es con lo que entrás al panel.' }
   }
 
   let resultado: EstadoCuenta

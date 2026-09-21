@@ -10,7 +10,7 @@ y los retiros pactados con grandes generadores.
 **Entregado:** la Planta de Valorización, los ocho Puntos Verdes, el seguimiento de
 las pilas de compost con la trazabilidad del camión, el conteo diario simplificado
 para los puntos donde no se puede usar el celular, el recambio de contenedores, y el
-ingreso al panel con correo institucional y contraseña propia. Falta la importación del
+ingreso al panel con correo y contraseña propia. Falta la importación del
 Excel de pesos de la 9 de Julio, que necesita un archivo de muestra.
 
 El documento de validación con el modelo completo, las decisiones de diseño y las
@@ -56,8 +56,7 @@ Una base que se entrega tiene **una sola puerta**:
 Con esa cuenta se entra a **Usuarios** y se crean las dos clases que existen:
 
 - **De coordinación**: ve los tres flujos, los datos de los vecinos y la auditoría.
-  Entra con su **correo institucional** (`@smt.gob.ar`, o cualquier subdominio suyo
-  como `@ia.smt.gob.ar`, que el municipio reparte por dependencia) y una contraseña de 6
+  Entra con su **correo** y una contraseña de 6
   caracteres para arriba **que elige ella misma**. Quien crea la cuenta escribe una
   primera para pasársela por teléfono, y deja de saberla apenas la persona entra: lo
   primero que el panel le pide es elegir la suya.
@@ -82,11 +81,24 @@ datos de ejemplo y no llegan a ninguna base de verdad.
 
 ### Cómo se entra al panel
 
-Correo institucional y contraseña, y adentro. Nada más.
+Correo y contraseña, y adentro. Nada más.
+
+Sirve cualquier correo, no sólo el del municipio. Al principio se exigía
+`@smt.gob.ar` y duró hasta la primera persona real: la cuenta de coordinación que
+usa la app no tiene casilla institucional, y cargar el correo es el **único** camino
+que saca a una cuenta de la pantalla *Mi cuenta*, así que la baranda que estaba para
+evitar una equivocación dejaba encerrada a la única persona que la iba a usar.
+
+Tampoco era seguridad: una cuenta de coordinación la crea otra cuenta de
+coordinación, y quien podía poner un Gmail ya podía poner cualquier `@smt.gob.ar`
+inventado. Lo que corta el acceso de verdad es **desactivar el usuario** desde
+*Usuarios*, y eso rige en el pedido siguiente aunque tenga la sesión abierta. Lo que
+sí se pierde: con una casilla personal el acceso no se muere solo el día que esa
+persona deja la Secretaría — hay que ir a desactivarla.
 
 Estuvo armado con un segundo factor —código de seis dígitos de una app del celular,
 QR, códigos de respaldo— y se sacó después de probarlo: resultó más ceremonia de la
-que esta herramienta necesita. La identidad la da el correo institucional, la
+que esta herramienta necesita. La identidad la da el correo, la
 contraseña la elige cada uno, y lo que cuida estas cuentas es el bloqueo por intentos
 fallidos y que la sesión venza a las doce horas.
 
@@ -100,7 +112,7 @@ Una cuenta de coordinación a la que le falte el correo —las que existían ant
 esto— **sigue entrando con su nombre de usuario**, como siempre. Nadie queda afuera
 por una actualización. Lo que pasa es que, mientras le falte el correo o mientras siga
 con la contraseña que le escribió otro, el panel la lleva a **Mi cuenta** y no la deja
-ir a ninguna otra pantalla. Ahí, de una sola vez, carga su correo institucional y
+ir a ninguna otra pantalla. Ahí, de una sola vez, carga su correo y
 elige su contraseña, escrita dos veces.
 
 Ese portón corta **del lado del servidor**, y no en el navegador. Un layout que decide

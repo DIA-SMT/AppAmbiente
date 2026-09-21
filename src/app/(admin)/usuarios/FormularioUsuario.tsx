@@ -163,8 +163,8 @@ export function FormularioUsuario({ sitios }: { sitios: SitioParaUsuario[] }) {
                 required
               />
               <span className="ayuda">
-                Con esto entra al panel, y tiene que terminar en @smt.gob.ar o en el subdominio
-                de su dependencia. Dos cuentas no pueden compartir el mismo correo.
+                Con esto entra al panel. Si tiene casilla del municipio conviene esa; si no,
+                sirve cualquiera. Dos cuentas no pueden compartir el mismo correo.
               </span>
             </div>
 

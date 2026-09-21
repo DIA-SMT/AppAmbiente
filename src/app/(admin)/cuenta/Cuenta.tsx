@@ -149,9 +149,9 @@ function CampoCorreo({
         required
       />
       <span className="ayuda">
-        Tiene que terminar en @smt.gob.ar, o en el subdominio de tu dependencia. Desde que lo
-        guardes entrás con esto y no con{' '}
-        <span className="mono">{usuario}</span>, así que fijate que esté bien escrito.
+        Si tenés casilla del municipio, usá esa; si no, sirve cualquiera. Desde que lo guardes
+        entrás con esto y no con <span className="mono">{usuario}</span>, así que fijate que
+        esté bien escrito.
       </span>
     </div>
   )

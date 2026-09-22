@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Manual de uso · Registro de residuos</title>
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root{
+    --azul:      #126ff5;
+    --azul-med:  #2589ea;
+    --azul-hondo:#28469f;
+    --celeste:   #3cb4f0;
+    --amarillo:  #F2D91C;
+    --tinta:     #10233d;
+    --texto:     #33414f;
+    --gris:      #6b7885;
+    --linea:     #e3e8ef;
+    --papel:     #ffffff;
+    --verde:     #25d366;
+    --ambar:     #f5b81c;
+  }
+
+  html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body{
+    font-family: "Segoe UI", "Helvetica Neue", Arial, "DejaVu Sans", sans-serif;
+    color: var(--texto); background:#fff;
+  }
+
+  .page{
+    width: 210mm; height: 297mm; position: relative; overflow: hidden;
+    background: var(--papel); page-break-after: always;
+  }
+  .page:last-child { page-break-after: auto; }
+
+  /* ══════════ PORTADA ══════════ */
+  .hero{
+    height: 53mm;
+    background:
+      radial-gradient(120% 150% at 88% 8%, rgba(60,180,240,.42), transparent 58%),
+      linear-gradient(112deg, #0d3fb0 0%, #126ff5 52%, #2589ea 100%);
+    padding: 11mm 14mm 0; position: relative;
+    display:flex; flex-direction:column; justify-content:flex-start;
+  }
+  .hero::after{
+    content:""; position:absolute; left:0; right:0; bottom:0; height:2.6mm;
+    background: linear-gradient(90deg, var(--amarillo) 0%, var(--amarillo) 22%, var(--celeste) 22%, var(--celeste) 100%);
+  }
+  .hero-top{ display:flex; align-items:flex-start; justify-content:space-between; }
+  .logo-smt{ height: 11mm; }
+  .chip-ia{ background:#fff; border-radius:3mm; padding:2.4mm 4mm 2mm; box-shadow:0 3mm 8mm rgba(4,26,66,.26); text-align:center; }
+  .chip-ia img{ height:6.4mm; display:block; }
+  .chip-ia span{ display:block; margin-top:1mm; font-size:5.2pt; letter-spacing:.10em; color:#8a949e; text-transform:uppercase; font-weight:700; }
+  .hero h1{ color:#fff; font-size:25pt; font-weight:800; letter-spacing:-.4pt; margin-top:6mm; line-height:1.05; }
+  .hero .lead{ color:#d9eaff; font-size:10.4pt; margin-top:2.6mm; font-weight:400; max-width:150mm; line-height:1.35; }
+
+  /* ══════════ CUERPO ══════════ */
+  .body{ padding: 7mm 14mm 0; }
+  h2.sec{ font-size:12.4pt; color:var(--tinta); font-weight:800; display:flex; align-items:center; gap:2.6mm; margin-bottom:3mm; }
+  h2.sec::before{ content:""; width:1.5mm; height:5.2mm; border-radius:1mm; background:linear-gradient(180deg,var(--azul),var(--celeste)); }
+  h3.sub{ font-size:9.4pt; color:var(--tinta); font-weight:800; margin:4mm 0 1.6mm; }
+  p.intro{ font-size:9.5pt; line-height:1.58; text-align:justify; }
+  p.intro + p.intro{ margin-top:2.4mm; }
+  p.intro b{ color:var(--tinta); font-weight:700; }
+  p.nota{ font-size:8.2pt; line-height:1.5; color:var(--gris); margin-top:2.2mm; }
+
+  /* ── flujo de 4 pasos ── */
+  .flow{ margin-top:3mm; display:flex; align-items:stretch; gap:0;
+    background:linear-gradient(180deg,#f6faff,#eef6ff); border:.35mm solid #d8e6fa; border-radius:3.4mm; padding:5mm 4mm; }
+  .step{ flex:1; text-align:center; padding:0 2.2mm; }
+  .step .bub{ width:15mm; height:15mm; border-radius:50%; margin:0 auto 2.6mm;
+    display:flex; align-items:center; justify-content:center; font-size:14pt; color:#fff; box-shadow:0 2.4mm 5mm rgba(18,111,245,.28); }
+  .s1 .bub{ background:linear-gradient(140deg,#25d366,#1aa851); box-shadow:0 2.4mm 5mm rgba(26,168,81,.30); }
+  .s2 .bub{ background:linear-gradient(140deg,var(--azul),var(--azul-hondo)); }
+  .s3 .bub{ background:linear-gradient(140deg,var(--celeste),var(--azul-med)); }
+  .s4 .bub{ background:linear-gradient(140deg,#f5b81c,#ef8f16); box-shadow:0 2.4mm 5mm rgba(239,143,22,.30); }
+  .step h4{ font-size:8.6pt; color:var(--tinta); font-weight:800; margin-bottom:1.4mm; }
+  .step p{ font-size:7.4pt; color:var(--gris); line-height:1.42; }
+  .arrow{ align-self:center; color:#b9cfe8; font-size:13pt; font-weight:300; padding:0 .5mm; margin-top:-7mm; }
+
+  /* ── tarjetas ── */
+  .cards{ display:grid; grid-template-columns:1fr 1fr; gap:3.2mm; margin-top:3mm; }
+  .card{ border:.35mm solid var(--linea); border-left:1.3mm solid var(--azul); border-radius:2.6mm;
+    padding:3.2mm 4mm; background:#fff; box-shadow:0 1.6mm 4mm rgba(21,39,60,.055); }
+  .card.c2{ border-left-color:var(--celeste); }
+  .card.c3{ border-left-color:var(--azul-hondo); }
+  .card.c4{ border-left-color:var(--ambar); }
+  .card.c5{ border-left-color:var(--verde); }
+  .card.c6{ border-left-color:var(--azul-med); }
+  .card h4{ font-size:8.9pt; color:var(--tinta); font-weight:800; margin-bottom:1.2mm; }
+  .card p{ font-size:7.9pt; line-height:1.48; color:var(--gris); }
+
+  /* ── pie ── */
+  .foot{ position:absolute; left:0; right:0; bottom:0; height:15mm; border-top:.35mm solid var(--linea);
+    display:flex; align-items:center; justify-content:space-between; padding:0 14mm; background:#fbfcfe; }
+  .foot-l{ display:flex; align-items:center; gap:3mm; }
+  .foot-l img{ height:8.4mm; }
+  .foot-l div{ font-size:6.6pt; color:var(--gris); line-height:1.4; }
+  .foot-l b{ display:block; color:var(--tinta); font-size:7.4pt; font-weight:800; }
+  .foot-r{ font-size:6.6pt; color:#9aa5b1; text-align:right; line-height:1.5; }
+
+  /* ── banda de páginas interiores ── */
+  .band{ height:20mm; padding:0 14mm; display:flex; align-items:center; justify-content:space-between;
+    background:linear-gradient(112deg,#0d3fb0,#126ff5 60%,#2589ea); position:relative; }
+  .band::after{ content:""; position:absolute; left:0; right:0; bottom:0; height:1.6mm;
+    background:linear-gradient(90deg,var(--amarillo) 0%,var(--amarillo) 22%,var(--celeste) 22%,var(--celeste) 100%); }
+  .band h3{ color:#fff; font-size:13pt; font-weight:800; }
+  .band img{ height:7.6mm; opacity:.95; }
+
+  /* ── capturas ── */
+  .shot{ border:.35mm solid #dbe4ee; border-radius:2.6mm; overflow:hidden;
+    box-shadow:0 2.4mm 7mm rgba(21,39,60,.10); background:#fff; position:relative; margin-top:2.6mm; }
+  .shot img{ width:100%; display:block; }
+  .shot.corta{ position:relative; }
+  .shot.corta::after{ content:""; position:absolute; left:0; right:0; bottom:0; height:9mm;
+    background:linear-gradient(180deg, rgba(255,255,255,0), #ffffff 92%); }
+  .h74{ height:74mm; } .h78{ height:78mm; } .h80{ height:80mm; } .h95{ height:95mm; }
+  .cap{ font-size:6.8pt; color:#98a3ae; margin-top:1.6mm; font-style:italic; }
+
+  /* ── listas ── */
+  ul.mini{ list-style:none; margin-top:1.4mm; }
+  ul.mini li{ font-size:8.4pt; line-height:1.66; color:var(--texto); padding-left:5.4mm; position:relative; }
+  ul.mini li::before{ content:""; position:absolute; left:1.4mm; top:1.9mm; width:1.9mm; height:1.9mm; border-radius:50%; background:var(--azul); }
+  ul.mini li b{ color:var(--tinta); font-weight:700; }
+
+  ol.pasos{ list-style:none; counter-reset:p; margin-top:2mm; }
+  ol.pasos li{ counter-increment:p; font-size:8.4pt; line-height:1.55; color:var(--texto);
+    padding-left:7.4mm; position:relative; margin-bottom:1.8mm; }
+  ol.pasos li::before{ content:counter(p); position:absolute; left:0; top:.2mm;
+    width:5mm; height:5mm; border-radius:50%; background:var(--azul); color:#fff;
+    font-size:6.6pt; font-weight:800; display:flex; align-items:center; justify-content:center; }
+  ol.pasos li b{ color:var(--tinta); font-weight:700; }
+
+  /* ── tablas ── */
+  table.t{ width:100%; border-collapse:collapse; margin-top:2.4mm; font-size:7.9pt; }
+  table.t th{ background:#f4f8fe; color:var(--tinta); font-weight:800; font-size:7.2pt;
+    text-align:left; padding:2mm 2.6mm; border-bottom:.35mm solid #d8e6fa; text-transform:uppercase; letter-spacing:.03em; }
+  table.t td{ padding:1.9mm 2.6mm; border-bottom:.3mm solid var(--linea); line-height:1.42; vertical-align:top; }
+  table.t tr:last-child td{ border-bottom:none; }
+  table.t td b{ color:var(--tinta); font-weight:700; }
+  .t-wrap{ border:.35mm solid var(--linea); border-radius:2.4mm; overflow:hidden; margin-top:2.4mm; }
+  .t-wrap table.t{ margin-top:0; }
+
+  /* ── avisos ── */
+  .aviso{ margin-top:3mm; border-radius:2.4mm; padding:3mm 4mm; font-size:8.2pt; line-height:1.5;
+    background:#fffaf0; border:.35mm solid #f4e2bb; border-left:1.3mm solid var(--ambar); color:#6b5522; }
+  .aviso b{ color:#7a5a12; font-weight:800; }
+  .aviso.info{ background:#f4f9ff; border-color:#cfe3fb; border-left-color:var(--azul); color:#3a5570; }
+  .aviso.info b{ color:var(--azul-hondo); }
+
+  .reglas{ display:flex; gap:0; margin-top:3mm; border-radius:2.4mm; border:.35mm solid #d8e6fa;
+    background:linear-gradient(160deg,#f6faff,#eaf3ff); padding:2.6mm 0; }
+  .reglas > div{ flex:1; padding:0 3.4mm; border-left:.35mm solid #d3e3f8; }
+  .reglas > div:first-child{ border-left:none; }
+  .reglas b{ display:block; font-size:8pt; color:var(--tinta); font-weight:800; margin-bottom:.5mm; }
+  .reglas span{ font-size:7pt; color:var(--gris); line-height:1.35; }
+
+  .cierre{ margin-top:4mm; border-radius:2.8mm; padding:4mm 5mm;
+    background:linear-gradient(112deg,#0d3fb0,#126ff5 60%,#2589ea); color:#fff; }
+  .cierre b{ font-size:9.2pt; font-weight:800; display:block; margin-bottom:1.4mm; }
+  .cierre p{ font-size:8pt; line-height:1.55; color:#d9eaff; }
+
+  code{ font-family:"Consolas","DejaVu Sans Mono",monospace; font-size:7.4pt;
+    background:#f1f5fa; border:.3mm solid #e0e8f2; border-radius:1mm; padding:.3mm 1.2mm; color:var(--azul-hondo); }
+  .cmd{ display:block; margin-top:2mm; font-family:"Consolas","DejaVu Sans Mono",monospace; font-size:7.3pt;
+    background:#10233d; color:#cfe3ff; border-radius:2mm; padding:2.6mm 3.4mm; line-height:1.5; word-break:break-all; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════ PÁGINA 1 · PORTADA ══════════════════ -->
+<section class="page">
+  <div class="hero">
+    <div class="hero-top">
+      <img class="logo-smt" src="logo-smt-blanco.png" alt="Municipalidad de San Miguel de Tucumán">
+      <div class="chip-ia"><img src="logo-ia.png" alt="Dirección de Inteligencia Artificial"><span>Desarrollo</span></div>
+    </div>
+    <h1>Registro de residuos</h1>
+    <p class="lead">Manual de uso · Secretaría de Ambiente y Desarrollo Sustentable</p>
+  </div>
+
+  <div class="body">
+    <h2 class="sec">De qué se trata</h2>
+    <p class="intro">
+      Este sistema reemplaza los formularios en papel y las planillas donde hasta ahora se anotaba lo que entra
+      y sale de la <b>Planta de Valorización de Residuos Verdes</b> y de los <b>ocho puntos verdes</b>. La idea
+      que lo ordena todo es una sola: <b>todo es un movimiento</b>. Algo entró a un lugar o salió de un lugar,
+      tal día, en tal cantidad, y quedó anotado quién lo cargó.
+    </p>
+    <p class="intro">
+      Con eso se contesta en el momento lo que antes había que ir a buscar planilla por planilla: cuánto entró
+      este mes, de dónde vino, a dónde fue, y de qué pila salió ese camión de compost.
+    </p>
+
+    <h2 class="sec" style="margin-top:5.5mm">Cómo funciona</h2>
+    <div class="flow">
+      <div class="step s1">
+        <div class="bub">📱</div>
+        <h4>Se carga en la calle</h4>
+        <p>El vigilador anota el movimiento desde su celular, en el momento, con botones grandes.</p>
+      </div>
+      <div class="arrow">➜</div>
+      <div class="step s2">
+        <div class="bub">🔒</div>
+        <h4>Queda firmado</h4>
+        <p>Con la fecha, el punto y quién lo cargó. No se puede editar ni borrar después.</p>
+      </div>
+      <div class="arrow">➜</div>
+      <div class="step s3">
+        <div class="bub">📊</div>
+        <h4>Se ve en el panel</h4>
+        <p>La coordinación lo ve al instante en los tableros, sin volver a cargar nada.</p>
+      </div>
+      <div class="arrow">➜</div>
+      <div class="step s4">
+        <div class="bub">🔎</div>
+        <h4>Se puede rastrear</h4>
+        <p>Cada camión de compost sabe de qué pila salió y de qué poda estaba hecha esa pila.</p>
+      </div>
+    </div>
+
+    <h2 class="sec" style="margin-top:5.5mm">Qué hay cargado hoy</h2>
+    <div class="cards">
+      <div class="card">
+        <h4>513 movimientos de la Planta</h4>
+        <p>Del 1 de junio al 30 de agosto de 2026, que suman 2.969,3 m³. Se importaron de la planilla histórica, así que el sistema arranca con tres meses de datos reales.</p>
+      </div>
+      <div class="card c2">
+        <h4>10 sitios y 21 corrientes</h4>
+        <p>Los dos predios de la Planta —Vivero y Huerta— y los ocho puntos verdes, con las corrientes tal como las nombran los formularios de la Secretaría.</p>
+      </div>
+      <div class="card c3">
+        <h4>48 contenedores y 5 pilas</h4>
+        <p>Los contenedores de cada punto verde por corriente, y las pilas de compost que menciona la planilla de la Planta.</p>
+      </div>
+      <div class="card c4">
+        <h4>Los puntos verdes, todavía en cero</h4>
+        <p>No hay ningún movimiento, conteo ni vecino cargado del lado de los puntos. Ponerlo en marcha es la primera tarea, y buena parte de este manual apunta a eso.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="foot-l">
+      <img src="logo-muni-iso.png" alt="">
+      <div><b>Municipalidad de San Miguel de Tucumán</b>Secretaría de Ambiente y Desarrollo Sustentable</div>
+    </div>
+    <div class="foot-r">Dirección de Inteligencia Artificial · Septiembre 2026<br>Página 1 de 10</div>
+  </div>
+</section>
+
+<!-- ══════════════════ PÁGINA 2 · CÓMO SE ENTRA ══════════════════ -->
+<section class="page">
+  <div class="band"><h3>Cómo se entra</h3><img src="logo-smt-blanco.png" alt=""></div>
+  <div class="body">
+    <p class="intro">
+      El sistema tiene <b>una sola puerta</b> y dos formas de cruzarla, según quién sea. La dirección es
+      <code>app-ambiente.vercel.app</code> y funciona igual en una computadora y en un celular.
+    </p>
+
+    <div class="t-wrap">
+      <table class="t">
+        <tr><th style="width:26%"></th><th style="width:37%">Coordinación</th><th>Punto verde</th></tr>
+        <tr><td><b>Quién la usa</b></td><td>Una persona, desde una computadora</td><td>Todos los que estén de turno en ese punto</td></tr>
+        <tr><td><b>Entra con</b></td><td>Su correo y su contraseña</td><td>El nombre del punto y un PIN</td></tr>
+        <tr><td><b>La credencial</b></td><td>6 caracteres o más</td><td>4 a 8 dígitos, sólo números</td></tr>
+        <tr><td><b>La sesión</b></td><td>Vence a las 12 horas</td><td>No vence nunca</td></tr>
+        <tr><td><b>Alcanza a ver</b></td><td>Todo: los tres flujos, los vecinos, la auditoría</td><td>Sólo su propio punto</td></tr>
+      </table>
+    </div>
+
+    <p class="intro" style="margin-top:3.4mm">
+      La pantalla abre en el modo del punto verde. Para entrar al panel se toca <b>«Entrar como coordinación»</b>,
+      abajo del recuadro, y ahí aparecen los campos de correo y contraseña.
+    </p>
+
+    <div class="shot corta h74">
+      <img style="margin-top:-30mm" src="captura-ingreso.png" alt="Pantalla de ingreso del sistema">
+    </div>
+    <p class="cap">Captura real de la pantalla de ingreso. El aviso aparece porque todavía no se creó ningún usuario de punto verde.</p>
+
+    <h3 class="sub">Por qué la sesión del vigilador no vence</h3>
+    <p class="intro">
+      Es a propósito. El personal rota todas las semanas y trabaja en la calle: obligarlo a escribir el PIN cada
+      mañana, con el celular en una mano y un camión esperando, es la forma más rápida de que deje de cargar.
+      Si alguien deja la Secretaría, lo que corta el acceso es <b>desactivar el usuario</b> desde el panel, y eso
+      tiene efecto en el pedido siguiente aunque tenga la sesión abierta en el teléfono.
+    </p>
+
+    <div class="aviso">
+      <b>Si nadie puede entrar al panel.</b> Es el único caso que no se resuelve desde la aplicación. Hay que
+      pedirle a la Dirección de Inteligencia Artificial que corra el comando de rescate: pone una contraseña
+      nueva, la muestra una sola vez, y deja la cuenta pidiendo que su dueño elija la suya al entrar.
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="foot-l">
+      <img src="logo-ia.png" alt="">
+      <div><b>Dirección de Inteligencia Artificial</b>Municipalidad de San Miguel de Tucumán</div>
+    </div>
+    <div class="foot-r">Secretaría de Ambiente y Desarrollo Sustentable<br>Página 2 de 10</div>
+  </div>
+</section>
+
+<!-- ══════════════════ PÁGINA 3 · EL CELULAR ══════════════════ -->
+<section class="page">
+  <div class="band"><h3>El celular del vigilador</h3><img src="logo-smt-blanco.png" alt=""></div>
+  <div class="body">
+    <p class="intro">
+      Esta parte no la usa la coordinación, pero conviene conocerla porque hay que explicársela a gente distinta
+      cada semana. La aplicación del celular está hecha para <b>tocar, no para escribir</b>: casi todo son botones
+      grandes, y el formulario viene con lo último que se eligió en ese punto ya puesto. En toda la aplicación
+      quedan <b>tres</b> campos de texto libre: las observaciones, el destino escrito a mano y el barrio del vecino.
+    </p>
+
+    <h3 class="sub">El recorrido de una carga</h3>
+    <ol class="pasos">
+      <li><b>Entra</b> con el nombre del punto y el PIN. Queda entrado: la sesión no vence.</li>
+      <li><b>Elige quién está de turno.</b> Es opcional, queda guardado en ese celular, y es lo que hace que el movimiento tenga un nombre y no sólo el punto.</li>
+      <li><b>Ingreso o salida.</b></li>
+      <li><b>Qué corriente</b>, de la lista de ese punto.</li>
+      <li><b>Cuánto</b>: elige el recipiente —camión, batea, contenedor, tambor— y cuántos. Hay botones con las cantidades que se usan siempre.</li>
+      <li><b>De dónde viene</b> o <b>a dónde va</b>, de la lista. Si no está, lo escribe a mano y después la coordinación lo convierte en opción fija.</li>
+      <li><b>Confirma.</b> Ve el número de movimiento y, si se equivocó, un botón para deshacerlo.</li>
+    </ol>
+
+    <h3 class="sub">Los cuatro números que hay que repetir en cada capacitación</h3>
+    <div class="reglas">
+      <div><b>10 minutos</b><span>Para deshacer un movimiento recién cargado. Después hay que pedir la anulación.</span></div>
+      <div><b>48 horas</b><span>De atraso máximo para cargar un movimiento. Pasados 30 minutos queda marcado «cargado después».</span></div>
+      <div><b>7 días</b><span>Para atrás, para cargar un conteo de vecinos. La coordinación no tiene ese límite.</span></div>
+      <div><b>24 horas</b><span>Para cancelar un pedido de recambio, y sólo si la coordinación todavía no lo avisó.</span></div>
+    </div>
+
+    <h3 class="sub">Qué pasa sin señal</h3>
+    <p class="intro">
+      Conviene decirlo tal como es. <b>Sin señal la aplicación no abre.</b> Lo que sí funciona es el formulario que
+      ya está abierto en la pantalla: se completa, se confirma, y el movimiento queda guardado en ese celular hasta
+      que vuelva la conexión, que lo sube solo. En un punto con mala señal, entonces, lo práctico es abrir la
+      aplicación al empezar el turno y no cerrarla.
+    </p>
+    <p class="nota">
+      El conteo de vecinos, el pedido de recambio y los controles de pila sí necesitan señal en el momento.
+    </p>
+
+    <h3 class="sub">El vecino que trae material</h3>
+    <p class="intro">
+      El vigilador puede anotar nombre, teléfono y barrio, o apretar <b>«No quiso dar datos»</b>, que es el botón
+      más grande de esa pantalla: nadie tiene que insistirle a nadie. El teléfono es lo único que permite reconocer
+      que es el mismo vecino la próxima vez; sin él, cada visita cuenta como una persona distinta —sigue contando
+      como visita, pero no como vecino identificado—.
+    </p>
+  </div>
+
+  <div class="foot">
+    <div class="foot-l">
+      <img src="logo-muni-iso.png" alt="">
+      <div><b>Municipalidad de San Miguel de Tucumán</b>Secretaría de Ambiente y Desarrollo Sustentable</div>
+    </div>
+    <div class="foot-r">Dirección de Inteligencia Artificial · Septiembre 2026<br>Página 3 de 10</div>
+  </div>
+</section>
+
+<!-- ══════════════════ PÁGINA 4 · EL TABLERO ══════════════════ -->
+<section class="page">
+  <div class="band"><h3>El tablero de la Planta</h3><img src="logo-smt-blanco.png" alt=""></div>
+  <div class="body">
+    <p class="intro">
+      Es la primera pantalla del panel. Muestra cuánto material entró y salió de la Planta: cuatro números arriba,
+      un gráfico de barras por mes en el medio, y abajo una tabla con cada corriente.
+    </p>
+
+    <div class="aviso">
+      <b>Lo primero, porque va a pasar el primer día.</b> Los botones de 6, 12 y 24 meses cambian el gráfico y la
+      tabla, pero <b>las cuatro tarjetas de arriba son siempre del mes en curso</b>. Como los 513 movimientos
+      cargados son de junio a agosto, hoy se ven cuatro ceros arriba y el gráfico lleno abajo. No está roto.
+    </div>
+
+    <div class="shot corta h95">
+      <img style="margin-top:-18mm" src="pantalla-tablero.png" alt="Tablero de la Planta">
+    </div>
+    <p class="cap">Reconstrucción del tablero con la hoja de estilos real del sistema. Los totales por mes y por corriente son los que hay cargados; el reparto de cada corriente dentro de cada mes es de ejemplo.</p>
+
+    <h3 class="sub">Todo se mide en metros cúbicos</h3>
+    <p class="intro">
+      No hay balanza en la Planta: la cantidad se estima contra recipientes conocidos —el camión, la batea, el
+      contenedor, el tambor de 200 litros— y el sistema la convierte a m³. Si una corriente se cargó en kilos o en
+      bolsas, esa cantidad <b>no se suma a los m³</b>: aparece en su propia línea. Es a propósito, porque una bolsa
+      de compost no tiene volumen fijo y convertirla con un número inventado ensuciaría todos los totales.
+    </p>
+
+    <h3 class="sub">El tablero de Puntos Verdes</h3>
+    <p class="intro">
+      Hoy muestra un cartel, porque todavía no hay ningún movimiento de punto verde. Cuando empiece a haber, tiene
+      cuatro columnas que están una al lado de la otra y <b>no se suman entre sí</b>:
+    </p>
+    <div class="t-wrap">
+      <table class="t">
+        <tr><th style="width:22%">Columna</th><th>Qué cuenta</th></tr>
+        <tr><td><b>Visitas</b></td><td>Veces que vino alguien a dejar material</td></tr>
+        <tr><td><b>De conteo</b></td><td>La parte de esas visitas que salió del papel y no de la carga de a uno</td></tr>
+        <tr><td><b>Identificados</b></td><td>Personas distintas que dejaron su teléfono</td></tr>
+        <tr><td><b>Sin datos</b></td><td>Visitas de quien prefirió no dejarlos</td></tr>
+      </table>
+    </div>
+    <p class="nota">
+      El total de <i>identificados</i> suma cada período por separado: quien vino en dos meses distintos figura en
+      los dos. Es un techo, no una cantidad de personas.
+    </p>
+  </div>
+
+  <div class="foot">
+    <div class="foot-l">
+      <img src="logo-ia.png" alt="">
+      <div><b>Dirección de Inteligencia Artificial</b>Municipalidad de San Miguel de Tucumán</div>
+    </div>
+    <div class="foot-r">Secretaría de Ambiente y Desarrollo Sustentable<br>Página 4 de 10</div>
+  </div>
+</section>
+
+<!-- ══════════════════ PÁGINA 5 · MOVIMIENTOS ══════════════════ -->
+<section class="page">
+  <div class="band"><h3>Movimientos y trazabilidad</h3><img src="logo-smt-blanco.png" alt=""></div>
+  <div class="body">
+    <p class="intro">
+      <b>Movimientos</b> es el listado completo de todo lo que se cargó, con filtros por flujo, tipo, sitio,
+      corriente, estado y fechas. Cada fila se abre y muestra el detalle: qué, cuánto, quién lo cargó, con qué
+      vehículo y —si es una salida de la Planta— de qué pila salió.
+    </p>
+
+    <div class="shot corta h78">
+      <img style="margin-top:-36mm" src="pantalla-movimientos.png" alt="Listado de movimientos">
+    </div>
+    <p class="cap">Reconstrucción del listado con la hoja de estilos real. Las filas mostradas son de ejemplo, con las patentes y los nombres que figuran en el histórico.</p>
+
+    <h3 class="sub">No se edita: se anula</h3>
+    <p class="intro">
+      No hay ningún botón para modificar un movimiento, en ninguna parte del panel. Lo único que hay es
+      <b>anular</b>, con un motivo escrito y una casilla de confirmación, y no se puede desanular. Un movimiento
+      anulado sigue apareciendo en el listado si el filtro de estado los incluye, marcado como tal, y deja de
+      contar en los totales.
+    </p>
+    <p class="intro">
+      El vigilador tiene 10 minutos para deshacer lo suyo desde el celular. Pasados esos 10 minutos, la anulación
+      es tarea de la coordinación, y por eso el comprobante del celular muestra el número de movimiento en grande:
+      es lo que el vigilador tiene que pasar cuando pide que se anule algo.
+    </p>
+
+    <h3 class="sub">Exportar a Excel</h3>
+    <p class="intro">
+      Cada botón baja una cosa distinta, y conviene saber cuál antes de mandarlo por correo:
+    </p>
+    <ul class="mini">
+      <li>Desde el <b>tablero de la Planta</b>: el resumen mensual.</li>
+      <li>Desde <b>Movimientos</b>: el listado con los filtros que estén puestos en ese momento.</li>
+      <li>Desde el <b>tablero de Puntos Verdes</b>: los movimientos, no la tabla de visitas que se está mirando.</li>
+    </ul>
+    <p class="nota">Los datos personales de los vecinos no salen en ninguna exportación.</p>
+
+    <h3 class="sub">Auditoría</h3>
+    <p class="intro">
+      Registra quién cargó qué, quién lo cambió y quién lo anuló, sobre movimientos, vecinos, entidades, corrientes
+      y usuarios. No la escribe la aplicación sino la propia base de datos, y <b>nadie puede editar ni borrar una
+      línea de ahí</b>, tampoco la coordinación. Es lo que permite contestar «quién cargó esto» seis meses después.
+    </p>
+    <p class="nota">
+      Los 513 movimientos importados figuran como cargados por un usuario dado de baja. Es correcto: la importación
+      corrió desde la línea de comandos, sin la sesión de ninguna persona.
+    </p>
+  </div>
+
+  <div class="foot">
+    <div class="foot-l">
+      <img src="logo-muni-iso.png" alt="">
+      <div><b>Municipalidad de San Miguel de Tucumán</b>Secretaría de Ambiente y Desarrollo Sustentable</div>
+    </div>
+    <div class="foot-r">Dirección de Inteligencia Artificial · Septiembre 2026<br>Página 5 de 10</div>
+  </div>
+</section>
+
+<!-- ══════════════════ PÁGINA 6 · LAS LISTAS ══════════════════ -->
+<section class="page">
+  <div class="band"><h3>Las listas</h3><img src="logo-smt-blanco.png" alt=""></div>
+  <div class="body">
+    <p class="intro">
+      <b>Todo lo que el vigilador elige en el celular sale de acá.</b> Si algo no está en la lista, no aparece en
+      el celular, y entonces el vigilador lo escribe a mano o elige cualquier cosa. Mantener estas listas es la
+      tarea de fondo de la coordinación, y es lo que decide si los tableros van a servir o no.
+    </p>
+
+    <div class="t-wrap">
+      <table class="t">
+        <tr><th style="width:24%">Lista</th><th>Para qué</th><th style="width:20%">Hoy</th></tr>
+        <tr><td><b>Corrientes</b></td><td>Qué se puede cargar, en qué unidad y con qué botones de cantidad</td><td>21 activas</td></tr>
+        <tr><td><b>Recipientes</b></td><td>Cómo se mide cada cosa y cuánto equivale en m³</td><td>9</td></tr>
+        <tr><td><b>Sitios</b></td><td>Los dos predios de la Planta y los ocho puntos verdes</td><td>10 activos</td></tr>
+        <tr><td><b>Entidades</b></td><td>Cuadrillas, empresas y organizaciones: de dónde viene y a dónde va el material</td><td><b style="color:#c0392b">0</b></td></tr>
+        <tr><td><b>Patentes</b></td><td>Las que se eligen al registrar un ingreso o una salida</td><td>47</td></tr>
+        <tr><td><b>Personas</b></td><td>Choferes, quienes autorizan una salida y el personal de la Planta</td><td><b style="color:#c0392b">0</b></td></tr>
+      </table>
+    </div>
+
+    <div class="aviso">
+      <b>Las dos que están en cero son el trabajo más urgente.</b> Sin entidades cargadas, un vigilador
+      <b>no puede registrar una salida</b> de la Planta, porque el sistema le pide a dónde va y no hay nada que
+      elegir. Sin personas cargadas no hay chofer ni autorizante, y además el selector de «quién está de turno»
+      no aparece, así que ningún movimiento va a tener nombre.
+    </div>
+
+    <h3 class="sub">Desactivar no es borrar</h3>
+    <p class="intro">
+      Acá no se borra nada, y no es un descuido. <b>Desactivar</b> saca la fila de las listas del celular y nada
+      más: los movimientos que ya la usaron se siguen leyendo igual, con el nombre que tenían. Lo que se desactiva
+      se puede volver a activar cuando haga falta.
+    </p>
+    <p class="intro">
+      Si se borrara, un movimiento de marzo quedaría apuntando a una corriente que no existe, y el sistema dejaría
+      de poder contestar de dónde salió ese camión. Por eso el número que muestra cada tarjeta en la pantalla de
+      listas cuenta <b>sólo lo activo</b>: cuando parece que faltan filas, casi siempre están desactivadas, y se
+      ven con «Mostrar también lo desactivado».
+    </p>
+
+    <h3 class="sub">Una lista corta se carga bien</h3>
+    <p class="intro">
+      El consejo práctico es agregar lo que se usa de verdad y desactivar lo que no. Veinte destinos en una lista
+      desplegable, en un celular, parado en la puerta y con una sola mano, es una lista donde se toca el de al
+      lado. Cinco destinos bien elegidos se cargan bien.
+    </p>
+
+    <div class="aviso info">
+      <b>Tres cosas no se pueden cambiar desde ninguna pantalla</b> y hay que pedirlas a la Dirección de
+      Inteligencia Artificial: que un punto pase a la modalidad «sólo conteo diario», qué recipientes se permiten
+      para una corriente, y la lista cerrada de códigos de recipiente.
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="foot-l">
+      <img src="logo-ia.png" alt="">
+      <div><b>Dirección de Inteligencia Artificial</b>Municipalidad de San Miguel de Tucumán</div>
+    </div>
+    <div class="foot-r">Secretaría de Ambiente y Desarrollo Sustentable<br>Página 6 de 10</div>
+  </div>
+</section>
+
+<!-- ══════════════════ PÁGINA 7 · CADA SEMANA ══════════════════ -->
+<section class="page">
+  <div class="band"><h3>Lo que se revisa cada semana</h3><img src="logo-smt-blanco.png" alt=""></div>
+  <div class="body">
+    <p class="intro">
+      Quince minutos, una vez por semana, en tres pantallas. Si esto se deja pasar, las listas se ensucian y los
+      tableros empiezan a mentir sin que nadie se dé cuenta.
+    </p>
+
+    <h3 class="sub">Revisiones</h3>
+    <p class="intro">
+      Junta lo que los vigiladores tuvieron que resolver solos en la calle, y son dos cosas.
+    </p>
+    <p class="intro">
+      <b>Altas hechas en la calle.</b> Cuando aparece un carrero o un emprendimiento que no está en la lista, el
+      vigilador lo da de alta desde el celular para no quedarse trabado. Puede ser alguien nuevo o el mismo de
+      siempre escrito distinto. La coordinación <b>confirma</b> si es nuevo, o <b>fusiona</b> con la que ya
+      existe. Fusionar reapunta los movimientos que usaban la duplicada y la desactiva: es la forma correcta de
+      arreglar un duplicado, y no desactivarla a mano, que dejaría los movimientos apuntando a la equivocada.
+    </p>
+    <p class="intro">
+      <b>Destinos escritos a mano.</b> Cuando el destino no estaba en la lista, el vigilador lo escribió.
+      <b>Formalizar</b> crea la entidad y reapunta de una sola vez todos los movimientos que tenían ese texto.
+      Desde entonces aparece en el celular como opción fija y nadie lo vuelve a escribir.
+    </p>
+
+    <h3 class="sub">Quién no está cargando</h3>
+    <p class="intro">
+      En <b>Conteos</b> hay una lista de qué puntos mandaron algo y cuáles hace días que no. Es la pantalla más
+      importante de los primeros meses. Un punto que no carga no se nota en el tablero: se ve como un cero, y un
+      cero se lee como «no vino nadie». No es lo mismo, y mientras haya un punto callado el tablero entero queda
+      dudoso.
+    </p>
+
+    <h3 class="sub">El orden correcto de un recambio de contenedor</h3>
+    <p class="intro">
+      El vigilador ve un contenedor lleno y lo pide desde el punto. <b>La aplicación no le avisa a la empresa</b>:
+      ese canal sigue siendo el WhatsApp del grupo de choferes de la planta de la 9 de Julio. Lo que el sistema
+      hace es dejar registrado cuándo se pidió, cuándo se avisó y cuándo vinieron, que es lo que hoy no queda en
+      ningún lado. El orden es siempre el mismo:
+    </p>
+    <ol class="pasos">
+      <li><b>Copiar</b> el mensaje que arma la pantalla.</li>
+      <li><b>Mandarlo</b> por WhatsApp al grupo.</li>
+      <li><b>Volver</b> y marcar «Avisados».</li>
+    </ol>
+    <p class="intro">
+      Si se marca sin haber mandado nada, o se dejan tildados pedidos que no se pasaron, el tiempo de respuesta
+      queda mintiendo. Y <b>«Cancelar»</b> saca al pedido de la medición: usarlo para uno que sí se retiró le
+      regala minutos a la empresa.
+    </p>
+
+    <div class="aviso info">
+      <b>Las dos esperas se miden por separado a propósito.</b> Que el municipio tarde en avisar y que la empresa
+      tarde en venir son dos problemas distintos, y se arreglan de maneras distintas. Sumarlos en un solo número
+      escondería cuál de los dos hay que ir a resolver.
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="foot-l">
+      <img src="logo-muni-iso.png" alt="">
+      <div><b>Municipalidad de San Miguel de Tucumán</b>Secretaría de Ambiente y Desarrollo Sustentable</div>
+    </div>
+    <div class="foot-r">Dirección de Inteligencia Artificial · Septiembre 2026<br>Página 7 de 10</div>
+  </div>
+</section>
+
+<!-- ══════════════════ PÁGINA 8 · IMPORTAR PESOS ══════════════════ -->
+<section class="page">
+  <div class="band"><h3>Importar los pesos de la 9 de Julio</h3><img src="logo-smt-blanco.png" alt=""></div>
+  <div class="body">
+    <p class="intro">
+      Una vez por mes, la planta de la 9 de Julio manda un Excel con los remitos: qué día pasó, por qué punto,
+      cuántos contenedores y cuántos kilos. Esos kilos <b>no crean movimientos</b>: se guardan aparte, para
+      cruzarlos contra lo que registró cada punto por su cuenta. Es la contramedición.
+    </p>
+    <p class="intro">
+      El asistente tiene cinco pasos y <b>hasta el último no escribe nada</b>, así que se puede volver atrás todas
+      las veces que haga falta.
+    </p>
+
+    <ol class="pasos">
+      <li><b>El archivo.</b> El <code>.xlsx</code> tal cual lo manda la planta. <b>No hay que abrirlo para acomodarlo</b>: el asistente está hecho para el archivo original.</li>
+      <li><b>La hoja.</b> Dice qué hoja leyó, de qué fila tomó los encabezados y cuántas filas encontró. Si no coincide con lo que se ve al abrir el Excel, se cambia ahí.</li>
+      <li><b>Las columnas.</b> Cuál es la fecha, cuál el punto verde y cuáles los kilos. Debajo, un desplegable por cada domicilio o corriente que el archivo escribe distinto.</li>
+      <li><b>El resultado.</b> Cuántas filas entran, cuántas quedan afuera y por qué, con el número de fila del Excel de cada rechazo.</li>
+      <li><b>Confirmar</b>, poniéndole un nombre al mapeo para que el mes que viene ya venga resuelto.</li>
+    </ol>
+
+    <div class="shot corta h80">
+      <img style="margin-top:-70mm" src="pantalla-importar.png" alt="Paso 4 del asistente de importación">
+    </div>
+    <p class="cap">Reconstrucción del paso 4 con la hoja de estilos real. Los totales son los del archivo de agosto de 2026; el reparto por punto verde es de ejemplo. En pantalla hay que bajar esa tabla para ver el último punto.</p>
+
+    <div class="aviso">
+      <b>El error más probable, en el paso 3.</b> El punto verde se reconoce por el <b>domicilio</b>, no por el
+      cliente: la columna de cliente dice «NODO» o «LA HUERTA», que es quién opera el punto y no cuál es. Si se
+      elige ésa, el mes entero queda atribuido a dos o tres puntos. Cómo darse cuenta: en el paso 4, la tabla
+      «Qué entra, por punto verde». Si falta un punto que sí trabajó, el problema está en esa columna.
+    </div>
+
+    <h3 class="sub">Si la planta reexporta el mes corregido</h3>
+    <p class="intro">
+      El orden es <b>revertir la importación anterior y después importar la nueva</b>. Al revés, los kilos quedan
+      contados dos veces para siempre, porque en este sistema no se borra nada. Revertir deja la importación
+      marcada y sus kilos dejan de contar en el cruce; las filas quedan guardadas, cada una con el número de fila
+      del archivo de donde salió.
+    </p>
+  </div>
+
+  <div class="foot">
+    <div class="foot-l">
+      <img src="logo-ia.png" alt="">
+      <div><b>Dirección de Inteligencia Artificial</b>Municipalidad de San Miguel de Tucumán</div>
+    </div>
+    <div class="foot-r">Secretaría de Ambiente y Desarrollo Sustentable<br>Página 8 de 10</div>
+  </div>
+</section>
+
+<!-- ══════════════════ PÁGINA 9 · COMPOST Y CONTEOS ══════════════════ -->
+<section class="page">
+  <div class="band"><h3>Compost y conteos</h3><img src="logo-smt-blanco.png" alt=""></div>
+  <div class="body">
+    <p class="intro">
+      Una <b>pila</b> es un montón de material en la Planta que va madurando. Se abre, se le va cargando lo que
+      entra, se cierra, se la voltea cada tanto, y a los cuatro o cinco meses de cerrada está lista. Lo que hace
+      que esto sirva es que <b>la pila se elige al cargar el ingreso</b>, en el celular: por eso después se puede
+      contestar de qué está hecho un camión de compost, porque cada línea sale de un ingreso real y no de una
+      declaración.
+    </p>
+
+    <div class="reglas">
+      <div><b>En formación</b><span>Se le sigue cargando material.</span></div>
+      <div><b>Cerrada</b><span>Ya no entra nada. Desde acá empiezan a contar los meses.</span></div>
+      <div><b>Madurando</b><span>Se voltea cada tanto. A los 21 días sin voltear, avisa.</span></div>
+      <div><b>Lista</b><span>Cuatro o cinco meses después del cierre.</span></div>
+    </div>
+
+    <div class="aviso">
+      <b>El trámite menos obvio de todo el sistema.</b> Las cinco pilas que hay hoy las creó la importación del
+      histórico y quedaron <b>madurando pero sin fecha de cierre</b>. En ese estado la alarma de volteo atrasado
+      no se enciende nunca, porque sólo cuenta en pilas madurando <i>y</i> cerradas. Para destrabar cada una, en
+      su ficha: «Corregir el estado» → «En formación» → «Cambiar», y recién ahí aparece «Cerrar la pila», donde
+      se pone la fecha real. Conviene hacerlo con las cinco antes de empezar a confiar en esa alarma.
+    </div>
+
+    <p class="nota">
+      Las fechas de armado que tienen hoy —todas 01/06/2026— son del comienzo del período importado, no las
+      reales: la planilla no las traía.
+    </p>
+
+    <h3 class="sub">Los conteos en papel</h3>
+    <p class="intro">
+      No todos los puntos pueden usar el celular durante la jornada. En esos, el vigilador cuenta los vecinos en
+      papel y carga <b>un solo total al cerrar</b>. Hoy <b>Paso de los Andes</b> está configurado así, porque el
+      personal es de otra Secretaría.
+    </p>
+    <ul class="mini">
+      <li><b>Un solo total por punto y por día.</b> Volver a cargar el mismo día corrige el anterior, no se suma, y el valor viejo queda en la auditoría.</li>
+      <li>El vigilador puede cargar hasta <b>7 días para atrás</b>; la coordinación, sin límite, para cuando el punto avisa por teléfono.</li>
+      <li><b>Si no vino nadie, se carga 0.</b> Un cero cargado no es lo mismo que un día sin cargar, y es justo la diferencia que hace que el tablero sirva.</li>
+    </ul>
+
+    <div class="aviso info">
+      <b>Cuidado con contar dos veces.</b> En un punto donde se carga el conteo en papel <b>y además</b> se
+      registran los vecinos de a uno, la misma gente se cuenta dos veces. Hay que elegir una modalidad por punto,
+      y el cambio lo tiene que hacer la Dirección de Inteligencia Artificial.
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="foot-l">
+      <img src="logo-muni-iso.png" alt="">
+      <div><b>Municipalidad de San Miguel de Tucumán</b>Secretaría de Ambiente y Desarrollo Sustentable</div>
+    </div>
+    <div class="foot-r">Dirección de Inteligencia Artificial · Septiembre 2026<br>Página 9 de 10</div>
+  </div>
+</section>
+
+<!-- ══════════════════ PÁGINA 10 · REGLAS Y PROBLEMAS ══════════════════ -->
+<section class="page">
+  <div class="band"><h3>Las reglas, y cuando algo sale mal</h3><img src="logo-smt-blanco.png" alt=""></div>
+  <div class="body">
+    <p class="intro">
+      Hay cuatro reglas que explican casi todos los «por qué no me deja». Conocerlas evita pelearse con el sistema.
+    </p>
+    <ul class="mini">
+      <li><b>Nada se borra.</b> Un movimiento equivocado se anula con motivo; una corriente que ya no se usa se desactiva; un vecino que lo pide se anonimiza; un usuario que se fue se desactiva. La única excepción es eliminar un usuario que nunca hizo nada.</li>
+      <li><b>Los diez minutos.</b> El error reciente lo arregla quien lo cometió, en el momento. Lo viejo pasa por la coordinación, con un motivo escrito.</li>
+      <li><b>Todo queda firmado.</b> Cada carga, cada cambio y cada anulación quedan en la auditoría, que nadie puede editar ni borrar.</li>
+      <li><b>Cada uno ve lo suyo.</b> Un vigilador no puede leer los movimientos de otro punto, ni los datos de los vecinos, ni la auditoría. No lo decide la pantalla: lo decide la base de datos, consulta por consulta.</li>
+    </ul>
+
+    <h2 class="sec" style="margin-top:5mm">Cuando algo sale mal</h2>
+    <div class="t-wrap">
+      <table class="t">
+        <tr><th style="width:44%">Lo que pasa</th><th>Qué hacer</th></tr>
+        <tr><td>«Demasiados intentos. Probá de nuevo en N minutos»</td><td>Cinco fallos seguidos traban la cuenta 5 minutos. Se espera, o otra cuenta de coordinación aprieta <b>Desbloquear</b> en Usuarios.</td></tr>
+        <tr><td>«Este usuario está desactivado»</td><td><b>Activar</b> desde Usuarios.</td></tr>
+        <tr><td>Un vigilador dice que la aplicación no abre</td><td>Sin señal no abre. Que la abra al empezar el turno y no la cierre.</td></tr>
+        <tr><td>Un movimiento quedó mal y pasaron más de 10 minutos</td><td>Buscarlo en Movimientos por su número y <b>anular</b> con motivo.</td></tr>
+        <tr><td>El vigilador no encuentra el destino en la lista</td><td>Que lo escriba a mano, y después <b>Formalizar</b> en Revisiones.</td></tr>
+        <tr><td>El selector de puntos está vacío en el celular</td><td>Todavía no se crearon usuarios de punto. Se crean en Usuarios.</td></tr>
+        <tr><td>Cinco pantallas se ven vacías</td><td>Revisiones, Recambios, Conteos, Vecinos y el tablero de Puntos Verdes. Está bien: se pueblan cuando los puntos empiecen a cargar.</td></tr>
+      </table>
+    </div>
+
+    <h3 class="sub">Qué falta todavía</h3>
+    <p class="intro">
+      Antes de capacitar a nadie hay que <b>cargar Personas y Entidades</b> y <b>crear los usuarios de punto</b>:
+      sin eso el vigilador se traba en la primera salida. Quedan sin construir el flujo de grandes generadores,
+      la pantalla que cruza los kilos de la 9 de Julio contra lo registrado, y un canal para que el vigilador pida
+      una anulación desde el celular.
+    </p>
+
+    <div class="cierre">
+      <b>En síntesis</b>
+      <p>
+        El sistema ya tiene tres meses de historia real de la Planta y todo lo necesario para que los ocho puntos
+        verdes empiecen a cargar. Lo que decide si va a servir no es el software: es que las listas estén al día,
+        que los puntos carguen todos los días y que una vez por semana alguien mire Revisiones. Ante cualquier
+        duda o pedido, la Dirección de Inteligencia Artificial de la Municipalidad de San Miguel de Tucumán.
+      </p>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="foot-l">
+      <img src="logo-ia.png" alt="">
+      <div><b>Dirección de Inteligencia Artificial</b>Municipalidad de San Miguel de Tucumán</div>
+    </div>
+    <div class="foot-r">Secretaría de Ambiente y Desarrollo Sustentable<br>Página 10 de 10</div>
+  </div>
+</section>
+
+</body>
+</html>

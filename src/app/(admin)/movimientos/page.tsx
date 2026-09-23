@@ -139,7 +139,7 @@ export default async function PantallaMovimientos({
   if (valores.estado === 'anulado') puestos.push('solo anulados')
 
   return (
-    <div className="contenido ancho pila">
+    <div className="ancho pila">
       <div className="fila-entre">
         <div className="crecer">
           <h1>Movimientos</h1>

@@ -171,7 +171,7 @@ export default async function PantallaImportar({
             la importación.
           </p>
         ) : (
-          <div className="desplazable">
+          <div className="desplazable tabla-ficha">
             <table className="datos">
               <thead>
                 <tr>
@@ -186,16 +186,20 @@ export default async function PantallaImportar({
               <tbody>
                 {mapeos.map((m) => (
                   <tr key={m.id}>
-                    <td className="fuerte">{m.nombre}</td>
-                    <td>{m.tipo === 'pesos_contenedores' ? 'Pesos de contenedores' : 'Movimientos históricos'}</td>
-                    <td>{m.hoja ?? <span className="gris">La primera</span>}</td>
-                    <td className="numero">{numero(m.fila_encabezado)}</td>
-                    <td>
+                    <td data-rotulo="Nombre" className="fuerte">{m.nombre}</td>
+                    <td data-rotulo="Tipo">
+                      {m.tipo === 'pesos_contenedores' ? 'Pesos de contenedores' : 'Movimientos históricos'}
+                    </td>
+                    <td data-rotulo="Hoja">{m.hoja ?? <span className="gris">La primera</span>}</td>
+                    <td data-rotulo="Fila de encabezado" className="numero">
+                      {numero(m.fila_encabezado)}
+                    </td>
+                    <td data-rotulo="Estado">
                       <span className={m.activo ? 'chip ingreso' : 'chip anulado'}>
                         {m.activo ? 'Activo' : 'Desactivado'}
                       </span>
                     </td>
-                    <td>{fechaHora(m.actualizado_en)}</td>
+                    <td data-rotulo="Última edición">{fechaHora(m.actualizado_en)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -215,7 +219,12 @@ export default async function PantallaImportar({
             Ninguna todavía.
           </p>
         ) : (
-          <div className="desplazable">
+          /* Nueve columnas, y la última es la que revierte. En 390 px quedaban
+             ocho afuera: la confirmación se abría fuera de la pantalla y en el
+             medio de la tabla aparecía un hueco blanco de mil píxeles sin nada
+             que lo explicara. Abajo de 720 px cada importación pasa a ser una
+             ficha apilada, con «Revertir» al pie. */
+          <div className="desplazable tabla-ficha">
             <table className="datos">
               <thead>
                 <tr>
@@ -235,20 +244,20 @@ export default async function PantallaImportar({
                   const e = ESTADOS[i.estado] ?? { rotulo: i.estado, chip: 'chip' }
                   return (
                     <tr key={i.id} className={i.estado === 'revertida' ? 'anulado' : undefined}>
-                      <td className="fuerte">{i.archivo_nombre}</td>
-                      <td>{i.mapeo_nombre ?? <span className="gris">—</span>}</td>
-                      <td>
+                      <td data-rotulo="Archivo" className="fuerte">{i.archivo_nombre}</td>
+                      <td data-rotulo="Mapeo">{i.mapeo_nombre ?? <span className="gris">—</span>}</td>
+                      <td data-rotulo="Período">
                         {/* periodo_desde y periodo_hasta son columnas `date`: con
                             fecha() el 1 de agosto se lee como 31 de julio. */}
                         {i.periodo_desde
                           ? `${fechaDeCalendario(i.periodo_desde)} a ${fechaDeCalendario(i.periodo_hasta)}`
                           : <span className="gris">—</span>}
                       </td>
-                      <td className="numero">{numero(i.filas_ok)}</td>
-                      <td className="numero">{numero(i.filas_error)}</td>
-                      <td><span className={e.chip}>{e.rotulo}</span></td>
-                      <td>{fechaHora(i.importado_en)}</td>
-                      <td>{i.importado_por ?? <span className="gris">—</span>}</td>
+                      <td data-rotulo="Filas bien" className="numero">{numero(i.filas_ok)}</td>
+                      <td data-rotulo="Con error" className="numero">{numero(i.filas_error)}</td>
+                      <td data-rotulo="Estado"><span className={e.chip}>{e.rotulo}</span></td>
+                      <td data-rotulo="Cuándo">{fechaHora(i.importado_en)}</td>
+                      <td data-rotulo="Quién">{i.importado_por ?? <span className="gris">—</span>}</td>
                       <td className={estilos.columnaAcciones}>
                         {i.estado === 'confirmada' ? (
                           <details className={estilos.confirmar}>

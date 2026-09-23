@@ -1,5 +1,9 @@
 .marco {
   --alto-cabecera: 70px;
+  /* En escritorio la navegación va al costado y no tapa nada de arriba. El
+     valor lo lee el scroll-margin-top de globals.css, para que saltar a
+     #formulario no deje el título abajo de lo que está pegado a la pantalla. */
+  --alto-navegacion: 0px;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -194,7 +198,9 @@
 }
 
 @media (max-width: 900px) {
-  .marco { --alto-cabecera: 64px; }
+  /* Acá la navegación baja y se queda pegada abajo del encabezado: son los
+     7 px de arriba, los 40 de la pestaña, los 7 de abajo y la línea. */
+  .marco { --alto-cabecera: 64px; --alto-navegacion: 55px; }
   .encabezado { padding-inline: 16px; }
   .identidad p { display: none; }
   .identidad strong { font-size: .9rem; }

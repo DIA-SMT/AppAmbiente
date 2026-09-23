@@ -9,6 +9,17 @@
   align-items: end;
 }
 
+/* Un campo de fecha quiere todo el ancho de su columna; un botón de una palabra
+   no. Sin esto «Filtrar» salía de unos 300 px —un tercio de la tarjeta— porque
+   la grilla reparte en tres partes iguales y el botón es uno de los tres. En el
+   celular la grilla cae a una sola columna y el botón sí va a todo el ancho,
+   que es lo que corresponde para tocarlo con el pulgar. */
+.periodo > button { justify-self: start; }
+
+@media (max-width: 720px) {
+  .periodo > button { justify-self: stretch; }
+}
+
 /* Reusa .sugerencias de globals para la fila, pero acá los atajos son enlaces
    —la pantalla no tiene JavaScript propio— y hay que darles forma y estado. */
 .atajos a {
@@ -52,9 +63,29 @@
 .atencion { border-left: 4px solid var(--salida); }
 
 /* Sin techo, una pila formada por seis cuadrillas estira la fila y empuja todo
-   lo demás fuera de la pantalla. */
+   lo demás fuera de la pantalla. El `max-width` frenaba el ancho pero no el
+   alto: la celda se iba a cuatro renglones y las otras ocho —que tienen un dato
+   cada una— quedaban con un hueco vertical arriba y abajo. Se corta en dos
+   renglones y la lista entera queda en el `title`. */
 .procedencias {
   min-width: 170px;
   max-width: 280px;
   color: var(--gris);
 }
+
+/* El corte va en un span adentro de la celda y no en la celda: un `<td>` con
+   `display: -webkit-box` deja de ser celda de tabla y el recorte no se aplica
+   (probado: la tercera línea salía igual, cortada al medio). */
+.recorte {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+/* Una patente, un código de pila y un nombre de chofer no se parten: «AC 412
+   QW» cortado en «AC 412 / QW» no se lee como una patente. La pila y la patente
+   ya los agarra `table.datos td.mono` de globals; el chofer no es monoespaciado
+   y necesita el suyo. */
+.chofer { white-space: nowrap; }

@@ -34,11 +34,17 @@
 
 /* ── Formulario de carga y corrección ──────────────────────────────────── */
 
+/* Arriba y no abajo: «Vecinos» es el único campo de la primera fila que lleva
+   ayuda debajo, así que es más alto que los otros dos. Alineados por abajo, su
+   rótulo quedaba a la altura de los recuadros de Punto y Día y su casilla
+   flotaba noventa píxeles más arriba: los tres controles salían escalonados.
+   Alineados por arriba, los tres arrancan parejos y lo que sobra queda abajo,
+   que es lo que ya hace la rejilla del asistente de importar. */
 .formulario {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
   gap: 12px;
-  align-items: end;
+  align-items: start;
 }
 
 .entero { grid-column: 1 / -1; }
@@ -66,9 +72,47 @@
 
 .grupo:first-of-type th[scope='colgroup'] { border-top: 0; }
 
+/* El 100% es para la ficha del celular: ahí la celda ya es el ancho de la
+   pantalla y 42ch se pasan de largo. */
 .observacion {
   display: block;
-  max-width: 42ch;
+  max-width: min(42ch, 100%);
   color: var(--gris);
   font-size: .84rem;
+}
+
+/* La fecha de carga se lee de un saque o no se lee. Adentro de la ficha del
+   celular vuelve a poder partirse: ahí el renglón es la pantalla entera y el
+   chip «corregido» va detrás. Eso lo resuelve `tabla-ficha` de globals.css, que
+   le gana en especificidad. */
+.cuando { white-space: nowrap; }
+
+@media (max-width: 720px) {
+  /* El `margin-left: auto` sirve mientras la antigüedad comparte renglón con el
+     nombre del punto. Cuando envuelve —que en el celular es siempre—, quedaba
+     colgada sola contra el borde derecho, a todo el ancho de distancia del
+     nombre al que pertenece. */
+  .silencio { margin-left: 0; text-align: left; width: 100%; }
+
+  /* Con todos los campos a lo ancho, el botón de guardar salía de la mitad y
+     pegado a la izquierda, justo en la acción principal de la pantalla. Es la
+     misma regla que usa el pie del asistente de importar. */
+  .pieFormulario :global(.boton) { flex: 1 1 100%; }
+
+  /* La fila que abre cada día no es un conteo: es el título del grupo. Sin esto
+     `tabla-ficha` la convertía en una tarjeta más, con la fecha adentro de un
+     recuadro igual al de los datos. */
+  :global(.tabla-ficha) .grupo > tr:first-child {
+    margin-bottom: 8px;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  :global(.tabla-ficha) .grupo > tr:first-child > th {
+    border-bottom: 0;
+    border-radius: var(--r-chico);
+    padding: 9px 13px;
+  }
 }

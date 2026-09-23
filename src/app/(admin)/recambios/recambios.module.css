@@ -13,6 +13,22 @@
    del resto de la tabla es para que no se lean como una sola cifra partida. */
 .tramo { border-left: 1px solid var(--linea-fuerte); }
 
+/* `table.datos thead th` de globals.css lleva `white-space: nowrap`, que está
+   bien para «Punto» o «Abiertos». Acá hay dos encabezados de cinco palabras: sin
+   dejarlos partir, la tabla no entraba ni en 1280 px y la última columna quedaba
+   cortada al medio («14/9/20…»), sin nada que avisara que seguía de costado. El
+   min-width es para que, al poder partirse, no se angosten hasta una palabra por
+   renglón. Hace falta el `table.datos` para ganarle en especificidad a la regla
+   de globals, que vale (0,1,3). */
+:global(table.datos) thead th.thLargo { white-space: normal; min-width: 11ch; }
+
+/* Y la columna que identifica la fila no puede ser la que paga ese ancho: con
+   los encabezados ya partidos, el navegador le dejaba 200 px y el código del
+   punto quedaba en un renglón y el nombre en el otro, con las seis celdas de
+   cifras —un dato cada una— estiradas al alto de esa fila. Con 230 px el código
+   y el nombre comparten renglón salvo en los nombres más largos. */
+:global(table.datos) thead th.columnaPunto { min-width: 230px; }
+
 .codigo { font-weight: 800; color: var(--tinta); }
 
 /* ── La barra del lote ────────────────────────────────────────────────── */
@@ -76,6 +92,13 @@
    nada, y en fila se tocan de más. En pantalla ancha quedan a la derecha. */
 .acciones { display: grid; gap: 8px; flex: 0 1 240px; min-width: 210px; }
 
+/* Angosta mientras están los dos botones cerrados; abierta, no. El formulario de
+   confirmar el retiro son tres campos con su ayuda: embutido en 240 px cada
+   ayuda se partía en cinco o seis renglones, la ficha crecía novecientos píxeles
+   y al lado quedaba una pared blanca de casi toda la pantalla. Se ensancha sólo
+   la ficha que tiene algo abierto, así que el resto de la cola no se mueve. */
+.acciones:has(details[open]) { flex: 1 1 420px; }
+
 /* Un pedido demorado es lo único de la cola que pide explicación. El color no
    lo dice solo: el chip lo escribe con palabras y con cuántos días lleva.
    `.lista > li` de globals.css pinta su propio fondo, y hay que ganarle en
@@ -128,4 +151,22 @@
    entera, con los botones a todo el ancho, que es como se tocan. */
 @media (max-width: 720px) {
   .acciones { flex: 1 1 100%; min-width: 0; }
+
+  /* Adentro de la ficha los dos tramos ya no son dos columnas al lado de las
+     otras: la raya que los separaba queda como un palito suelto a la izquierda
+     del dato. */
+  :global(.tabla-ficha) table.datos .tramo { border-left: 0; }
+
+  /* `.crecer` de globals.css tiene base `auto`, o sea el ancho natural del
+     contenido: el título «PV-02 Parque 9 de Julio — portón sur» no entraba en lo
+     que quedaba después de la casilla, así que la ficha entera se iba al renglón
+     de abajo y la casilla quedaba sola arriba, como un cuadradito suelto que no
+     se entendía qué tildaba. Con base cero comparte renglón y el título parte
+     adentro de la ficha. */
+  .pedido > :global(.crecer) { flex: 1 1 0; }
+
+  /* Los dos botones del lote quedaban uno debajo del otro pero cada uno con su
+     ancho natural, con el principal más chico que el secundario y el borde
+     derecho dentado. Es la misma regla que usa el pie del asistente de importar. */
+  .lote :global(.boton) { flex: 1 1 100%; }
 }

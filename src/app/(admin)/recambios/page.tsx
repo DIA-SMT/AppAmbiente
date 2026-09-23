@@ -249,7 +249,13 @@ export default async function PantallaRecambios({
               </div>
             )}
 
-            <div className="desplazable">
+            {/* Siete columnas de cifras no entran en 390 px, y como los
+                encabezados largos les fijan un mínimo, adentro del scroll las
+                filas se estiran a tres o cuatro renglones: lo que se ve del
+                celular es una tabla con huecos y un dato suelto por fila. Abajo
+                de 720 px cada punto pasa a ser una ficha; arriba de 720 sigue
+                siendo la tabla de siempre. */}
+            <div className="desplazable tabla-ficha">
               <table className="datos">
                 <caption className="sr-solo">
                   Tiempo de respuesta de cada punto, con el tramo del municipio y el de la empresa
@@ -257,17 +263,25 @@ export default async function PantallaRecambios({
                 </caption>
                 <thead>
                   <tr>
-                    <th>Punto</th>
+                    <th className={estilos.columnaPunto}>Punto</th>
                     <th style={{ textAlign: 'right' }}>Abiertos</th>
                     <th style={{ textAlign: 'right' }}>Demorados</th>
-                    <th className={estilos.tramo} style={{ textAlign: 'right' }}>
+                    <th
+                      className={`${estilos.tramo} ${estilos.thLargo}`}
+                      style={{ textAlign: 'right' }}
+                    >
                       El municipio tarda en avisar
                     </th>
-                    <th className={estilos.tramo} style={{ textAlign: 'right' }}>
+                    <th
+                      className={`${estilos.tramo} ${estilos.thLargo}`}
+                      style={{ textAlign: 'right' }}
+                    >
                       La empresa tarda en venir
                     </th>
-                    <th style={{ textAlign: 'right' }}>Retiros cerrados</th>
-                    <th>Pedido abierto más viejo</th>
+                    <th className={estilos.thLargo} style={{ textAlign: 'right' }}>
+                      Retiros cerrados
+                    </th>
+                    <th className={estilos.thLargo}>Pedido abierto más viejo</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -284,22 +298,36 @@ export default async function PantallaRecambios({
                             <span className="fuerte">{r.sitio_nombre}</span>
                           </span>
                         </th>
-                        <td className="numero">{numero(enEspera)}</td>
-                        <td className={`numero ${atrasados > 0 ? 'fuerte' : 'gris'}`}>
+                        <td data-rotulo="Abiertos" className="numero">{numero(enEspera)}</td>
+                        <td
+                          data-rotulo="Demorados"
+                          className={`numero ${atrasados > 0 ? 'fuerte' : 'gris'}`}
+                        >
                           {numero(atrasados)}
                         </td>
-                        <td className={`numero ${estilos.tramo}`}>
+                        <td
+                          data-rotulo="El municipio tarda en avisar"
+                          className={`numero ${estilos.tramo}`}
+                        >
                           {espera(r.promedio_hasta_aviso)}
                         </td>
-                        <td className={`numero ${estilos.tramo}`}>
+                        <td
+                          data-rotulo="La empresa tarda en venir"
+                          className={`numero ${estilos.tramo}`}
+                        >
                           {retirados > 0 ? (
                             espera(r.promedio_hasta_retiro)
                           ) : (
                             <span className="gris">sin retiros cerrados</span>
                           )}
                         </td>
-                        <td className="numero">{numero(retirados)}</td>
-                        <td style={{ whiteSpace: 'nowrap' }}>
+                        <td data-rotulo="Retiros cerrados" className="numero">{numero(retirados)}</td>
+                        {/* Sin el nowrap: la fecha sola no se parte —no tiene
+                            por dónde— y el «hace N días» puede bajar al renglón
+                            siguiente. Obligando a los dos a una línea, esta
+                            columna se llevaba el ancho que a la tabla le faltaba
+                            para entrar. */}
+                        <td data-rotulo="Pedido abierto más viejo">
                           {r.pedido_mas_viejo ? (
                             <>
                               {fecha(r.pedido_mas_viejo)}{' '}

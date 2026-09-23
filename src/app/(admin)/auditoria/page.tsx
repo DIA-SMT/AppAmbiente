@@ -3,6 +3,7 @@ import { conSesion } from '@db/sesion'
 import { fechaHora, numero } from '@/lib/formato'
 import { exigirPanel } from '@/lib/sesion'
 import estilos from '../gente.module.css'
+import propios from './auditoria.module.css'
 
 export const dynamic = 'force-dynamic'
 
@@ -160,7 +161,12 @@ export default async function PantallaAuditoria({
         </div>
       </form>
 
-      <div className="desplazable">
+      {/* Seis columnas no entran en 390 px: de la tabla se veían cuatro y la
+          última quedaba en «ACCIÓ…». Abajo de 720 px cada línea del registro
+          pasa a ser una ficha apilada; arriba de 720 no cambia nada. Con la
+          tabla vacía no se aplica: una ficha de una sola celda con el aviso de
+          «no hay nada» se lee peor que la fila centrada de siempre. */}
+      <div className={`desplazable${filas.length > 0 ? ' tabla-ficha' : ''}`}>
         <table className="datos">
           <thead>
             <tr>
@@ -177,8 +183,8 @@ export default async function PantallaAuditoria({
               const a = ACCIONES[f.accion] ?? { rotulo: f.accion, chip: 'chip' }
               return (
                 <tr key={f.id}>
-                  <td>{fechaHora(f.creado_en)}</td>
-                  <td>
+                  <td data-rotulo="Cuándo">{fechaHora(f.creado_en)}</td>
+                  <td data-rotulo="Quién">
                     {f.actor_nombre
                       ? <>
                           <span className="fuerte">{f.actor_nombre}</span>{' '}
@@ -188,9 +194,9 @@ export default async function PantallaAuditoria({
                           {f.actor_rol === 'admin' ? 'Coordinación' : 'Usuario dado de baja'}
                         </span>}
                   </td>
-                  <td>{TABLAS[f.tabla] ?? f.tabla}</td>
-                  <td><span className={a.chip}>{a.rotulo}</span></td>
-                  <td>
+                  <td data-rotulo="Sobre qué">{TABLAS[f.tabla] ?? f.tabla}</td>
+                  <td data-rotulo="Acción"><span className={a.chip}>{a.rotulo}</span></td>
+                  <td data-rotulo="Registro">
                     {f.tabla === 'movimientos' && f.movimiento_numero !== null ? (
                       <Link href={`/movimientos/${f.registro_id}`} className="mono">
                         N.º {numero(f.movimiento_numero)}
@@ -199,7 +205,11 @@ export default async function PantallaAuditoria({
                       <span>{f.etiqueta ?? <span className="mono menor gris">{f.registro_id.slice(0, 8)}</span>}</span>
                     )}
                   </td>
-                  <td>{f.accion === 'anular' && f.motivo ? f.motivo : <span className="gris">—</span>}</td>
+                  <td data-rotulo="Motivo">
+                    {f.accion === 'anular' && f.motivo
+                      ? <span className={propios.motivo}>{f.motivo}</span>
+                      : <span className="gris">—</span>}
+                  </td>
                 </tr>
               )
             })}

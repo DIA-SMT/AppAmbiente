@@ -14,11 +14,14 @@
   /* En el celular, una sola columna; el min() evita que la ficha empuje la
      página a lo ancho en pantallas de 320 px. */
   grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
-  align-items: start;
 }
 
 /* Cada alta es una decisión: quién es arriba, el contexto en el medio y las
-   tres acciones abajo, siempre en el mismo orden. */
+   tres acciones abajo, siempre en el mismo orden.
+   Las tarjetas se estiran al alto de su renglón —por eso la rejilla ya no lleva
+   `align-items: start`—, así un nombre que ocupa dos renglones no le hunde los
+   botones setenta píxeles respecto de la tarjeta de al lado. Tres juegos de
+   «Confirmar / Fusionar / Descartar» en escalera se tocan mal y se leen peor. */
 .ficha { display: flex; flex-direction: column; gap: 12px; }
 
 .nombre { font-size: 1.15rem; }
@@ -29,8 +32,9 @@
 }
 
 /* Una debajo de otra: con guantes o en una tablet, tres botones en fila se
-   tocan mal y el peligroso queda pegado al de confirmar. */
-.acciones { display: grid; gap: 8px; }
+   tocan mal y el peligroso queda pegado al de confirmar. El margen automático
+   las manda al pie de la tarjeta, que es lo que las alinea entre tarjetas. */
+.acciones { display: grid; gap: 8px; margin-top: auto; }
 
 /* ── Destinos escritos a mano ─────────────────────────────────────────── */
 

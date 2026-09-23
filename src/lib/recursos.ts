@@ -47,6 +47,17 @@ export interface Campo {
   maxLargo?: number
   /** Ocupa toda la fila de la grilla del formulario. */
   ancho?: 'entero'
+  /**
+   * Rótulo del bloque que este campo comparte con los que vienen pegados y
+   * declaran el mismo texto.
+   *
+   * Es para las casillas, que no dibujan rótulo propio —el rótulo es el texto
+   * que va al lado del tilde—. Sueltas quedaban una en cada celda de la grilla,
+   * arrancando más arriba que el select de al lado, y la explicación que valía
+   * para las dos colgaba de la última y le estiraba el alto a toda la fila.
+   * Juntas son un bloque con un rótulo, una explicación y nada al costado.
+   */
+  grupo?: string
 }
 
 export type TipoColumna =
@@ -69,6 +80,13 @@ export interface Recurso {
   articulo: 'un' | 'una'
   /** Una línea, para la tarjeta del índice. */
   paraQue: string
+  /**
+   * Lo que hay que saber antes de llenar el formulario, dicho una sola vez y
+   * arriba de todo. Lo que explica varios campos a la vez no puede colgar de la
+   * ayuda de uno: ahí estira el alto de su fila de la grilla y deja al lado dos
+   * huecos en blanco del tamaño de la explicación.
+   */
+  nota?: string
   /** Columnas por las que ordena el listado, todas ascendentes. */
   orden: string[]
   /** Columna que nombra a la fila: la que se muestra cuando otra lista la referencia. */
@@ -210,6 +228,13 @@ export const RECURSOS: Recurso[] = [
       { nombre: 'sugerencias', etiqueta: 'Sugerencias', tipo: 'numeros' },
       { nombre: 'orden', etiqueta: 'Orden', tipo: 'numero' },
     ],
+    /*
+     * Los campos de ancho entero van todos juntos al final, y no intercalados.
+     * Cada uno corta la fila de la grilla: con 'tipos' en tercer lugar, la fila
+     * de arriba quedaba con una celda usada y dos vacías, y así toda la pantalla
+     * —«Unidad» sola con dos tercios de fila en blanco al lado—. Agrupados, los
+     * campos cortos se completan de a tres y sobra una sola celda.
+     */
     campos: [
       { nombre: 'nombre', etiqueta: 'Nombre', tipo: 'texto', obligatorio: true, maxLargo: 80 },
       {
@@ -217,25 +242,9 @@ export const RECURSOS: Recurso[] = [
         opciones: opciones(['verdes', 'reciclables', 'textil', 'madera', 'especiales', 'otros'], ETIQUETA_CATEGORIA),
       },
       {
-        nombre: 'tipos', etiqueta: '¿Entra, sale o las dos cosas?', tipo: 'multi',
-        obligatorio: true, ancho: 'entero',
-        opciones: opciones(['ingreso', 'salida'], ETIQUETA_TIPO),
-        predeterminado: ['ingreso', 'salida'],
-        ayuda: 'Es lo que impide que aparezca compost en un ingreso: si acá solo está marcado "Salida", el material ni figura en la lista cuando el vigilador registra una entrada.',
-      },
-      {
-        nombre: 'flujos', etiqueta: '¿En qué flujos se ofrece?', tipo: 'multi', ancho: 'entero',
-        opciones: opciones(FLUJOS, ETIQUETA_FLUJO),
-        ayuda: 'Sin marcar nada, se ofrece en los tres.',
-      },
-      {
         nombre: 'unidad_default_id', etiqueta: 'Unidad', tipo: 'select',
         obligatorio: true, origen: 'unidades',
-        ayuda: 'En qué se anota la cantidad. Cambiarla no toca los movimientos ya cargados.',
-      },
-      {
-        nombre: 'sugerencias', etiqueta: 'Cantidades sugeridas', tipo: 'numeros', ancho: 'entero',
-        ayuda: 'Los botones que toca el vigilador para no escribir. Separados por coma, como los usa la Planta: 4.5, 6, 10, 20. Los decimales van con punto.',
+        ayuda: 'En qué se anota la cantidad. No toca lo ya cargado.',
       },
       {
         nombre: 'color', etiqueta: 'Color', tipo: 'color', predeterminado: '#126ff5',
@@ -244,6 +253,22 @@ export const RECURSOS: Recurso[] = [
       {
         nombre: 'orden', etiqueta: 'Orden', tipo: 'numero', entero: true, min: 0, max: 999,
         predeterminado: '0', ayuda: 'Más chico, más arriba en la lista del celular.',
+      },
+      {
+        nombre: 'tipos', etiqueta: '¿Entra, sale o las dos cosas?', tipo: 'multi',
+        obligatorio: true, ancho: 'entero',
+        opciones: opciones(['ingreso', 'salida'], ETIQUETA_TIPO),
+        predeterminado: ['ingreso', 'salida'],
+        ayuda: 'Con «Salida» sola, el material no aparece cuando se registra una entrada.',
+      },
+      {
+        nombre: 'flujos', etiqueta: '¿En qué flujos se ofrece?', tipo: 'multi', ancho: 'entero',
+        opciones: opciones(FLUJOS, ETIQUETA_FLUJO),
+        ayuda: 'Sin marcar nada, se ofrece en los tres.',
+      },
+      {
+        nombre: 'sugerencias', etiqueta: 'Cantidades sugeridas', tipo: 'numeros', ancho: 'entero',
+        ayuda: 'Los botones que toca el vigilador para no escribir: 4.5, 6, 10, 20. Con punto y separados por coma.',
       },
     ],
   },
@@ -280,15 +305,15 @@ export const RECURSOS: Recurso[] = [
       {
         nombre: 'decimales', etiqueta: 'Decimales', tipo: 'numero', entero: true,
         min: 0, max: 3, predeterminado: '0',
-        ayuda: 'Cuántos decimales se piden al cargar. Cero para camión: no existe medio camión.',
-      },
-      {
-        nombre: 'factor_m3', etiqueta: 'Equivalencia en m³', tipo: 'numero', min: 0, ancho: 'entero',
-        ayuda: 'Cuántos m³ representa una unidad. Es un supuesto, y sirve para una sola cosa: que el tablero pueda comparar materiales que se miden distinto (camiones contra kilos). Vacío significa que esta unidad no se compara con las otras.',
+        ayuda: 'Cero para camión: no existe medio camión.',
       },
       {
         nombre: 'orden', etiqueta: 'Orden', tipo: 'numero', entero: true, min: 0, max: 999,
         predeterminado: '0', ayuda: 'Más chico, más arriba en la lista.',
+      },
+      {
+        nombre: 'factor_m3', etiqueta: 'Equivalencia en m³', tipo: 'numero', min: 0, ancho: 'entero',
+        ayuda: 'Cuántos m³ representa una unidad. Es un supuesto, y sirve para una sola cosa: que el tablero pueda comparar materiales que se miden distinto (camiones contra kilos). Vacío significa que esta unidad no se compara con las otras.',
       },
     ],
   },
@@ -324,7 +349,9 @@ export const RECURSOS: Recurso[] = [
         opciones: opciones(['planta', 'punto_verde'], ETIQUETA_TIPO_SITIO),
         ayuda: 'La Planta de Valorización son dos predios —Vivero y Huerta, que es lo primero que pregunta el formulario de ingreso— y los dos van como Planta.',
       },
-      { nombre: 'direccion', etiqueta: 'Dirección', tipo: 'texto', maxLargo: 120, ancho: 'entero' },
+      // Sin ancho entero: una dirección entra en la columna igual que el nombre,
+      // y a cambio «Orden» deja de quedar solo en una fila para él.
+      { nombre: 'direccion', etiqueta: 'Dirección', tipo: 'texto', maxLargo: 120 },
       {
         nombre: 'orden', etiqueta: 'Orden', tipo: 'numero', entero: true, min: 0, max: 999,
         predeterminado: '0', ayuda: 'Más chico, más arriba en la lista de puntos.',
@@ -356,23 +383,30 @@ export const RECURSOS: Recurso[] = [
         nombre: 'tipo', etiqueta: 'Tipo', tipo: 'select', obligatorio: true,
         opciones: opciones(TIPOS_DE_ENTIDAD, ETIQUETA_ENTIDAD),
       },
+      { nombre: 'contacto', etiqueta: 'Contacto', tipo: 'texto', maxLargo: 80 },
+      { nombre: 'telefono', etiqueta: 'Teléfono', tipo: 'texto', maxLargo: 40 },
+      { nombre: 'cuit', etiqueta: 'CUIT', tipo: 'texto', maxLargo: 20, ayuda: 'No se muestra en el celular.' },
+      { nombre: 'barrio', etiqueta: 'Barrio', tipo: 'texto', maxLargo: 80 },
+      // Las dos casillas van en un bloque solo: dicen lo mismo desde los dos
+      // lados y se marcan de a una mirada. La explicación es una sola y va acá,
+      // en la primera; la de la segunda la repetía entera y era la que estiraba
+      // la fila. El bloque ocupa una fila entera, así que va con los otros dos
+      // de ancho entero —flujos y notas— y no en el medio de los campos cortos,
+      // que si no cada uno corta la fila y deja media grilla vacía.
       {
-        nombre: 'habilitada_origen', etiqueta: 'Se puede elegir como origen', tipo: 'booleano',
-        ayuda: 'De acá viene el material que ingresa.',
+        nombre: 'habilitada_origen', etiqueta: 'Como origen', tipo: 'booleano',
+        grupo: '¿Dónde se la puede elegir?',
+        ayuda: 'Origen es de dónde viene lo que entra; destino, a dónde va lo que sale. Marcá al menos una: sin ninguna no se la puede elegir en ningún lado.',
       },
       {
-        nombre: 'habilitada_destino', etiqueta: 'Se puede elegir como destino', tipo: 'booleano',
-        ayuda: 'Es lo que arma la lista de destinos habilitados que ve el vigilador en una salida. Marcá al menos una de las dos casillas: una entidad que no es ni origen ni destino no se puede elegir en ningún lado.',
+        nombre: 'habilitada_destino', etiqueta: 'Como destino', tipo: 'booleano',
+        grupo: '¿Dónde se la puede elegir?',
       },
       {
         nombre: 'flujos', etiqueta: '¿En qué flujos se ofrece?', tipo: 'multi', ancho: 'entero',
         opciones: opciones(FLUJOS, ETIQUETA_FLUJO),
         ayuda: 'Sin marcar nada, se ofrece en los tres.',
       },
-      { nombre: 'cuit', etiqueta: 'CUIT', tipo: 'texto', maxLargo: 20, ayuda: 'No se muestra en el celular.' },
-      { nombre: 'contacto', etiqueta: 'Contacto', tipo: 'texto', maxLargo: 80 },
-      { nombre: 'telefono', etiqueta: 'Teléfono', tipo: 'texto', maxLargo: 40 },
-      { nombre: 'barrio', etiqueta: 'Barrio', tipo: 'texto', maxLargo: 80 },
       { nombre: 'notas', etiqueta: 'Notas', tipo: 'texto', maxLargo: 300, ancho: 'entero' },
     ],
   },
@@ -403,12 +437,12 @@ export const RECURSOS: Recurso[] = [
         opciones: opciones(['camion', 'batea', 'camioneta', 'tractor', 'otro'], ETIQUETA_TIPO_VEHICULO),
       },
       {
-        nombre: 'capacidad_m3', etiqueta: 'Capacidad en m³', tipo: 'numero', min: 0, ancho: 'entero',
-        ayuda: 'Si la cargás, la app propone ese volumen cuando se elige el vehículo y el vigilador no tiene que estimar a ojo. Vacío = se carga a mano.',
+        nombre: 'entidad_id', etiqueta: 'Pertenece a', tipo: 'select', origen: 'entidades',
+        ayuda: 'De qué empresa, carrero u organización es. Vacío = del municipio.',
       },
       {
-        nombre: 'entidad_id', etiqueta: 'Pertenece a', tipo: 'select', origen: 'entidades',
-        ayuda: 'Si el vehículo es de una empresa de transporte o de poda, de un carrero o de una organización. Vacío = es del municipio.',
+        nombre: 'capacidad_m3', etiqueta: 'Capacidad en m³', tipo: 'numero', min: 0, ancho: 'entero',
+        ayuda: 'Si la cargás, la app propone ese volumen cuando se elige el vehículo y el vigilador no tiene que estimar a ojo. Vacío = se carga a mano.',
       },
     ],
   },
@@ -420,6 +454,9 @@ export const RECURSOS: Recurso[] = [
     plural: 'Personas',
     articulo: 'una',
     paraQue: 'Choferes, quienes autorizan una salida y el personal de la Planta.',
+    nota: 'Los cuatro roles: el chofer maneja, el vigilador está a cargo del turno, '
+      + 'el autorizante firma la salida y el operario registra los controles de las pilas. '
+      + 'El nombre de quien completa cada planilla va escrito a mano y no sale de esta lista.',
     orden: ['nombre'],
     campoEtiqueta: 'nombre',
     camposBusqueda: ['nombre'],
@@ -434,19 +471,23 @@ export const RECURSOS: Recurso[] = [
       {
         nombre: 'rol', etiqueta: 'Rol', tipo: 'select', obligatorio: true,
         opciones: opciones(Object.keys(ETIQUETA_ROL_PERSONA), ETIQUETA_ROL_PERSONA),
-        ayuda: 'El chofer maneja; el vigilador está a cargo del turno; el autorizante firma la salida; el operario trabaja en la Planta y es quien registra los controles de las pilas. El nombre de quien completa cada planilla no sale de acá: va escrito a mano, como en los formularios.',
+        // Qué hace cada rol se explica arriba, en la nota de la lista: los
+        // cuatro juntos son seis renglones, y colgados de este campo le fijaban
+        // el alto a «Nombre» y a «Documento», que quedaban con 200 px de blanco
+        // abajo.
+        ayuda: 'Define en qué listas del celular aparece.',
       },
       {
         nombre: 'documento', etiqueta: 'Documento', tipo: 'texto', maxLargo: 20,
-        ayuda: 'Nunca se muestra en el celular ni en el listado.',
+        ayuda: 'No se muestra en el celular ni en el listado.',
       },
       {
         nombre: 'sitio_id', etiqueta: 'Punto donde trabaja', tipo: 'select', origen: 'sitios',
-        ayuda: 'Si está siempre en el mismo punto, se ofrece solo ahí. Vacío = aparece en todos.',
+        ayuda: 'Vacío = se ofrece en todos los puntos.',
       },
       {
         nombre: 'entidad_id', etiqueta: 'Pertenece a', tipo: 'select', origen: 'entidades',
-        ayuda: 'Si viene de una empresa o de una organización y no del municipio.',
+        ayuda: 'Vacío = es del municipio.',
       },
     ],
   },

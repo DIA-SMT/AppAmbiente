@@ -897,24 +897,40 @@ export function Importador({
             </div>
           )}
 
+          {/* El botón va afuera del párrafo y no adentro. Metido en el texto, el
+              relleno de `.boton.fantasma` lo corría diez píxeles a la derecha
+              del renglón de arriba cuando bajaba solo, y sus cuarenta píxeles de
+              alto le agrandaban la caja de línea al párrafo entero. Es el mismo
+              armado que el aviso de error del paso 1. */}
           {faltaResolver && (
             <div className="aviso atencion">
-              <p style={{ margin: 0 }}>
-                Quedaron valores sin resolver en el paso anterior, y sus filas no entran.{' '}
-                <button
-                  type="button"
-                  className="boton chico fantasma"
-                  onClick={() => setPaso(3)}
-                >
-                  Volver a resolverlos
-                </button>
-              </p>
+              <div className="pila-chica">
+                <p style={{ margin: 0 }}>
+                  Quedaron valores sin resolver en el paso anterior, y sus filas no entran.
+                </p>
+                <div>
+                  <button
+                    type="button"
+                    className="boton chico secundario"
+                    onClick={() => setPaso(3)}
+                  >
+                    Volver a resolverlos
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
           <section className="pila-chica">
             <h3>Qué entra, por punto verde</h3>
-            <div className={`desplazable ${estilos.tablaAlta}`}>
+            {/* En 390 px de las cinco columnas se veían tres y media:
+                «CONTENEDORES» aparecía como una «C» contra el borde y «En cero»
+                no existía. Abajo de 720 px cada punto verde pasa a ser una ficha
+                apilada. Con la tabla vacía no se aplica: el aviso de «ninguna
+                fila se pudo leer» se lee mejor centrado en su fila. */}
+            <div
+              className={`desplazable ${estilos.tablaAlta}${resumen.length > 0 ? ' tabla-ficha' : ''}`}
+            >
               <table className="datos">
                 <caption className="sr-solo">Filas y kilos que entran, agrupados por punto verde</caption>
                 <thead>
@@ -929,15 +945,15 @@ export function Importador({
                 <tbody>
                   {resumen.map((r) => (
                     <tr key={r.codigo}>
-                      <td className="fuerte">
+                      <td data-rotulo="Punto verde" className="fuerte">
                         {r.codigo} · {r.nombre}
                       </td>
-                      <td className="numero">{numero(r.filas)}</td>
-                      <td className="numero">{kilos(r.kg)}</td>
-                      <td className="numero">
+                      <td data-rotulo="Filas" className="numero">{numero(r.filas)}</td>
+                      <td data-rotulo="Kilos" className="numero">{kilos(r.kg)}</td>
+                      <td data-rotulo="Contenedores" className="numero">
                         {r.contenedores > 0 ? numero(r.contenedores) : <span className="gris">—</span>}
                       </td>
-                      <td className="numero">
+                      <td data-rotulo="En cero" className="numero">
                         {r.enCero > 0 ? numero(r.enCero) : <span className="gris">—</span>}
                       </td>
                     </tr>
@@ -968,7 +984,12 @@ export function Importador({
                   </li>
                 ))}
               </ul>
-              <div className={`desplazable ${estilos.tablaAlta}`}>
+              {/* En 390 px «Por qué» se partía de a una palabra por renglón
+                  («No se / pudo / leer la / fecha») y «Lo que decía» quedaba
+                  cortada al medio. Abajo de 720 px cada rechazo pasa a ser una
+                  ficha: el número de fila del Excel arriba, el motivo y el dato
+                  debajo. */}
+              <div className={`desplazable ${estilos.tablaAlta} tabla-ficha`}>
                 <table className="datos">
                   <caption className="sr-solo">Filas rechazadas, con el número de fila del Excel</caption>
                   <thead>
@@ -981,9 +1002,11 @@ export function Importador({
                   <tbody>
                     {analisis.rechazos.map((r) => (
                       <tr key={`${r.fila}-${r.motivo}`}>
-                        <td className="numero fuerte">{r.fila}</td>
-                        <td>{r.motivo}</td>
-                        <td className="mono">{r.dato || <span className="gris">—</span>}</td>
+                        <td data-rotulo="Fila del Excel" className="numero fuerte">{r.fila}</td>
+                        <td data-rotulo="Por qué">{r.motivo}</td>
+                        <td data-rotulo="Lo que decía" className={estilos.datoCrudo}>
+                          {r.dato || <span className="gris">—</span>}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

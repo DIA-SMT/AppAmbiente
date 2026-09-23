@@ -9,6 +9,22 @@
   color: var(--gris);
 }
 
+/* Los dos trazados del mismo gráfico: el ancho para el panel y el angosto para
+   el celular. El SVG se escala entero, así que la letra se achica con el
+   dibujo; el único modo de que «PV-01» y las cifras de cada barra se lean a
+   390 px es dibujarlos en un viewBox chico. El tope de ancho del angosto es
+   para que no se agrande de más cuando la ventana anda cerca del corte. */
+.marcoAngosto { display: none; }
+
+@media (max-width: 720px) {
+  .marcoAncho { display: none; }
+  .marcoAngosto {
+    display: block;
+    max-width: 380px;
+    margin-inline: auto;
+  }
+}
+
 .grilla { stroke: var(--linea); stroke-width: 1; }
 .base   { stroke: var(--linea-fuerte); stroke-width: 1; }
 
@@ -31,6 +47,12 @@
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
+
+/* En unidades del viewBox angosto, que se dibuja casi 1:1 en el celular: con
+   los 12 px de acá arriba los rótulos salían de 5 px. */
+.marcoAngosto .rotuloPunto { font-size: 14px; }
+.marcoAngosto .rotuloValor { font-size: 13px; }
+.marcoAngosto .cifraBarra { font-size: 14px; }
 
 /* La trama se aplica con el atributo fill del rect, no desde acá: un
    url(#…) dentro de una hoja de estilos externa no siempre resuelve contra el

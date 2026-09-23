@@ -13,8 +13,15 @@
 
 /* Una pila madurando que hace más de tres semanas que no se voltea se pierde.
    Se marca con el ámbar que globals.css ya usa para .aviso.atencion.
-   Va con el elemento adelante para ganarle al borde de .tarjeta. */
-li.atrasada { border-left: 4px solid var(--salida); }
+   Va con el elemento adelante para ganarle al borde de .tarjeta.
+
+   La franja va en una sombra interior y no en un `border-left`: un borde más
+   grueso corre el contenido de la tarjeta —los códigos de las marcadas
+   arrancaban 3 px más a la derecha que los de las otras y la columna quedaba
+   desprolija— y además se bisela en diagonal al cruzarse con las esquinas
+   redondeadas de .tarjeta, que parece un error de dibujo. La sombra de la
+   tarjeta se repone acá porque esta propiedad la pisa entera. */
+li.atrasada { box-shadow: inset 4px 0 0 var(--salida), var(--sombra); }
 
 /* El chip del atraso no es un tipo de movimiento: es una alarma, y por eso no
    reusa ninguna de las variantes de .chip. */

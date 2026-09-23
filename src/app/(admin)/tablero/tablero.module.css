@@ -1,0 +1,65 @@
+/* Lo propio del tablero de Planta. Todo lo demás sale de globals.css. */
+
+/* ── Tabla «Detalle por material» ───────────────────────────────────────── */
+
+/* La primera columna queda fija al desplazar de costado: con catorce columnas
+   de números por delante, si el nombre del material se va de pantalla la fila
+   deja de querer decir nada. Antes esto iba en línea porque `table.datos th`
+   valía (0,1,2) y le ganaba a cualquier clase; hoy esa regla está envuelta en
+   :where() y alcanza con una clase. */
+.fija {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--panel);
+  box-shadow: 1px 0 0 var(--linea);
+  /* Era la única columna sin ancho propio: los catorce encabezados de mes
+     llevan `white-space: nowrap` y le sacaban todo el ancho, así que «Poda y
+     restos verdes» salía en tres renglones y la unidad quedaba colgada al
+     costado de ese bloque, con las columnas de números medio vacías al lado. */
+  min-width: 210px;
+}
+
+/* El punto de color, el nombre y la unidad de la fila. El punto y el nombre van
+   juntos en un solo ítem: si el ancho no alcanza tiene que bajar la unidad, no
+   quedar el puntito solo en un renglón y el nombre en el de abajo. */
+.celdaMaterial {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.identidad {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Un nombre de material no se parte: es lo que identifica la fila. Que el
+   sobrante de ancho lo pida la tabla, que para eso se desplaza y ahora lo
+   avisa. */
+.nombreMaterial { white-space: nowrap; }
+
+@media (max-width: 720px) {
+  /* En el celular la pantalla entera son 324 px útiles: una columna fija de
+     210 no deja lugar para los números. Se achica y el nombre vuelve a poder
+     partirse, que es lo que corresponde cuando el ancho no da; la unidad baja
+     a un renglón propio en vez de robarle ancho al nombre y dejarlo en tres
+     pedazos. */
+  .fija { min-width: 170px; }
+  .nombreMaterial { white-space: normal; }
+  .celdaMaterial { flex-wrap: wrap; row-gap: 2px; }
+
+  /* La tabla arranca mostrando el mes en curso y no el más viejo.
+     Los meses van del más viejo al más nuevo, y a 390 px lo primero que se veía
+     eran las dos columnas anteriores al primer movimiento: una pantalla llena
+     de guiones que se lee como «no hay nada cargado», con los datos afuera, a
+     la derecha. Dándole `rtl` al contenedor que desplaza, el navegador lo abre
+     apoyado en la punta derecha; la tabla vuelve a `ltr` y se dibuja igual que
+     siempre. Es la posición inicial del scroll lo que cambia, no el orden de
+     las columnas ni el sentido de la lectura. */
+  .alFinal { direction: rtl; }
+  .alFinal > table { direction: ltr; }
+}

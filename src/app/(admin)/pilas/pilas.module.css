@@ -56,13 +56,25 @@
   color: var(--tinta);
 }
 
+/* Cuatro datos separados por aire y nada más se leían como una sola frase
+   corrida («3 volteos 5 riegos Última temperatura: 54,0 °C»). El punto medio es
+   el mismo separador que usa el listado del vigilador. Y los 2 px entre
+   renglones dejaban las líneas casi tocándose cuando envolvían. */
 .marcas {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px 16px;
+  gap: 5px 10px;
   font-size: .84rem;
   color: var(--gris);
   font-variant-numeric: tabular-nums;
+}
+/* El punto va pegado al dato de la izquierda y no al de la derecha: cuando la
+   tira envuelve, queda al final del renglón —que se lee como «sigue»— y no
+   colgando al principio del siguiente. */
+.marcas > span:not(:last-child)::after {
+  content: '·';
+  margin-left: 10px;
+  color: var(--gris-suave);
 }
 .marcas b { color: var(--tinta); font-weight: 700; }
 
@@ -95,11 +107,22 @@
 
 /* ── Ficha ─────────────────────────────────────────────────────────────── */
 
+/* La patente ya no se parte —globals le puso el nowrap a td.mono— pero el
+   chofer sí: «Ramón Villagra» quedaba en dos renglones dentro de 120 px
+   mientras la columna Destino se llevaba 446. Un nombre tampoco se corta: que
+   el sobrante se lo lleve la columna que tiene texto de verdad. */
+.nombre { white-space: nowrap; }
+
+/* Son seis datos. Con columnas de 210 px entraban cuatro en la tarjeta: el
+   segundo renglón quedaba con dos y la mitad derecha vacía, y encima
+   «Entraron 96,5 m³ · salieron 0,0 m³» no entraba en su columna y el último
+   «m³» se caía solo a un segundo renglón. Con 260 quedan tres columnas y los
+   seis datos llenan dos renglones completos. */
 .datos {
   margin: 0;
   display: grid;
   gap: 14px;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
 }
 .datos > div { display: flex; flex-direction: column; gap: 2px; }
 .datos dd { margin: 0; color: var(--tinta); font-weight: 600; }
@@ -112,27 +135,63 @@
   padding-top: 14px;
   border-top: 1px solid var(--linea);
 }
-.acciones form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+/* Sin el nowrap, el campo de 190 px y su botón no entraban juntos en el ancho
+   que le tocaba al formulario de «Cerrar la pila»: envolvía, el formulario
+   pasaba a 134 px de alto, la fila entera a 149 y —como alinea abajo— los otros
+   dos botones quedaban hundidos al pie con 86 px de aire encima de cada uno.
+   Campo y botón en línea, y si aun así no entran, el que envuelve es .acciones
+   y el formulario se lleva su renglón entero. */
+.acciones form { display: flex; flex-wrap: nowrap; gap: 10px; align-items: flex-end; }
 
 .correccion { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
 
 /* `campo` es de globals.css: en un módulo hay que pedirla global o el
    compilador la renombra y la regla no engancha con nada. */
-.acciones :global(.campo) { flex: 0 1 190px; }
+.acciones :global(.campo) { flex: 0 1 165px; min-width: 0; }
 .correccion :global(.campo) { flex: 0 1 230px; }
 
 /* ── Formulario ────────────────────────────────────────────────────────── */
 
+/* 260 y no 214: con cuatro columnas de 222 px el campo «Punto» —el que decide a
+   qué predio va la pila— cortaba su valor, y al darle dos columnas quedaban tres
+   celdas vacías al lado del responsable. Con tres columnas de ~310 px la primera
+   fila la llenan Código y Punto, y la segunda Fecha y Responsable. */
 .rejilla {
   display: grid;
   gap: 14px;
-  grid-template-columns: repeat(auto-fit, minmax(214px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   align-items: start;
 }
 .entero { grid-column: 1 / -1; }
 
+/* «Planta de Valorización — Vivero» no entra en una columna de 222 px: se corta
+   en «Planta de Valorización -» y desaparece justo lo que distingue un predio
+   del otro, que es lo que manda la pila al lugar equivocado. Ocupa dos
+   columnas. Cuando la rejilla queda de una sola columna —pantalla angosta— un
+   `span 2` crearía una segunda columna implícita y desbordaría la tarjeta, así
+   que ahí vale la fila entera, que es lo mismo. */
+.doble { grid-column: 1 / -1; }
+@media (min-width: 721px) {
+  .doble { grid-column: span 2; }
+}
+
 .medidas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 
+/* Una pastilla que abraza su texto, no una caja de 929 px con un tilde adentro.
+   El `inline-flex` no alcanzaba: el <label> es hijo de un .campo, que es flex
+   en columna, así que se blockificaba y el `stretch` lo estiraba a todo el
+   ancho del formulario. Y va con el elemento adelante para ganarle a
+   `.campo > label` de globals, que lo pintaba en versalitas grises de 11,5 px:
+   con la pinta de un rótulo de campo y no de la opción que se toca. El nombre
+   de la rejilla adelante es para ganarle a esa regla por especificidad y no por
+   orden de carga de las hojas. */
+.rejilla label.opcion {
+  align-self: flex-start;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 1rem;
+  color: var(--tinta);
+}
 .opcion {
   display: inline-flex;
   align-items: center;

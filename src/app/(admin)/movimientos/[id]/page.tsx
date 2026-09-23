@@ -74,7 +74,7 @@ export default async function PantallaMovimiento({
   const claseTipo = m.tipo === 'ingreso' || m.tipo === 'salida' ? ` ${m.tipo}` : ''
 
   return (
-    <div className="contenido pila" style={ANCHO}>
+    <div className="pila" style={ANCHO}>
       <div>
         <Link className="boton fantasma" href="/movimientos" style={{ paddingLeft: 0 }}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -163,7 +163,13 @@ export default async function PantallaMovimiento({
 
       <section className="pila-chica">
         <h2>Materiales</h2>
-        <div className="desplazable">
+        {/* Cinco columnas no entran en 390 px y la ficha del movimiento está
+            pensada justamente para leerse angosta: esconder «Equivale a» y
+            «Observación» del lado de afuera de la pantalla, en una pantalla que
+            ya es angosta a propósito, no se espera. Abajo de 720 px cada
+            material pasa a ser una ficha apilada con sus cuatro datos; arriba
+            de 720 no cambia nada. */}
+        <div className="desplazable tabla-ficha">
           <table className="datos">
             <thead>
               <tr>
@@ -177,18 +183,18 @@ export default async function PantallaMovimiento({
             <tbody>
               {items.map((i) => (
                 <tr key={i.item_id}>
-                  <td>
+                  <td data-rotulo="Material">
                     <span className="fila" style={{ gap: 8, flexWrap: 'nowrap' }}>
                       <span className="punto" style={{ background: i.material_color }} aria-hidden="true" />
                       <span className="fuerte">{i.material_nombre}</span>
                     </span>
                   </td>
-                  <td className="gris">{i.material_categoria}</td>
-                  <td className="numero fuerte">{conUnidad(i)}</td>
-                  <td className="numero gris">
+                  <td data-rotulo="Categoría" className="gris">{i.material_categoria}</td>
+                  <td data-rotulo="Cantidad" className="numero fuerte">{conUnidad(i)}</td>
+                  <td data-rotulo="Equivale a" className="numero gris">
                     {i.factor_m3 ? `${numero(i.equivalente_m3, 2)} m³` : '—'}
                   </td>
-                  <td className="gris">{i.observacion ?? '—'}</td>
+                  <td data-rotulo="Observación" className="gris">{i.observacion ?? '—'}</td>
                 </tr>
               ))}
               {items.length === 0 && (

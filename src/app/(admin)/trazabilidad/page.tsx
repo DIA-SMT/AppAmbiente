@@ -265,7 +265,7 @@ export default async function PantallaTrazabilidad({
                     <td style={{ whiteSpace: 'nowrap' }}>{fechaHora(f.ocurrido_en)}</td>
                     <td>{f.destino}</td>
                     <td className="mono">{f.patente ?? '—'}</td>
-                    <td>{f.chofer ?? '—'}</td>
+                    <td className={estilos.chofer}>{f.chofer ?? '—'}</td>
                     <td className="mono">
                       <Link href={`/pilas/${f.pila_id}`} style={{ fontWeight: 800 }}>
                         {f.pila}
@@ -279,9 +279,12 @@ export default async function PantallaTrazabilidad({
                         ? numero(m3, Number.isInteger(m3) ? 0 : 1)
                         : <span className="gris">—</span>}
                     </td>
-                    <td className={estilos.procedencias}>
+                    <td
+                      className={estilos.procedencias}
+                      title={procedencias.length > 1 ? procedencias.join(' · ') : undefined}
+                    >
                       {procedencias.length > 0
-                        ? procedencias.join(' · ')
+                        ? <span className={estilos.recorte}>{procedencias.join(' · ')}</span>
                         : <span className="gris">Sin identificar</span>}
                     </td>
                   </tr>

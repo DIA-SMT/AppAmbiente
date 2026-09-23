@@ -82,6 +82,28 @@
 .acciones { display: flex; gap: 8px; justify-content: flex-end; white-space: nowrap; }
 .acciones form { display: contents; }
 
+/* La columna de acciones queda clavada a la derecha.
+   Materiales son diez columnas y la tabla mide 1066 px adentro de 966: lo que
+   quedaba cortado contra el borde era justo esta columna, así que «Desactivar»
+   se leía «D…» y «Editar» a medias. Clavada, los botones se ven siempre y por
+   abajo pasan las columnas del medio. La línea de la izquierda es la que avisa
+   que ahí abajo sigue pasando algo; el fondo propio es para que el contenido no
+   se transparente por atrás. */
+.celdaAcciones {
+  position: sticky;
+  right: 0;
+  background: var(--panel);
+  box-shadow: -1px 0 0 var(--linea);
+}
+:global(table.datos) thead .celdaAcciones { background: var(--panel-2); z-index: 2; }
+:global(table.datos) tbody tr:hover .celdaAcciones { background: var(--panel-2); }
+
+/* En ficha la fila ya no es una fila: cada celda es un bloque a todo el ancho y
+   no hay de qué despegarse. El fondo lo pone el patrón de globals. */
+@media (max-width: 720px) {
+  .celdaAcciones { position: static; box-shadow: none; }
+}
+
 .celdaColor { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
 
 .thNumero { text-align: right; }

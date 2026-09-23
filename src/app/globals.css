@@ -54,6 +54,17 @@
 
   --toque: 52px;          /* alto mínimo de cualquier cosa que se toca */
   --ancho-lectura: 68ch;
+
+  /* Sombra del borde de un contenedor que sigue de costado. Va aparte de
+     --sombra porque en oscuro tiene que ser más opaca para verse sobre el
+     panel, y --sombra ya está calibrada para otra cosa. */
+  --sombra-lateral: rgba(16, 35, 61, .21);
+
+  /* Alto de lo que queda pegado arriba de la pantalla. El panel los pisa con
+     los valores reales en PanelLayout.module.css; acá van en cero para que las
+     pantallas del vigilador, que no tienen nada fijo, no salten de más. */
+  --alto-cabecera: 0px;
+  --alto-navegacion: 0px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -79,6 +90,7 @@
     --peligro-bg:  #2d1618;
     --sombra:      0 1px 2px rgba(0, 0, 0, .35), 0 10px 28px rgba(0, 0, 0, .22);
     --sombra-alta: 0 8px 18px rgba(0, 0, 0, .4), 0 24px 54px rgba(0, 0, 0, .34);
+    --sombra-lateral: rgba(0, 0, 0, .55);
   }
 }
 
@@ -91,6 +103,7 @@
   --peligro: #f87171; --peligro-bg: #2d1618;
   --sombra: 0 1px 2px rgba(0,0,0,.35), 0 10px 28px rgba(0,0,0,.22);
   --sombra-alta: 0 8px 18px rgba(0,0,0,.4), 0 24px 54px rgba(0,0,0,.34);
+  --sombra-lateral: rgba(0,0,0,.55);
 }
 
 * { box-sizing: border-box; }
@@ -145,10 +158,21 @@ a  { color: var(--azul); }
 .angosto { max-width: 560px; margin: 0 auto; }
 .pila { display: flex; flex-direction: column; gap: 16px; }
 .pila-chica { display: flex; flex-direction: column; gap: 8px; }
+/* Un chip es una pastilla que abraza su texto. Adentro de una pila es un ítem
+   flex y el `stretch` de la columna lo estiraba a todo el ancho de la celda:
+   «Activo» salía de 221 px en la tabla de usuarios y de 57 px en Listas. Se
+   corrige sólo el chip y no la pila entera, porque casi todo lo demás que se
+   apila —párrafos, avisos, formularios, tarjetas— sí quiere el ancho completo. */
+.pila-chica > .chip { align-self: flex-start; }
 .fila { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 /* Envuelve a propósito: un título largo y un botón al lado no entran en 375 px,
    y sin wrap el botón se monta encima del texto. */
 .fila-entre { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+/* Al envolver, el último hijo queda solo en su renglón y `space-between` no
+   tiene contra qué separarlo: se pegaba a la izquierda. El margen automático lo
+   deja a la derecha, en el mismo lugar donde estaba cuando entraba en línea.
+   El :not(:first-child) es para no correr un hijo único. */
+.fila-entre > :last-child:not(:first-child) { margin-left: auto; }
 .crecer { flex: 1 1 auto; min-width: 0; }
 
 .tarjeta {
@@ -164,13 +188,23 @@ a  { color: var(--azul); }
   font-size: .72rem; font-weight: 800; letter-spacing: .08em;
   text-transform: uppercase; color: var(--gris);
 }
-.campo .ayuda { font-size: .82rem; color: var(--gris); }
+/* La ayuda de un campo también aparece suelta, colgando de una pila y no de un
+   .campo (Mi cuenta, por ejemplo). Ahí salía en 16 px oscuros, con la pinta de
+   un párrafo de aviso. Una sola regla para los dos casos: la descendiente que
+   había antes decía exactamente esto mismo, así que sólo subía la especificidad
+   —y con ella la pelea de quien quiera pisarla desde un módulo—. */
+.ayuda { font-size: .82rem; color: var(--gris); }
 .campo .error { font-size: .84rem; color: var(--peligro); font-weight: 600; }
 
-.control,
-select.control,
-input.control,
-textarea.control {
+/* El :where() deja esta regla en especificidad cero a propósito. Escrita como
+   `input.control` valía (0,1,1) y le ganaba a cualquier utilidad de una sola
+   clase de los módulos: .numero de /conteo pedía 72 px de alto y 2,6 rem de
+   letra y se quedaba con los 52 px y los 16 px de acá; .selectorDia pedía ancho
+   al contenido y salía a todo el ancho. Con especificidad cero, la clase del
+   módulo manda siempre, sin importar en qué orden se carguen las hojas y sin
+   tener que ensuciar nada con !important. Lo que sí tiene que seguir ganándole
+   —el textarea y la flecha del select— está más abajo, con su elemento. */
+:where(.control, select.control, input.control, textarea.control) {
   width: 100%;
   min-height: var(--toque);
   padding: 12px 15px;
@@ -285,20 +319,234 @@ select.control {
 .lista > li { background: var(--panel); padding: 15px 17px; }
 .lista > li.vacio { color: var(--gris); text-align: center; padding: 32px 16px; }
 
-.desplazable { overflow-x: auto; border: 1px solid var(--linea); border-radius: var(--r);
-               background: var(--panel); box-shadow: var(--sombra); }
+/* El contenedor avisa que sigue de costado.
+   Sin esto una tabla cortada se lee como una tabla completa: en Usuarios los
+   botones de desactivar y eliminar quedaban afuera de la pantalla y parecían no
+   existir, y en Movimientos la barra de desplazamiento aparece recién abajo de
+   cincuenta filas, a mil cuatrocientos píxeles del borde.
+
+   Son cuatro fondos y ni una línea de JavaScript. Los dos degradés que van del
+   color del panel a transparente llevan `local`, así que viajan con el
+   contenido y viven en las dos puntas de lo que hay para desplazar; los dos
+   oscuros llevan `scroll` y se quedan clavados a los bordes del contenedor.
+   Cuando estamos al principio, la tapa izquierda está justo encima de la sombra
+   izquierda y la borra; apenas se corre un píxel, la tapa se va con el
+   contenido y la sombra asoma. Si no hay nada que desplazar, las dos tapas
+   están sobre las dos sombras y no se ve ninguna. */
+.desplazable {
+  overflow-x: auto;
+  border: 1px solid var(--linea); border-radius: var(--r);
+  box-shadow: var(--sombra);
+  background:
+    linear-gradient(to right, var(--panel), transparent) left center,
+    linear-gradient(to left, var(--panel), transparent) right center,
+    linear-gradient(to right, var(--sombra-lateral), transparent) left center,
+    linear-gradient(to left, var(--sombra-lateral), transparent) right center;
+  background-color: var(--panel);
+  background-repeat: no-repeat;
+  background-size: 32px 100%, 32px 100%, 17px 100%, 17px 100%;
+  background-attachment: local, local, scroll, scroll;
+}
+
 table.datos { border-collapse: collapse; width: 100%; font-size: .9rem; }
-table.datos th, table.datos td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--linea); }
+/* El :where() baja esta regla a la especificidad de un elemento suelto para que
+   cualquier utilidad de una clase le gane. Escrita `table.datos th` valía
+   (0,1,2) y le ganaba a .centrado y a .thNumero, que valen (0,1,0): los rótulos
+   de mes del tablero salían contra el borde izquierdo de su grupo de columnas y
+   el encabezado «Orden» quedaba a la izquierda mientras sus cifras iban a la
+   derecha.
+   Y arriba: cuando una fila se estira —porque en una celda se abrió una
+   confirmación o hay un texto largo— el resto del contenido quedaba flotando en
+   el medio de un rectángulo vacío, que es lo que se ve como «tabla rota». */
+:where(table.datos) th,
+:where(table.datos) td {
+  padding: 12px 14px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--linea);
+}
+/* OJO con el `position: sticky` de acá: no es de adorno y no se saca.
+   Esta regla vale (0,1,2) y le gana a `.fija` de los dos tableros, que vale
+   (0,1,0), así que es ESTA la que posiciona la celda del encabezado de la
+   primera columna; lo único que pone el módulo es el `left: 0`. Cambiarlo por
+   `relative` deja el rótulo «Punto» / «Material» corriéndose de costado con los
+   meses mientras la columna de abajo se queda fija: probado y fotografiado.
+   El `z-index: 1` es de la misma familia: ordena esta celda contra esa primera
+   columna, que se pone encima con un z-index propio en línea.
+
+   Lo que sí era mentira era el `top: 0` que acompañaba, y por eso se fue. El
+   encabezado NUNCA se pegó arriba al bajar por una tabla larga: medido con
+   Chrome sobre sesenta filas, el contenedor es `.desplazable`, que declara
+   `overflow-x: auto` y con eso el vertical le computa `auto` también, así que
+   el sticky se ancla a ÉL y no a la página; y `.desplazable` crece con la
+   tabla, le sobran cero píxeles para desplazar a lo alto y el th se va para
+   arriba con todo lo demás (de 25 px pasa a −375 al bajar la página 400).
+
+   Que se pegue de verdad pide darle a `.desplazable` un max-height con scroll
+   vertical propio en escritorio. Probado: el encabezado queda clavado, pero el
+   alto del documento pasa de 2.931 a 700 px y el desplazamiento de la página se
+   muda adentro de la caja de la tabla —en las veintiuna tablas del panel de un
+   saque—. La otra salida, sacar el scroll horizontal a un envoltorio aparte, no
+   existe: el encabezado tiene que viajar de costado con su tabla. Es una
+   decisión de fondo y no se toma sola. */
 table.datos thead th {
-  position: sticky; top: 0; z-index: 1;
+  position: sticky; z-index: 1;
   background: var(--panel-2); color: var(--tinta);
   font-size: .68rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap;
 }
 table.datos tbody tr:last-child td { border-bottom: 0; }
 table.datos tbody tr.anulado td { color: var(--gris-suave); text-decoration: line-through; }
 table.datos td.numero { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
-table.datos td.mono, table.datos th.mono { font-family: var(--mono); font-size: .82rem; }
+/* Una patente, un código de pila o un número de movimiento no se parten nunca:
+   «AC 412 QW» cortado en «AC 412 / QW» no se lee como una patente. Que el
+   sobrante de ancho se lo lleve la columna que tiene texto de verdad. */
+table.datos td.mono, table.datos th.mono { font-family: var(--mono); font-size: .82rem; white-space: nowrap; }
 table.datos tbody tr:hover td { background: var(--panel-2); }
+/* El total de una tabla tenía la misma pinta que un material más, y encima
+   conservaba su línea de abajo pegada al borde redondeado de la tarjeta. */
+table.datos tfoot td, table.datos tfoot th {
+  border-top: 2px solid var(--linea-fuerte); border-bottom: 0;
+  background: var(--panel-2); color: var(--tinta); font-weight: 800;
+}
+
+/* ── Una tabla que abajo de 720 px se lee como fichas ─────────────────────
+   Una tabla de seis o diez columnas no entra en 390 px. Por más que avise que
+   sigue de costado, el vigilador está parado en la puerta de un punto verde,
+   con una mano: arrastrar una tabla para llegar al botón «Corregir» no se hace.
+   Abajo de 720 px cada fila pasa a ser una ficha apilada, con el rótulo de la
+   columna arriba de cada dato. Arriba de 720 px no cambia absolutamente nada.
+
+   CÓMO SE USA (esto es lo que hay que hacer en cada pantalla):
+
+     1. Sumarle la clase al contenedor, al lado de `desplazable`:
+
+          <div className="desplazable tabla-ficha">
+            <table className="datos"> …
+
+     2. En cada celda del <tbody>, poner en `data-rotulo` el mismo texto que
+        tiene su <th> en el encabezado:
+
+          <td data-rotulo="Usuario" className="mono">{p.usuario}</td>
+          <td data-rotulo="Estado">…</td>
+
+     3. La celda que no lleva `data-rotulo` sale a todo el ancho de la ficha,
+        sin rótulo. Es lo que corresponde para la columna de acciones: los
+        botones quedan abajo de todo y a lo ancho, que es donde se los busca.
+
+     4. Una celda vacía desaparece: no deja el rótulo colgado sin dato.
+
+   Si una columna no tiene `data-rotulo` y sí tiene contenido, se ve igual, sólo
+   que sin rótulo; se puede dejar así a propósito (el nombre del punto, por
+   ejemplo, que ya se entiende solo arriba de la ficha).
+
+   Se pierde la semántica de tabla, porque para apilar hay que cambiarle el
+   `display` a las filas. El rótulo de `data-rotulo` lo reemplaza: cada dato
+   queda dicho con su nombre al lado, que es lo que un lector de pantalla
+   necesita para no leer quince números sueltos. */
+
+@media (max-width: 720px) {
+  /* Deja de ser un marco con scroll: el marco ahora lo pone cada ficha. */
+  .desplazable.tabla-ficha {
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+  }
+
+  .tabla-ficha table.datos { display: block; }
+  /* El encabezado no se borra: se esconde a la vista y queda para quien lee la
+     pantalla de oído. */
+  .tabla-ficha table.datos thead {
+    position: absolute; width: 1px; height: 1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  .tabla-ficha table.datos tbody,
+  .tabla-ficha table.datos tfoot { display: block; }
+
+  .tabla-ficha table.datos tbody tr,
+  .tabla-ficha table.datos tfoot tr {
+    display: block;
+    margin-bottom: 12px;
+    padding: 3px 0;
+    background: var(--panel);
+    border: 1px solid var(--linea);
+    border-radius: var(--r);
+    box-shadow: var(--sombra);
+  }
+  .tabla-ficha table.datos tbody tr:last-child { margin-bottom: 0; }
+  /* El resaltado de fila no tiene sentido cuando la fila ya es una tarjeta. */
+  .tabla-ficha table.datos tbody tr:hover td[data-rotulo] { background: none; }
+
+  /* El rótulo va arriba y el dato abajo, como en un campo de formulario. Se
+     probó también el rótulo a la izquierda y el dato a la derecha, que ocupa
+     menos alto, pero una celda con más de un pedazo adentro —«21/9/2026 08:14»
+     y al lado «· hace 1 día»— se parte en dos ítems y quedan uno en cada punta
+     de la ficha. Apilado no se rompe con ningún contenido, que es lo que hace
+     falta acá: el patrón lo van a aplicar otros, en tablas que no vi. */
+  .tabla-ficha table.datos tbody td,
+  .tabla-ficha table.datos tbody th,
+  .tabla-ficha table.datos tfoot td,
+  .tabla-ficha table.datos tfoot th {
+    display: block;
+    padding: 8px 15px;
+    border-bottom: 1px solid var(--linea);
+    border-top: 0;
+    text-align: left;
+    /* Un nombre largo o una observación tienen que poder partirse acá adentro,
+       que si no vuelven a empujar la ficha a lo ancho. */
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .tabla-ficha table.datos tbody tr > :last-child,
+  .tabla-ficha table.datos tfoot tr > :last-child { border-bottom: 0; }
+  /* En una tabla la línea de abajo de la última fila sobra: la cierra el borde
+     redondeado de la tarjeta. En una ficha no hay última fila —cada celda es un
+     renglón— y esa misma regla, `table.datos tbody tr:last-child td`, le borraba
+     TODAS las líneas internas a la ficha de abajo: quedaba un bloque corrido
+     donde «FILA DEL EXCEL / 63 / POR QUÉ / …» no se separaba, al lado de las
+     fichas de arriba que sí las tenían. Vale (0,2,4) y le gana al (0,2,3) del
+     patrón, así que se repone acá con una regla que le gane por especificidad y
+     no por orden de carga. La de la última celda sigue sin ir: ésa la cierra el
+     borde de la ficha. */
+  .tabla-ficha table.datos tbody tr:last-child td:not(:last-child),
+  .tabla-ficha table.datos tbody tr:last-child th:not(:last-child) {
+    border-bottom: 1px solid var(--linea);
+  }
+  /* Alinear a la derecha tiene sentido cuando hay una columna de cifras una
+     abajo de la otra. En una ficha no hay columna: el número se va solo al otro
+     extremo y se despega de su rótulo. */
+  .tabla-ficha table.datos tbody td.numero,
+  .tabla-ficha table.datos tbody td.centrado { text-align: left; }
+  /* Una celda sin dato no deja el rótulo colgado. */
+  .tabla-ficha table.datos tbody td:empty { display: none; }
+
+  .tabla-ficha table.datos tbody td[data-rotulo]::before,
+  .tabla-ficha table.datos tbody th[data-rotulo]::before,
+  .tabla-ficha table.datos tfoot td[data-rotulo]::before {
+    content: attr(data-rotulo);
+    display: block;
+    margin-bottom: 1px;
+    color: var(--gris);
+    font-size: .72rem; font-weight: 800; letter-spacing: .08em;
+    text-transform: uppercase; line-height: 1.35;
+  }
+
+  /* La columna de acciones: sin rótulo, a todo el ancho y los botones abajo. */
+  .tabla-ficha table.datos tbody td:not([data-rotulo]) {
+    display: block;
+    background: var(--panel-2);
+    border-radius: 0 0 calc(var(--r) - 4px) calc(var(--r) - 4px);
+  }
+  .tabla-ficha table.datos tbody td:not([data-rotulo]) .boton { flex: 1 1 auto; }
+
+  /* Un ancho fijo pensado para una columna de tabla no tiene sentido en una
+     ficha, y es lo que hacía que la confirmación de «Eliminar» se partiera de a
+     dos palabras por renglón adentro de 250 px. Acá la ficha ya es el ancho de
+     la pantalla. */
+  .tabla-ficha table.datos tbody td,
+  .tabla-ficha table.datos tbody th { width: auto; max-width: none; min-width: 0; }
+}
 
 /* ── Avisos ───────────────────────────────────────────────────────────── */
 
@@ -323,6 +571,15 @@ table.datos tbody tr:hover td { background: var(--panel-2); }
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
 
+/* El encabezado del panel y, en pantalla chica, la barra de navegación quedan
+   pegados arriba. Sin este margen, tocar «Editar» en una lista y saltar a
+   #formulario dejaba el título y el campo «Nombre» abajo de esa franja: uno
+   aterrizaba en la mitad del formulario sin ninguna señal de que estaba
+   editando. Los dos altos los pone PanelLayout.module.css; acá valen cero. */
+:target {
+  scroll-margin-top: calc(var(--alto-cabecera) + var(--alto-navegacion) + 16px);
+}
+
 @media (max-width: 720px) {
   .contenido { padding: 18px 16px; }
   .tarjeta { padding: 17px; }
@@ -345,7 +602,12 @@ table.datos tbody tr:hover td { background: var(--panel-2); }
    Una tablet grande con touch lo necesita igual, y una ventana chica de
    escritorio con mouse no. */
 @media (pointer: coarse) {
-  table.datos a,
+  /* Ojo con el :not(.boton). Un enlace que ya es botón trae su propio alto y su
+     propio relleno, y .boton.chico vale (0,2,0), así que le ganaba al alto y al
+     relleno de acá pero no al margen negativo, que no se lo discutía nadie. El
+     botón «Editar» de cada fila se quedaba en sus 40 px y encima salía 10 px
+     para arriba y 10 para abajo de su celda, pisando las líneas de la tabla. */
+  table.datos a:not(.boton),
   .tocable {
     display: inline-flex;
     align-items: center;
@@ -354,6 +616,11 @@ table.datos tbody tr:hover td { background: var(--panel-2); }
     margin-block: -10px;
     padding-block: 10px;
   }
+
+  /* Los botones chicos sí crecen, pero de adentro y sin margen negativo: en las
+     pantallas del vigilador («Volver», «Cambiar», «Quitar») medían 67 × 40 y son
+     lo que se toca con guantes, parado en la puerta de un punto verde. */
+  .boton.chico { min-height: 44px; min-width: 44px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

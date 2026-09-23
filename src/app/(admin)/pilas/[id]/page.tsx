@@ -459,7 +459,7 @@ export default async function FichaDePila({
                           )}
                         </td>
                         <td className="mono">{s.patente ?? '—'}</td>
-                        <td className="gris">{s.chofer ?? '—'}</td>
+                        <td className={`gris ${estilos.nombre}`}>{s.chofer ?? '—'}</td>
                         <td className="numero fuerte">
                           {c
                             ? cantidadDeMovimiento({

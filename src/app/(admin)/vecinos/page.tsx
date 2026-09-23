@@ -180,7 +180,14 @@ export default async function PantallaVecinos({
             {total > 0 && <> · {numero(total - identificados)} sin teléfono</>}
           </p>
 
-          <div className="desplazable">
+          {/* Siete columnas no entran en 390 px, y la de «Datos personales» es
+              justo la última: la confirmación de anonimizar quedaba fuera de la
+              pantalla y en el medio de la tabla se abría un agujero blanco sin
+              causa visible. Abajo de 720 px cada vecino pasa a ser una ficha
+              apilada, con la confirmación al pie y a lo ancho; arriba de 720 no
+              cambia nada. Con la tabla vacía no se aplica: el aviso de «ningún
+              vecino coincide» se lee mejor centrado en su fila de siempre. */}
+          <div className={`desplazable${filas.length > 0 ? ' tabla-ficha' : ''}`}>
             <table className="datos">
               <caption className="sr-solo">
                 Vecinos registrados. Las visitas son los ingresos que trajo cada uno.
@@ -199,18 +206,22 @@ export default async function PantallaVecinos({
               <tbody>
                 {filas.map((v) => (
                   <tr key={v.id}>
-                    <td className="fuerte">{v.nombre ?? <span className="gris">Sin nombre</span>}</td>
-                    <td>
+                    <td data-rotulo="Nombre" className="fuerte">
+                      {v.nombre ?? <span className="gris">Sin nombre</span>}
+                    </td>
+                    <td data-rotulo="Teléfono">
                       {v.telefono
                         ? <span className="mono">{v.telefono}</span>
                         : v.anonimizado
                           ? <span className="gris">—</span>
                           : <span className="chip pendiente">Sin teléfono</span>}
                     </td>
-                    <td>{v.barrio ?? <span className="gris">—</span>}</td>
-                    <td>{v.sitio_nombre ?? <span className="gris">—</span>}</td>
-                    <td>{fecha(v.creado_en)}</td>
-                    <td className="numero">{numero(v.visitas)}</td>
+                    <td data-rotulo="Barrio">{v.barrio ?? <span className="gris">—</span>}</td>
+                    <td data-rotulo="Punto donde se dio de alta">
+                      {v.sitio_nombre ?? <span className="gris">—</span>}
+                    </td>
+                    <td data-rotulo="Fecha">{fecha(v.creado_en)}</td>
+                    <td data-rotulo="Visitas" className="numero">{numero(v.visitas)}</td>
                     <td className={estilos.columnaAcciones}>
                       {v.anonimizado ? (
                         <span className="chip anulado">

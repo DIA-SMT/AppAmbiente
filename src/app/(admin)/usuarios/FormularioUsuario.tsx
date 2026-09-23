@@ -121,7 +121,7 @@ export function FormularioUsuario({ sitios }: { sitios: SitioParaUsuario[] }) {
             maxLength={32}
             required
           />
-          <span className="ayuda">Es lo que se teclea al entrar. Minúsculas y sin espacios: pv09.</span>
+          <span className="ayuda">Lo que se teclea al entrar. Minúsculas y sin espacios: pv09.</span>
         </div>
 
         <div className="campo">
@@ -163,13 +163,16 @@ export function FormularioUsuario({ sitios }: { sitios: SitioParaUsuario[] }) {
                 required
               />
               <span className="ayuda">
-                Con esto entra al panel. Si tiene casilla del municipio conviene esa; si no,
-                sirve cualquiera. Dos cuentas no pueden compartir el mismo correo.
+                Con esto entra al panel. Mejor la casilla del municipio, pero sirve cualquiera.
+                No la pueden compartir dos cuentas.
               </span>
             </div>
 
             <div className="campo">
-              <label htmlFor="clave">Contraseña para la primera vez</label>
+              {/* «Contraseña para la primera vez» no entraba en un renglón y
+                  partido en dos corría este campo 25 px abajo de los otros
+                  tres. Lo que es, lo dice la ayuda. */}
+              <label htmlFor="clave">Contraseña provisoria</label>
               <input
                 id="clave"
                 name="clave"
@@ -181,8 +184,7 @@ export function FormularioUsuario({ sitios }: { sitios: SitioParaUsuario[] }) {
                 required
               />
               <span className="ayuda">
-                De 6 caracteres para arriba. Se la pasás y dura hasta que entre: lo primero
-                que le pide el panel es elegir una propia, y ahí dejás de saberla.
+                De 6 caracteres para arriba. Dura hasta que entre: ahí elige la suya.
               </span>
             </div>
           </>
@@ -235,11 +237,23 @@ export function FormularioUsuario({ sitios }: { sitios: SitioParaUsuario[] }) {
  * resultado y el «quedó eliminado» no llega a dibujarse nunca. Por eso tanto el
  * estado de la acción como la pregunta de confirmación viven acá arriba, en algo
  * que sobrevive al borrado, y bajan por contexto hasta el botón.
+ *
+ * La pregunta además se DIBUJA acá arriba, arriba de la tabla y al lado del
+ * aviso que contesta esa misma acción. Adentro de la celda de acciones vivía en
+ * una columna de 136 px: el texto se partía de a dos palabras, «Sí, eliminar»
+ * quedaba en dos renglones y la fila se estiraba a 471 px, con el nombre y el
+ * usuario arriba de un rectángulo blanco. Es una sola por vez y nombra a quién
+ * borra, así que no hace falta que esté pegada a su renglón.
  */
+interface EnDuda {
+  id: string
+  usuario: string
+}
+
 interface Borrado {
   /** Qué fila tiene la pregunta abierta. Una sola por vez. */
-  confirmando: string | null
-  preguntar: (id: string | null) => void
+  confirmando: EnDuda | null
+  preguntar: (cual: EnDuda | null) => void
   accion: (datos: FormData) => void
 }
 
@@ -247,7 +261,7 @@ const Borrar = createContext<Borrado | null>(null)
 
 export function ListaDeUsuarios({ resumen, children }: { resumen: string; children: ReactNode }) {
   const [estado, accion] = useActionState<EstadoUsuario, FormData>(accionSobreUsuario, {})
-  const [confirmando, preguntar] = useState<string | null>(null)
+  const [confirmando, preguntar] = useState<EnDuda | null>(null)
 
   // Si salió bien, la fila ya no está y la pregunta se fue con ella. Si la base
   // lo rechazó, la fila sigue: dejarle la pregunta abierta invita a insistir con
@@ -263,6 +277,25 @@ export function ListaDeUsuarios({ resumen, children }: { resumen: string; childr
       </div>
       {estado.error && <div className="aviso error" role="alert">{estado.error}</div>}
       {estado.aviso && <div className="aviso exito" role="status">{estado.aviso}</div>}
+      {confirmando && (
+        <div className="aviso atencion pila-chica" role="alert">
+          <span>
+            Se borra <span className="fuerte mono">{confirmando.usuario}</span> de la lista y no hay
+            vuelta atrás. No se pierde nada: no quedó ni un movimiento ni un registro a su nombre.
+            Si más adelante hace falta, se crea de nuevo.
+          </span>
+          <div className={estilos.acciones}>
+            <form action={accion}>
+              <input type="hidden" name="id" value={confirmando.id} />
+              <input type="hidden" name="accion" value="eliminar" />
+              <BotonFila rotulo={`Sí, eliminar ${confirmando.usuario}`} clase="boton peligro chico" />
+            </form>
+            <button type="button" className="boton chico fantasma" onClick={() => preguntar(null)}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
       {children}
     </Borrar.Provider>
   )
@@ -314,7 +347,7 @@ export function AccionesUsuario({ perfil }: { perfil: PerfilParaAcciones }) {
   // y recién la respuesta borra. Los dos pasos los lleva la lista, no la fila:
   // ver ListaDeUsuarios.
   const borrado = useContext(Borrar)
-  const borrando = borrado?.confirmando === perfil.id
+  const borrando = borrado?.confirmando?.id === perfil.id
   const esCoordinacion = perfil.rol === 'admin'
 
   // Sobre el propio usuario no se dice nada de eliminar: desactivarse tampoco se
@@ -330,7 +363,13 @@ export function AccionesUsuario({ perfil }: { perfil: PerfilParaAcciones }) {
     <div className="pila-chica">
       <div className={estilos.acciones}>
         {!esCoordinacion && (
-          <AccionDeFila accion={accion} id={perfil.id} valor="reset" rotulo="Resetear PIN" />
+          // «PIN» a secas por lo mismo que «Contraseña» acá abajo: es el rótulo
+          // más largo de la columna y no entraba en línea con «Desactivar», así
+          // que cada fila de un punto se llevaba dos renglones de botones. Los
+          // dos dicen la credencial sobre la que se actúa y quedan parejos: a la
+          // cuenta de un punto se le repone el PIN, a la de coordinación la
+          // contraseña.
+          <AccionDeFila accion={accion} id={perfil.id} valor="reset" rotulo="PIN" />
         )}
         {esCoordinacion && !cambiando && (
           <button
@@ -338,7 +377,8 @@ export function AccionesUsuario({ perfil }: { perfil: PerfilParaAcciones }) {
             className="boton chico secundario"
             onClick={() => { setCambiando(true); borrado?.preguntar(null) }}
           >
-            Cambiar contraseña
+            {/* «Cambiar contraseña» sola se llevaba un renglón de la columna. */}
+            Contraseña
           </button>
         )}
         <AccionDeFila
@@ -354,42 +394,23 @@ export function AccionesUsuario({ perfil }: { perfil: PerfilParaAcciones }) {
           <button
             type="button"
             className="boton chico secundario"
-            onClick={() => { borrado?.preguntar(perfil.id); setCambiando(false) }}
+            onClick={() => {
+              borrado?.preguntar({ id: perfil.id, usuario: perfil.usuario })
+              setCambiando(false)
+            }}
           >
             Eliminar
           </button>
         )}
       </div>
 
-      {borrado && borrando && (
-        <div className={estilos.confirmarCuerpo}>
-          <span>
-            Se borra <span className="fuerte">{perfil.usuario}</span> de la lista y no hay vuelta
-            atrás. No se pierde nada: no quedó ni un movimiento ni un registro a su nombre. Si
-            más adelante hace falta, se crea de nuevo.
-          </span>
-          <div className={estilos.acciones}>
-            <form action={borrado.accion}>
-              <input type="hidden" name="id" value={perfil.id} />
-              <input type="hidden" name="accion" value="eliminar" />
-              <BotonFila rotulo="Sí, eliminar" clase="boton peligro chico" />
-            </form>
-            <button
-              type="button"
-              className="boton chico fantasma"
-              onClick={() => borrado.preguntar(null)}
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
-
+      {/* La pregunta de «Eliminar» no se dibuja acá sino arriba de la tabla: ver
+          ListaDeUsuarios. Y de por qué no se puede eliminar queda el motivo
+          solo; qué hacer en su lugar lo dice el encabezado de la pantalla, una
+          vez. Esa segunda oración eran dos renglones más adentro de una columna
+          angosta, en cada fila que ya cargó algo, que son casi todas. */}
       {retenido && (
-        <span className="menor gris">
-          No se puede eliminar: {perfil.rastro}.{' '}
-          {perfil.activo ? 'Desactivalo y deja de entrar.' : 'Ya está desactivado: no puede entrar.'}
-        </span>
+        <span className="menor gris">No se puede eliminar: {perfil.rastro}.</span>
       )}
 
       {esCoordinacion && cambiando && (

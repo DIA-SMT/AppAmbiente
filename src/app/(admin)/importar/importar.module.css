@@ -63,6 +63,13 @@
   align-items: start;
 }
 
+/* El alto de cada fila de la rejilla lo fija la ayuda más larga que le tocó, y
+   las de acá miden uno o dos renglones: abajo de «Fecha», que tiene una sola
+   línea, quedaba un renglón en blanco antes de que arrancara «Kilos». Con dos
+   renglones reservados siempre, las celdas de una misma fila miden lo mismo y
+   los campos de abajo arrancan parejos. */
+.rejilla :global(.ayuda) { min-height: calc(2 * 1.55em); }
+
 /* Cada valor sin resolver es una pregunta con nombre propio, y el nombre es un
    texto crudo del Excel: no se puede acortar sin perder de vista cuál era. */
 .pregunta { border-top: 1px solid var(--linea); padding-top: 12px; }
@@ -71,9 +78,16 @@
 
 /* ── Las cuentas del resultado ────────────────────────────────────────── */
 
+/* El mínimo es 132 y no 148 por dieciocho píxeles: adentro de las dos tarjetas
+   anidadas, a 390 px de pantalla quedan 290 de ancho útil, y dos columnas de
+   148 más el hueco pedían 308. Por esos dieciocho píxeles las seis cuentas
+   caían una por renglón, cada una con un número chico arriba a la izquierda y
+   el resto del recuadro vacío: seis pantallazos antes de llegar a las tablas.
+   El min() es para que en una pantalla de 320 px la cuenta no empuje la página
+   a lo ancho. */
 .cuentas {
   display: grid; gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(132px, 100%), 1fr));
 }
 .cuenta {
   display: flex; flex-direction: column; gap: 3px;
@@ -100,17 +114,37 @@
 /* ── Tablas ───────────────────────────────────────────────────────────── */
 
 /* La muestra y los rechazos pueden traer decenas de filas. Sin techo, el botón
-   de confirmar queda a dos pantallas de scroll del número que hay que mirar. */
-.tablaAlta { max-height: 340px; overflow-y: auto; }
+   de confirmar queda a dos pantallas de scroll del número que hay que mirar.
+
+   Sólo de 721 px para arriba. En escritorio cada fila es un renglón y el tope
+   corta entre filas; en el celular cada fila mide tres o cuatro renglones, así
+   que los 340 px caían a la mitad de una fila y la tabla quedaba tajeada por
+   abajo, con media línea de texto cortada. Abajo de 720 las filas además pasan
+   a ser fichas y ya no hay nada que recortar. */
+@media (min-width: 721px) {
+  .tablaAlta { max-height: 340px; overflow-y: auto; }
+}
 
 /* `td.numero` existe en globals.css, el th no. */
 .thNumero { text-align: right; }
+
+/* Lo que decía la celda del Excel, tal cual vino. Es monoespaciado como el
+   `.crudo` del paso 3 —es el mismo texto ajeno— pero a propósito NO lleva el
+   `white-space: nowrap` de `.mono` de globals.css: eso está para una patente o
+   un código de pila, que no se parten nunca; acá el contenido es libre y sin
+   corte empuja la tabla a lo ancho sin límite. */
+.datoCrudo { font-family: var(--mono); font-size: .82rem; overflow-wrap: anywhere; }
 
 /* ── Pie de cada paso ─────────────────────────────────────────────────── */
 
 .pie { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding-top: 4px; }
 
 @media (max-width: 720px) {
+  /* Dieciséis píxeles entre paso y paso dejaban al «5» colgado solo en un
+     segundo renglón, debajo del «1»: el riel se veía cortado por la mitad. Con
+     ocho entran los cinco en un renglón. */
+  .riel { gap: 8px; }
+
   /* Cinco rótulos no entran en una pantalla angosta. Los números se quedan
      —son la posición dentro del asistente— y el nombre queda sólo en el paso en
      curso, que es el único que hace falta leer. */

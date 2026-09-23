@@ -69,10 +69,14 @@
 
 /* El formulario sobre vidrio: es lo que lo despega del fondo sin taparlo. */
 .panel {
+  /* El relleno lateral va en una variable porque la franja de arriba lo tiene
+     que descontar para llegar a las dos puntas del panel, y son dos valores:
+     uno acá y otro en el ancho chico. */
+  --pad: 24px;
   width: 100%;
   max-width: 460px;
   margin: 0 auto;
-  padding: 26px 24px 24px;
+  padding: 26px var(--pad) 24px;
   border-radius: 24px;
   background: rgba(7, 16, 12, .72);
   border: 1px solid rgba(255, 255, 255, .14);
@@ -81,11 +85,13 @@
   -webkit-backdrop-filter: blur(22px) saturate(125%);
 }
 
-/* La franja institucional, al borde del panel */
+/* La franja institucional, al borde del panel. El margen negativo lateral es lo
+   que la saca del relleno del panel: sin él quedaba con 19 px de aire a cada
+   lado, arrancando y terminando en el aire en vez de morder las dos puntas. */
 .regla {
   height: 3px;
   border-radius: 3px;
-  margin: -5px 0 22px;
+  margin: -5px calc(var(--pad) * -1) 22px;
   background: linear-gradient(90deg,
     #F2D91C 0%, #F2D91C 22%, #3cb4f0 22%, #3cb4f0 100%);
 }
@@ -144,6 +150,19 @@
   color: #ffd9d9;
 }
 
+/* El aviso de que todavía no hay ningún punto habilitado se quedaba con el
+   crema de tema claro (#fef5e6) sobre el vidrio negro y la foto oscura: era lo
+   único claro de la pantalla y se llevaba toda la atención, encima para decir
+   algo que el vigilador no puede resolver. Mismo tratamiento que el error: el
+   ámbar de --salida transparentado sobre el vidrio, con el texto claro. */
+.panel :global(.aviso.atencion) {
+  background: rgba(245, 158, 11, .14);
+  border-color: rgba(245, 158, 11, .3);
+  border-left-color: #fbbf24;
+  color: #f4e3c6;
+}
+.panel :global(.aviso.atencion) :global(.fuerte) { color: #fff; }
+
 /* La ayuda debajo de cada campo va en gris de tema claro: sobre el vidrio
    oscuro queda ilegible. Pesa más que la regla global a propósito, para no
    depender de en qué orden salgan las hojas de estilo. */
@@ -159,7 +178,7 @@
   .marca img { height: 29px; }
   .sobretitulo { margin-top: 18px; }
   .centro { padding: 22px 0; }
-  .panel { padding: 23px 18px 20px; border-radius: 20px; }
+  .panel { --pad: 18px; padding: 23px var(--pad) 20px; border-radius: 20px; }
   .pie { align-items: flex-start; font-size: .7rem; }
 }
 

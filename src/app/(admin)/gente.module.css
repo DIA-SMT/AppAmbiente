@@ -7,12 +7,40 @@
 .filtro { flex: 1 1 180px; min-width: 0; }
 .filtroAncho { flex: 3 1 260px; }
 .filtroBotones { display: flex; gap: 8px; flex: 0 0 auto; }
+/* La barra alinea por abajo, y un .boton mide 48 px contra los 52 de un campo:
+   la diferencia se veía arriba, como un escaloncito entre el borde de arriba
+   del botón y el del select que tiene al lado. */
+.filtroBotones :global(.boton) { min-height: var(--toque); }
 
 /* ── Tablas ───────────────────────────────────────────────────────────── */
 
-/* Ancho fijo: así abrir la confirmación no corre el resto de las columnas. */
-.columnaAcciones { width: 250px; }
+/* Ancho fijo: así abrir la confirmación no corre el resto de las columnas.
+   Eran 250 px, que el reparto automático de la tabla no llegaba a darle nunca
+   —se clavaba en 215— y mientras tanto le sacaba el ancho a las columnas que se
+   leen: «María Corbalán — Dirección de Ambiente» salía en cuatro renglones en
+   118 px. Pidiendo 200 el reparto sí lo cumple, y Nombre, Punto y Último acceso
+   recuperan seis píxeles cada una. Sin ningún ancho la columna cae a 155 y los
+   botones vuelven a apilarse de a uno: por eso el ancho fijo se queda. */
+.columnaAcciones { width: 200px; }
+
+/* El correo vive en la misma celda que el usuario, que es `mono`, y
+   `table.datos td.mono` no deja partir nada: eso está puesto para una patente o
+   un código de pila, que cortados al medio no se leen. Un correo sí se parte, y
+   sin esto «mcorbalan@smt.gob.ar» le fijaba 186 px de mínimo a la columna
+   Usuario —los que le faltaban a «Nombre», que salía en cuatro renglones—. Va
+   sobre el <span> y no sobre la celda: el usuario tiene que seguir entero.
+   Gana sin pelear especificidad, porque el nowrap de la celda acá se hereda y
+   lo aplicado al propio elemento le gana a lo heredado. */
+.correo { white-space: normal; overflow-wrap: anywhere; }
 .acciones { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Cada acción de fila es su propio <form>, porque el server action necesita su
+   campo oculto. Sin esto el ítem flex es el <form> y no el <button>: en la
+   ficha del celular, donde el patrón de globals le da `flex: 1 1 auto` a los
+   botones para que salgan a todo el ancho, el que estaba envuelto se quedaba en
+   su ancho natural —«Desactivar» de 94 px al lado de «Contraseña» de 227— y los
+   dos de la ficha de un punto quedaban chicos y amontonados a la izquierda. Es
+   la misma línea que ya usa la tabla de Listas. */
+.acciones form { display: contents; }
 
 .paginado {
   display: flex; align-items: center; justify-content: space-between;

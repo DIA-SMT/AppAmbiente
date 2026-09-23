@@ -87,7 +87,7 @@ export default function FormularioPila({
           {error('codigo') && <span className="error" role="alert">{error('codigo')}</span>}
         </div>
 
-        <div className="campo">
+        <div className={`campo ${estilos.doble}`}>
           <label htmlFor="sitio_id">Punto</label>
           <select
             id="sitio_id"

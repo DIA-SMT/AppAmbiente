@@ -66,7 +66,15 @@ export default async function Hoy() {
                   <span className="mono menor gris cifras">{hora(m.ocurrido_en)}</span>
                   <span className={`chip ${m.tipo}`}>{ETIQUETA_TIPO[m.tipo]}</span>
                   {m.flujo === 'punto_verde' && m.tipo === 'salida' && m.tipo_valorizacion && (
-                    <span className="chip">{ETIQUETA_VALORIZACION[m.tipo_valorizacion]}</span>
+                    // El chip no puede quedarse en una línea: «Proceso de
+                    // asfalto de la Planta de Asfalto Municipal» mide más que
+                    // la tarjeta, y como la lista recorta lo que se sale, el
+                    // borde redondeado quedaba cortado al ras contra el filo.
+                    // Los demás chips de la fila son de dos palabras y no
+                    // llegan nunca a partirse.
+                    <span className="chip" style={{ whiteSpace: 'normal' }}>
+                      {ETIQUETA_VALORIZACION[m.tipo_valorizacion]}
+                    </span>
                   )}
                   {m.vecino_sin_datos && <span className="chip">Sin datos</span>}
                   {anulado && <span className="chip anulado">Anulado</span>}

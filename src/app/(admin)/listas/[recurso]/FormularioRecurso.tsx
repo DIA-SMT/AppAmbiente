@@ -7,6 +7,23 @@ import type { Campo, Opcion, Recurso, ValorFormulario } from '@/lib/recursos'
 import estilos from '../listas.module.css'
 import { guardar, type EstadoGuardado } from './acciones'
 
+/** Un bloque de la grilla: un campo suelto, o los que comparten `grupo`. */
+interface Bloque {
+  grupo?: string
+  campos: Campo[]
+}
+
+/** Junta los campos pegados que declaran el mismo `grupo`; el resto queda solo. */
+function enBloques(campos: Campo[]): Bloque[] {
+  const bloques: Bloque[] = []
+  for (const campo of campos) {
+    const ultimo = bloques[bloques.length - 1]
+    if (campo.grupo && ultimo && ultimo.grupo === campo.grupo) ultimo.campos.push(campo)
+    else bloques.push({ grupo: campo.grupo, campos: [campo] })
+  }
+  return bloques
+}
+
 function Guardar() {
   const { pending } = useFormStatus()
   return (
@@ -58,6 +75,22 @@ export default function FormularioRecurso({
       }
     })
 
+  /** El tilde con su texto al lado. Va suelto o adentro de un grupo. */
+  function casilla(campo: Campo) {
+    return (
+      <label key={campo.nombre} className={estilos.opcion}>
+        <input
+          type="checkbox"
+          name={campo.nombre}
+          value="si"
+          checked={marcado(campo.nombre)}
+          onChange={(e) => poner(campo.nombre, e.target.checked)}
+        />
+        <span>{campo.etiqueta}</span>
+      </label>
+    )
+  }
+
   function control(campo: Campo) {
     const error = estado.errores?.[campo.nombre]
     const invalido = error ? true : undefined
@@ -84,20 +117,7 @@ export default function FormularioRecurso({
       case 'booleano':
         // Envuelto: si el label cuelga directo de .campo, globals.css lo pinta
         // como rótulo de campo (chiquito y en mayúsculas).
-        return (
-          <div className={estilos.opciones}>
-            <label className={estilos.opcion}>
-              <input
-                type="checkbox"
-                name={campo.nombre}
-                value="si"
-                checked={marcado(campo.nombre)}
-                onChange={(e) => poner(campo.nombre, e.target.checked)}
-              />
-              <span>{campo.etiqueta}</span>
-            </label>
-          </div>
-        )
+        return <div className={estilos.opciones}>{casilla(campo)}</div>
 
       case 'select': {
         const disponibles = campo.origen ? opciones[campo.nombre] ?? [] : campo.opciones ?? []
@@ -189,8 +209,37 @@ export default function FormularioRecurso({
 
       {estado.error && <div className="aviso error" role="alert">{estado.error}</div>}
 
+      {/* Lo que vale para todo el formulario, una sola vez y antes de los
+          campos. Colgado de la ayuda de uno le estiraba el alto a su fila de la
+          grilla y dejaba al lado dos huecos en blanco. */}
+      {recurso.nota && (
+        <p className="menor gris" style={{ margin: 0, maxWidth: 'var(--ancho-lectura)' }}>
+          {recurso.nota}
+        </p>
+      )}
+
       <div className={estilos.rejilla}>
-        {recurso.campos.map((campo) => {
+        {enBloques(recurso.campos).map((bloque) => {
+          // Un grupo de casillas ocupa una fila entera: los tildes van uno al
+          // lado del otro y su explicación no le fija el alto a nadie.
+          if (bloque.grupo) {
+            return (
+              <div key={bloque.grupo} className={`campo ${estilos.entero}`}>
+                <span className="etiqueta">{bloque.grupo}</span>
+                <div className={estilos.opciones}>{bloque.campos.map(casilla)}</div>
+                {bloque.campos.map((campo) => campo.ayuda && (
+                  <span key={campo.nombre} className="ayuda">{campo.ayuda}</span>
+                ))}
+                {bloque.campos.map((campo) => estado.errores?.[campo.nombre] && (
+                  <span key={campo.nombre} className="error" role="alert">
+                    {estado.errores[campo.nombre]}
+                  </span>
+                ))}
+              </div>
+            )
+          }
+
+          const [campo] = bloque.campos
           const error = estado.errores?.[campo.nombre]
           const sinEtiquetaPropia = campo.tipo === 'booleano'
           const opcional = !campo.obligatorio

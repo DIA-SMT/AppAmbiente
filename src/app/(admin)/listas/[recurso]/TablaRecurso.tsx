@@ -83,8 +83,11 @@ export default function TablaRecurso({
     )
   }
 
+  // Diez columnas no entran en 390 px: en Materiales quedaban 710 px afuera y
+  // los botones «Editar» y «Desactivar» no se veían nunca. Abajo de 720 px cada
+  // fila pasa a ser una ficha; de 720 para arriba la tabla queda igual.
   return (
-    <div className="desplazable">
+    <div className="desplazable tabla-ficha">
       <table className="datos">
         <thead>
           <tr>
@@ -100,7 +103,7 @@ export default function TablaRecurso({
               </th>
             ))}
             <th>Estado</th>
-            <th><span className="sr-solo">Acciones</span></th>
+            <th className={estilos.celdaAcciones}><span className="sr-solo">Acciones</span></th>
           </tr>
         </thead>
         <tbody>
@@ -121,6 +124,7 @@ export default function TablaRecurso({
                   return (
                     <td
                       key={columna.nombre}
+                      data-rotulo={columna.etiqueta}
                       className={
                         columna.tipo === 'numero' ? 'numero'
                           : columna.tipo === 'mono' ? 'mono' : undefined
@@ -131,13 +135,15 @@ export default function TablaRecurso({
                   )
                 })}
 
-                <td>
+                <td data-rotulo="Estado">
                   {fila.activo
                     ? <span className="chip ingreso">Activo</span>
                     : <span className="chip pendiente">Desactivado</span>}
                 </td>
 
-                <td>
+                {/* Sin data-rotulo a propósito: en la ficha esta celda sale al
+                    pie y a todo el ancho, que es donde se buscan los botones. */}
+                <td className={estilos.celdaAcciones}>
                   <div className={estilos.acciones}>
                     <Link
                       className="boton chico secundario"

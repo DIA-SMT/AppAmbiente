@@ -1,0 +1,12 @@
+/* Lo propio de la pantalla de auditoría. Todo lo demás sale de gente.module.css
+   —los filtros y el paginado, que comparte con Vecinos y Usuarios— y de
+   globals.css. */
+
+/* Un motivo de anulación es una frase libre que escribió alguien a mano. Sin
+   techo estiraba la fila a quinientos píxeles y las otras cinco celdas quedaban
+   flotando en el medio de un rectángulo vacío; desde el celular, además, el
+   hueco no tenía ninguna causa visible, porque la columna que lo causa ya
+   estaba fuera de pantalla. Es el mismo tope que usa la observación de un
+   conteo, y el 100% es para la ficha del celular, donde la celda ya mide lo que
+   mide la pantalla. */
+.motivo { display: block; max-width: min(42ch, 100%); }

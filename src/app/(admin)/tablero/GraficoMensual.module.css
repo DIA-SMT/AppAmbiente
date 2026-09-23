@@ -7,6 +7,22 @@
   color: var(--gris);
 }
 
+/* Los dos trazados del mismo gráfico: el ancho para el panel y el angosto para
+   el celular. El SVG se escala entero, así que la letra se achica con el
+   dibujo; el único modo de que los rótulos se lean a 390 px es dibujarlos en un
+   viewBox chico. El tope de ancho del angosto es para que no se agrande de más
+   cuando la ventana anda cerca del corte. */
+.marcoAngosto { display: none; }
+
+@media (max-width: 720px) {
+  .marcoAncho { display: none; }
+  .marcoAngosto {
+    display: block;
+    max-width: 380px;
+    margin-inline: auto;
+  }
+}
+
 .grilla { stroke: var(--linea); stroke-width: 1; }
 .base   { stroke: var(--linea-fuerte); stroke-width: 1; }
 
@@ -22,6 +38,20 @@
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
+
+/* El año del eje, que en el trazado angosto va abajo del mes y sólo cuando
+   cambia. En el ancho nunca se dibuja: ahí el año va al lado del mes. */
+.rotuloAnio {
+  fill: currentColor;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* En unidades del viewBox angosto, que se dibuja casi 1:1 en el celular: con
+   los 12 px de acá arriba los rótulos salían de 5 px. */
+.marcoAngosto .rotuloMes { font-size: 15px; }
+.marcoAngosto .rotuloValor { font-size: 14px; }
 
 .barraIngreso { fill: var(--ingreso); }
 .barraSalida  { fill: var(--salida); }

@@ -11,8 +11,63 @@
 /* Los recipientes son palabras y no cifras: con el ancho repartido en partes
    iguales "contenedor" y "batea larga" parten en dos renglones. */
 div.recipientes button {
-  flex: 0 1 auto;
+  /* Crecen, pero desde su texto: sin esto los siete envolvían en tres renglones
+     desparejos y «batea larga» quedaba solo en el último, mordido contra la
+     izquierda y con medio renglón vacío al lado. */
+  flex: 1 1 auto;
   padding: 0 14px;
   font-size: .95rem;
   white-space: nowrap;
+}
+
+/* Las cantidades sugeridas sí son una grilla de números, y como tal se lee:
+   todos los botones del mismo tamaño. Con el `flex: 1 1 64px` de globals el
+   sobrante de cada renglón se repartía entre los botones que habían quedado en
+   él, así que el último renglón —el que tiene menos— los sacaba al doble de
+   ancho que los de arriba: «20,0» y «Otro» de 160 px debajo de «4,5» de 105. */
+div.cantidades {
+  display: grid;
+  /* auto-fit y no auto-fill: cuando las sugerencias entran todas en un renglón
+     —que es lo más común— las columnas de más se colapsan y los botones se
+     reparten el ancho entero en vez de dejar un hueco muerto a la derecha. */
+  grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
+}
+
+/* «Para qué se lo lleva» no son cifras: son frases, y dos de ellas pasan los
+   cuarenta caracteres («Manualidades, artesanías y emprendimientos», «Proceso
+   de asfalto de la Planta de Asfalto Municipal»). Repartidas en partes iguales
+   como una fila de cantidades quedaban cuatro columnas de 80 px, la fila entera
+   de 197 px de alto, el texto saliéndose de la caja y «Venta» y «Otro» flotando
+   en el medio de 145 px de hueco. Con la base al contenido cada rótulo se lleva
+   el ancho que necesita: los dos largos quedan solos en su renglón y parten en
+   dos, y los cortos comparten el de abajo. Es lo mismo que hacen los
+   recipientes acá arriba, sin el nowrap: estas frases sí tienen que partirse.
+
+   Crece, pero desde el contenido y no desde 64 px como globals: el reparto del
+   sobrante arranca del ancho que cada rótulo necesita, así que un renglón con
+   uno solo queda a todo el ancho —que es lo que corresponde para algo que se
+   toca con guantes— y uno con tres queda parejo, sin el borde derecho dentado.
+   En la Planta son ocho opciones cortas y entran de a dos o tres por renglón;
+   una columna de ocho botones serían 470 px de pantalla para elegir uno. */
+div.valorizaciones button {
+  flex: 1 1 auto;
+  padding: 9px 14px;
+  font-size: 1rem;
+  font-weight: 750;
+  line-height: 1.25;
+  text-align: left;
+}
+
+/* Fecha y hora cerrado, y la pila cuando hay una sola: los dos son valores que
+   puso la app. La regla `.campo.automatico .control` de globals no los alcanza
+   —adentro no hay ningún .control, sólo un span y un botón— así que se leían
+   como texto suelto entre campos que sí tienen su recuadro. Misma caja
+   punteada, para que se vea que es un dato que ya está puesto y se puede
+   cambiar. */
+div.valorAutomatico {
+  min-height: var(--toque);
+  padding: 8px 15px;
+  border: 1px dashed var(--linea-fuerte);
+  border-radius: var(--r-chico);
+  background: var(--panel-2);
 }

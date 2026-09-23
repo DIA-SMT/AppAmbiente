@@ -6,6 +6,7 @@ import { conSesion } from '@db/sesion'
 import { exigirPanel } from '@/lib/sesion'
 import GraficoMensual, { type MesGrafico } from './GraficoMensual'
 import SubNavegacion from './SubNavegacion'
+import estilos from './tablero.module.css'
 
 export const dynamic = 'force-dynamic'
 
@@ -322,8 +323,6 @@ export default async function Tablero({
     salida: volumenPorMes.get(clave)?.salida ?? 0,
   }))
 
-  const fija: CSSProperties = { position: 'sticky', left: 0, zIndex: 2, background: 'var(--panel)', boxShadow: '1px 0 0 var(--linea)' }
-  const fijaCabecera: CSSProperties = { ...fija, zIndex: 3, background: 'var(--panel-2)' }
   const separa: CSSProperties = { borderLeft: '1px solid var(--linea)' }
   const derecha: CSSProperties = { textAlign: 'right' }
 
@@ -383,14 +382,19 @@ export default async function Tablero({
 
       <section className="pila-chica">
         <h2>Detalle por material</h2>
-        <div className="desplazable">
+        <div className={`desplazable ${estilos.alFinal}`}>
           <table className="datos">
             <caption className="sr-solo">
               Cantidades por material y por mes, separando lo que entró de lo que salió.
             </caption>
             <thead>
               <tr>
-                <th rowSpan={2} style={fijaCabecera}>Material</th>
+                {/* El z-index va en línea a propósito: `table.datos thead th`
+                    vale (0,1,2) y le gana a cualquier clase del módulo, así que
+                    esta celda quedaba en la misma capa que los meses y, por ser
+                    la primera del DOM, los meses le pasaban por encima al
+                    desplazar. El fondo ya se lo pone esa misma regla. */}
+                <th rowSpan={2} className={estilos.fija} style={{ zIndex: 3 }}>Material</th>
                 {claves.map((clave) => (
                   <th key={clave} colSpan={2} className="centrado" style={separa}>
                     {mesCorto(instanteDeMes(clave))}
@@ -423,10 +427,12 @@ export default async function Tablero({
 
                 return (
                   <tr key={fila.clave}>
-                    <th scope="row" style={fija}>
-                      <span className="fila" style={{ gap: 8, flexWrap: 'nowrap' }}>
-                        <span className="punto" style={{ background: fila.color }} />
-                        <span className="fuerte">{fila.material}</span>
+                    <th scope="row" className={estilos.fija}>
+                      <span className={estilos.celdaMaterial}>
+                        <span className={estilos.identidad}>
+                          <span className="punto" style={{ background: fila.color }} />
+                          <span className={`fuerte ${estilos.nombreMaterial}`}>{fila.material}</span>
+                        </span>
                         <span className="gris menor">{fila.unidad}</span>
                       </span>
                     </th>
@@ -486,9 +492,15 @@ function Variacion({ actual, anterior, mesAnterior }: { actual: number; anterior
   }
 
   const sube = porcentaje > 0
+  // Acá no va `.fila`: la flecha y el texto eran dos ítems flex y, en una
+  // tarjeta de 200 px, el texto entero —«−100% vs los primeros 22 días de ago
+  // 2026»— no entraba al lado de la flecha y se iba de una pieza al renglón de
+  // abajo, dejando la flecha sola arriba como un ícono suelto. En flujo de
+  // texto la flecha es una palabra más y el renglón se parte donde tiene que
+  // partirse.
   return (
-    <span className="menor fila" style={{ gap: 5, color: sube ? 'var(--ingreso)' : 'var(--gris)', fontWeight: 700 }}>
-      <IconoFlecha sube={sube} />
+    <span className="menor" style={{ color: sube ? 'var(--ingreso)' : 'var(--gris)', fontWeight: 700 }}>
+      <IconoFlecha sube={sube} />{' '}
       {sube ? '+' : '−'}
       {numero(Math.abs(porcentaje))}% vs {mesAnterior}
     </span>
@@ -498,7 +510,7 @@ function Variacion({ actual, anterior, mesAnterior }: { actual: number; anterior
 function IconoFlecha({ sube }: { sube: boolean }) {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ verticalAlign: '-2px' }}>
       {sube ? <path d="M12 19V5M5 12l7-7 7 7" /> : <path d="M12 5v14M19 12l-7 7-7-7" />}
     </svg>
   )

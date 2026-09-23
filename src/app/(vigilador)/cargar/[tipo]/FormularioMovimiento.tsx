@@ -332,6 +332,7 @@ export default function FormularioMovimiento({
   const patente = listas.vehiculos.find((x) => x.id === vehiculo)?.patente
 
   const destinoElegido = listas.destinos.find((d) => d.id === destino)
+  const origenElegido = listas.origenes.find((o) => o.id === origen)
 
   // El campo de la pila aparece y desaparece solo, según lo que se esté
   // cargando: una salida de chipeo no tiene pila de la cual salir.
@@ -651,7 +652,7 @@ export default function FormularioMovimiento({
             onChange={(e) => { setCuando(e.target.value); setTocoFecha(true) }}
           />
         ) : (
-          <div className="fila-entre">
+          <div className={`fila-entre ${estilos.valorAutomatico}`}>
             <span className="fuerte cifras">{fechaHora(desdeInputFechaHora(cuando))}</span>
             <button type="button" className="boton fantasma chico" onClick={() => setFechaAbierta(true)}>
               Cambiar
@@ -681,7 +682,15 @@ export default function FormularioMovimiento({
           <div key={i} className="tarjeta-plana pila" style={{ padding: 14 }}>
             <div className="campo">
               <div className="fila-entre">
-                <label htmlFor={`material-${i}`}>{i === 0 ? 'Material' : `Material ${i + 1}`}</label>
+                {/* La clase va a mano porque el rótulo está envuelto para poder
+                    poner «Quitar» al lado, y `.campo > label` de globals sólo
+                    alcanza al hijo directo: era el único rótulo de las dos
+                    pantallas de carga que salía en 16 px redonda y oscura, con
+                    la pinta de un dato, mientras «¿CUÁNTOS M³?» —que está en el
+                    mismo campo— salía en versalitas grises. */}
+                <label className="etiqueta" htmlFor={`material-${i}`}>
+                  {i === 0 ? 'Material' : `Material ${i + 1}`}
+                </label>
                 {i > 0 && (
                   <button
                     type="button"
@@ -745,7 +754,11 @@ export default function FormularioMovimiento({
               )}
 
               {sugerencias.length > 0 && (
-                <div className="sugerencias" role="group" aria-labelledby={`rotulo-cantidad-${i}`}>
+                <div
+                  className={`sugerencias ${estilos.cantidades}`}
+                  role="group"
+                  aria-labelledby={`rotulo-cantidad-${i}`}
+                >
                   {sugerencias.map((s) => (
                     <button
                       key={s.valor}
@@ -831,6 +844,13 @@ export default function FormularioMovimiento({
               ))}
               <option value={OTRA}>Otra procedencia…</option>
             </select>
+            {/* Los nombres vienen enteros de la base y el select nativo los
+                corta a mitad de palabra, sin puntos suspensivos ni nada que lo
+                avise: se leía «Dirección de Espacios Verdes y Arbolado» y
+                faltaba «Urbano». Repetido abajo, el vigilador confirma de un
+                vistazo qué procedencia quedó puesta. Es lo mismo que ya se hace
+                con el chip «A confirmar» del destino. */}
+            {origenElegido && <span className="ayuda">{origenElegido.nombre}</span>}
             {campos.origen && <span className="error">{campos.origen}</span>}
           </div>
 
@@ -938,7 +958,11 @@ export default function FormularioMovimiento({
 
           <div className="campo">
             <span className="etiqueta" id="rotulo-valorizacion">Para qué se lo lleva</span>
-            <div className="sugerencias" role="group" aria-labelledby="rotulo-valorizacion">
+            <div
+              className={`sugerencias ${estilos.valorizaciones}`}
+              role="group"
+              aria-labelledby="rotulo-valorizacion"
+            >
               {valorizacionesDeFlujo(flujo).map((v) => (
                 <button
                   key={v}
@@ -1016,7 +1040,7 @@ export default function FormularioMovimiento({
         ) : pilas.length === 1 && !cambiandoPila ? (
           <div className="campo automatico">
             <span className="etiqueta">¿A qué pila va?</span>
-            <div className="fila-entre">
+            <div className={`fila-entre ${estilos.valorAutomatico}`}>
               <span className="fuerte">{pilas[0].codigo}</span>
               <button
                 type="button"

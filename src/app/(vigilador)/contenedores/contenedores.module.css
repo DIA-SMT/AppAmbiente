@@ -13,8 +13,13 @@
 
 /* Un contenedor no tiene número: se lo reconoce por la corriente y por el
    color con el que está pintado. La franja es esa marca, y viene del material.
-   Va con el elemento adelante para ganarle al borde de .tarjeta. */
-li.contenedor { border-left: 5px solid var(--marca, var(--linea-fuerte)); }
+   Va con el elemento adelante para ganarle al borde de .tarjeta.
+
+   En sombra interior y no en `border-left`: un borde más grueso corre el
+   contenido de la tarjeta respecto de las que no lo llevan, y se bisela en
+   diagonal donde cruza las esquinas redondeadas de .tarjeta. La sombra de la
+   tarjeta se repone acá porque esta propiedad la pisa entera. */
+li.contenedor { box-shadow: inset 5px 0 0 var(--marca, var(--linea-fuerte)), var(--sombra); }
 
 /* Un pedido abierto hace más de tres días no es un estado más: se marca con el
    ámbar que el resto de la app usa para lo que reclama atención. */

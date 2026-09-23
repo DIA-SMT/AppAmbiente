@@ -13,12 +13,17 @@
 }
 
 /* Reusa .sugerencias de globals (incluido el estado aria-pressed) pero con
-   tamaño de etiqueta: acá los rótulos son palabras, no números. */
+   tamaño de etiqueta: acá los rótulos son palabras, no números.
+   Las medidas son las mismas que las de `.atajos a` de trazabilidad.module.css:
+   son los mismos cuatro atajos de período —Hoy, Últimos 7 días, Este mes, Mes
+   pasado— y se veían distintos en cada pantalla, acá pastillas de 40 px y allá
+   botones de 52. Puestos uno al lado del otro no parecían el mismo control. */
 .atajos button {
   flex: 0 1 auto;
   min-width: 0;
-  min-height: 40px;
-  padding: 0 14px;
+  min-height: var(--toque);
+  padding: 0 16px;
   font-size: .84rem;
   font-weight: 700;
+  white-space: nowrap;
 }

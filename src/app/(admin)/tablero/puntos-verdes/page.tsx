@@ -121,15 +121,11 @@ const decimalesDe = (valores: number[]) => (valores.every((v) => Number.isIntege
 const enUnidad = (valor: number, plural: string, decimales: number) =>
   cantidad(valor, { nombre: plural, nombre_plural: plural, decimales })
 
-// La primera columna queda fija al desplazar de costado: con ocho períodos por
-// delante, si el punto se va de pantalla la fila deja de querer decir algo.
-// Va en línea y no en el módulo porque tiene que ganarle a table.datos th.
-const fija: CSSProperties = {
-  position: 'sticky', left: 0, zIndex: 2,
-  background: 'var(--panel)', boxShadow: '1px 0 0 var(--linea)',
-}
-const fijaCabecera: CSSProperties = { ...fija, zIndex: 3, background: 'var(--panel-2)' }
-const fijaTotal: CSSProperties = { ...fija, background: 'var(--panel-2)' }
+// La primera columna queda fija al desplazar de costado (estilos.fija): con
+// ocho períodos por delante, si el punto se va de pantalla la fila deja de
+// querer decir algo. Lo único que sigue yendo en línea es el z-index de la
+// celda del encabezado, que tiene que ganarle a `table.datos thead th`.
+const sobreLosMeses: CSSProperties = { zIndex: 3 }
 const separa: CSSProperties = { borderLeft: '1px solid var(--linea)' }
 const derecha: CSSProperties = { textAlign: 'right' }
 
@@ -512,7 +508,7 @@ export default async function TableroPuntosVerdes({
 
       <section className="pila-chica">
         <h2>Vecinos por punto</h2>
-        <div className="desplazable">
+        <div className={`desplazable ${estilos.alFinal}`}>
           <table className="datos">
             <caption className="sr-solo">
               Visitas, visitas que vienen de un conteo diario, vecinos identificados y visitas sin
@@ -520,7 +516,7 @@ export default async function TableroPuntosVerdes({
             </caption>
             <thead>
               <tr>
-                <th rowSpan={2} style={fijaCabecera}>Punto</th>
+                <th rowSpan={2} className={estilos.fija} style={sobreLosMeses}>Punto</th>
                 {claves.map((clave) => (
                   <th key={clave} colSpan={4} className="centrado" style={separa}>
                     {rotulo(clave)}
@@ -542,12 +538,17 @@ export default async function TableroPuntosVerdes({
             <tbody>
               {filasPuntos.map((punto) => (
                 <tr key={punto.id}>
-                  <th scope="row" style={fija}>
-                    <span className="fila" style={{ gap: 8, flexWrap: 'nowrap' }}>
-                      <span className="mono fuerte">{punto.codigo}</span>
+                  {/* El código, el nombre y el chip competían por el ancho de
+                      una columna sin mínimo: «PV-03» se partía en «PV-» y «03»
+                      y el nombre en cuatro pedazos, con las 28 celdas de
+                      números al lado con un solo dígito cada una. El código no
+                      se parte nunca y el chip baja a su propio renglón. */}
+                  <th scope="row" className={estilos.fija}>
+                    <span className={estilos.identidadPunto}>
+                      <span className={`mono fuerte ${estilos.codigoPunto}`}>{punto.codigo}</span>
                       <span className="gris menor">{punto.nombre}</span>
-                      {punto.soloConteo && <span className="chip diferida">solo conteo diario</span>}
                     </span>
+                    {punto.soloConteo && <span className="chip diferida">solo conteo diario</span>}
                   </th>
                   {claves.map((clave) => {
                     const t = punto.porPeriodo.get(clave) ?? enCero()
@@ -571,9 +572,9 @@ export default async function TableroPuntosVerdes({
                 </tr>
               ))}
             </tbody>
-            <tfoot className={estilos.total}>
+            <tfoot>
               <tr>
-                <th scope="row" style={fijaTotal}>Todos los puntos</th>
+                <th scope="row" className={estilos.fija}>Todos los puntos</th>
                 {claves.map((clave) => {
                   const t = totalPorPeriodo.get(clave) ?? enCero()
                   return (
@@ -695,7 +696,7 @@ export default async function TableroPuntosVerdes({
                 </caption>
                 <thead>
                   <tr>
-                    <th style={fijaCabecera}>Material</th>
+                    <th className={estilos.fija} style={sobreLosMeses}>Material</th>
                     <th>Unidad</th>
                     {TIPOS.map((tipo) => (
                       <th key={tipo} style={derecha}>{ETIQUETA_VALORIZACION[tipo]}</th>
@@ -709,7 +710,7 @@ export default async function TableroPuntosVerdes({
                     const decimales = decimalesDe(valores)
                     return (
                       <tr key={fila.clave}>
-                        <th scope="row" style={fija}>
+                        <th scope="row" className={estilos.fija}>
                           <span className="fila" style={{ gap: 8, flexWrap: 'nowrap' }}>
                             <span className="punto" style={{ background: fila.color }} />
                             <span className="fuerte">{fila.nombre}</span>
@@ -748,11 +749,15 @@ export default async function TableroPuntosVerdes({
  */
 function SinDetalle({ soloConteo, children }: { soloConteo: boolean; children: React.ReactNode }) {
   if (!soloConteo) return <>{children}</>
+  // Sin `white-space: nowrap`: la frase entera imponía unos 170 px de ancho
+  // mínimo a dos columnas de cada período —columnas que llevan números de dos
+  // dígitos— y empujaba la tabla mucho más a la derecha de lo necesario, con
+  // veintinueve columnas ya de por sí apretadas. Partida en dos renglones no
+  // le saca ancho a nadie: las celdas están alineadas arriba.
   return (
     <td
       colSpan={2}
       className="menor gris"
-      style={{ whiteSpace: 'nowrap' }}
       title="El conteo diario registra cuánta gente vino, no quién: no es que no hubo vecinos identificados, es que esta modalidad no puede identificarlos."
     >
       no se sabe quién vino

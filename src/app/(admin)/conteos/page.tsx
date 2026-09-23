@@ -368,7 +368,11 @@ export default async function PantallaConteos({
             </p>
           </div>
         ) : (
-          <div className="desplazable">
+          /* Cinco columnas no entran en 390 px: «Cuándo se cargó» y «Corregir»
+             quedaban fuera de la pantalla y desde el celular parecía que un
+             conteo no se podía corregir. Abajo de 720 px cada conteo pasa a ser
+             una ficha apilada; arriba de 720 no cambia nada. */
+          <div className="desplazable tabla-ficha">
             <table className="datos">
               <caption className="sr-solo">
                 Conteos diarios cargados en los últimos {numero(DIAS)} días, agrupados por día.
@@ -412,9 +416,11 @@ export default async function PantallaConteos({
                             <span className={estilos.observacion}>{c.observaciones}</span>
                           )}
                         </th>
-                        <td className="numero fuerte">{numero(c.vecinos)}</td>
-                        <td>{c.cargado_por ?? <span className="gris">—</span>}</td>
-                        <td style={{ whiteSpace: 'nowrap' }}>
+                        <td data-rotulo="Vecinos" className="numero fuerte">{numero(c.vecinos)}</td>
+                        <td data-rotulo="Quién lo cargó">
+                          {c.cargado_por ?? <span className="gris">—</span>}
+                        </td>
+                        <td data-rotulo="Cuándo se cargó" className={estilos.cuando}>
                           {fechaHora(c.creado_en)}
                           {corregido && (
                             <>
@@ -425,10 +431,16 @@ export default async function PantallaConteos({
                             </>
                           )}
                         </td>
+                        {/* Sin data-rotulo a propósito: en la ficha del celular
+                            esta celda sale a todo el ancho y sin rótulo, con el
+                            botón al pie, que es donde se lo busca. El .fila es
+                            lo que le da al botón contra qué estirarse ahí. */}
                         <td>
-                          <Link href={enlaceCorregir(c)} className="boton chico secundario">
-                            Corregir
-                          </Link>
+                          <div className="fila">
+                            <Link href={enlaceCorregir(c)} className="boton chico secundario">
+                              Corregir
+                            </Link>
+                          </div>
                         </td>
                       </tr>
                     )

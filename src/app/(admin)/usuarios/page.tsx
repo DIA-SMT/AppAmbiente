@@ -36,6 +36,25 @@ interface FilaPerfil {
   rastro: string | null
 }
 
+/**
+ * El correo de la fila, partido por el arroba cuando no entra.
+ *
+ * La celda es `mono` y `table.datos td.mono` no deja partir nada —está puesto
+ * para una patente o un código de pila—, así que «mcorbalan@smt.gob.ar» entero
+ * le fijaba 186 px de mínimo a la columna Usuario y se los sacaba a Nombre, que
+ * salía en cuatro renglones. La clase lo deja partirse; el <wbr> le dice dónde,
+ * porque el navegador prefiere un corte de verdad antes que cortar por el medio
+ * de una palabra, y sin él quedaba «abrito@smt.g / ob.ar».
+ */
+function Correo({ valor }: { valor: string }) {
+  const corte = valor.indexOf('@')
+  return (
+    <span className={`menor gris ${estilos.correo}`}>
+      {corte < 0 ? valor : <>{valor.slice(0, corte + 1)}<wbr />{valor.slice(corte + 1)}</>}
+    </span>
+  )
+}
+
 export default async function PantallaUsuarios() {
   const sesion = await exigirPanel()
 
@@ -114,22 +133,34 @@ export default async function PantallaUsuarios() {
     <div className="pila">
       <header className="pila-chica">
         <h1>Usuarios y accesos</h1>
-        <p className="menor gris">
+        {/* Ocho oraciones seguidas de punta a punta del panel eran diez
+            renglones en el celular. Van en tres párrafos y con el ancho de
+            lectura que ya usan Listas y Entidades. */}
+        <p className="menor gris" style={{ margin: 0, maxWidth: 'var(--ancho-lectura)' }}>
           Un usuario por punto, compartido por quienes estén de turno, y uno de coordinación por
-          cada persona que administre. El PIN de un punto se muestra una sola vez al crearlo o al
-          resetearlo. Una cuenta de coordinación se crea con su correo institucional y una
-          contraseña para la primera vez: apenas entra, el sistema le pide que elija la suya, así
-          que quien la creó deja de saberla. Desactivar un usuario le corta el acceso en el próximo
-          pedido, aunque tenga la sesión abierta en el celular. Al que nunca llegó a cargar nada se
-          lo puede eliminar de la lista, y eso no tiene vuelta atrás; al que ya cargó algo sólo se
-          lo desactiva, para no perder quién hizo qué.
+          cada persona que administre. El PIN de un punto se muestra una sola vez: al crearlo o al
+          resetearlo.
+        </p>
+        <p className="menor gris" style={{ margin: 0, maxWidth: 'var(--ancho-lectura)' }}>
+          Una cuenta de coordinación se crea con su correo institucional y una contraseña
+          provisoria. La próxima vez que entre, el panel la lleva a Mi cuenta y no la deja ir a
+          otra pantalla hasta que elija la suya, así que quien la creó deja de saberla.
+        </p>
+        <p className="menor gris" style={{ margin: 0, maxWidth: 'var(--ancho-lectura)' }}>
+          Desactivar un usuario le corta el acceso en el próximo pedido, aunque tenga la sesión
+          abierta en el celular. Al que nunca llegó a cargar nada se lo puede eliminar de la lista,
+          y eso no tiene vuelta atrás; al que ya cargó algo sólo se lo desactiva, para no perder
+          quién hizo qué.
         </p>
       </header>
 
       {/* El resultado de eliminar se muestra acá arriba y no en la fila: la fila
           que se borró ya no está cuando llega la respuesta. */}
       <ListaDeUsuarios resumen={`${numero(perfiles.length)} usuarios · ${numero(activos)} activos`}>
-        <div className="desplazable">
+        {/* Siete columnas no entran en 390 px: quedaban 689 px afuera y los
+            botones de resetear el PIN, desactivar y eliminar parecían no
+            existir. Abajo de 720 px cada usuario pasa a ser una ficha. */}
+        <div className="desplazable tabla-ficha">
           <table className="datos">
             <thead>
               <tr>
@@ -150,24 +181,24 @@ export default async function PantallaUsuarios() {
                 const sinTerminar = p.rol === 'admin' && (!p.correo || p.sin_clave_propia)
                 return (
                   <tr key={p.id}>
-                    <td className="mono">
+                    <td data-rotulo="Usuario" className="mono">
                       <div className="pila-chica">
                         <span>{p.usuario}</span>
                         {/* El correo va pegado al usuario porque son lo mismo:
                             las dos formas de escribir quién es al entrar. */}
-                        {p.correo && <span className="menor gris">{p.correo}</span>}
+                        {p.correo && <Correo valor={p.correo} />}
                       </div>
                     </td>
-                    <td className="fuerte">{p.nombre}</td>
-                    <td>
+                    <td data-rotulo="Nombre" className="fuerte">{p.nombre}</td>
+                    <td data-rotulo="Rol">
                       <span className="chip">{p.rol === 'admin' ? 'Coordinación' : 'Punto'}</span>
                     </td>
-                    <td>
+                    <td data-rotulo="Punto">
                       {p.sitio_nombre
                         ? <>{p.sitio_nombre} <span className="menor gris mono">{p.sitio_codigo}</span></>
                         : <span className="gris">Todos</span>}
                     </td>
-                    <td>
+                    <td data-rotulo="Último acceso">
                       {p.ultimo_acceso
                         ? <>
                             {fechaHora(p.ultimo_acceso)}
@@ -175,15 +206,23 @@ export default async function PantallaUsuarios() {
                           </>
                         : <span className="gris">Nunca entró</span>}
                     </td>
-                    <td>
+                    <td data-rotulo="Estado">
                       <div className="pila-chica">
                         <span className={p.activo ? 'chip ingreso' : 'chip anulado'}>
                           {p.activo ? 'Activo' : 'Desactivado'}
                         </span>
+                        {/* La fecha va afuera del chip: un chip no se parte
+                            (white-space: nowrap), y «Bloqueado hasta 22/09/2026
+                            10:05» le imponía 250 px de ancho mínimo a esta
+                            columna, que es de lo que la tabla se pasaba del
+                            panel. Afuera se acomoda en dos renglones. */}
                         {trabado && (
-                          <span className="chip salida">
-                            Bloqueado hasta {fechaHora(p.bloqueado_hasta)}
-                          </span>
+                          <>
+                            <span className="chip salida">Bloqueado</span>
+                            <span className="menor gris">
+                              hasta {fechaHora(p.bloqueado_hasta)}
+                            </span>
+                          </>
                         )}
                         {!trabado && p.intentos_fallidos > 0 && (
                           <span className="menor gris">
@@ -193,17 +232,23 @@ export default async function PantallaUsuarios() {
                         {/* Sólo en coordinación: al usuario de un punto no le
                             corresponde correo ni contraseña propia —la cuenta
                             es del punto—, y decir que le "falta" sería
-                            inventarle un problema. */}
+                            inventarle un problema.
+
+                            Qué pasa cuando entre lo dice el encabezado de la
+                            pantalla, una vez: repetido en cada fila eran tres
+                            renglones adentro de una columna angosta, y la fila
+                            entera se estiraba. */}
                         {sinTerminar && (
                           <>
                             {!p.correo && <span className="chip pendiente">Sin correo</span>}
+                            {/* Un chip no se parte, así que su texto es el
+                                ancho mínimo de la columna: cuanto más largo,
+                                más se pasa la tabla del panel. Y dice lo mismo
+                                que «todavía no eligió la suya»: la que tiene se
+                                la prestó quien la creó. */}
                             {p.sin_clave_propia && (
-                              <span className="chip pendiente">Todavía no eligió la suya</span>
+                              <span className="chip pendiente">Contraseña prestada</span>
                             )}
-                            <span className="menor gris">
-                              La próxima vez que entre, el panel la lleva a Mi cuenta y no la deja
-                              ir a otra pantalla hasta que lo complete.
-                            </span>
                           </>
                         )}
                       </div>

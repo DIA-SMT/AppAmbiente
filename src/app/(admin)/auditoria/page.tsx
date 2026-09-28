@@ -63,9 +63,17 @@ export default async function PantallaAuditoria({
   const condiciones: string[] = []
   if (accion) condiciones.push(`a.accion = ${par(accion)}`)
   if (tabla) condiciones.push(`a.tabla = ${par(tabla)}`)
-  // Los rangos se leen en hora de Tucumán, que es lo que ve la coordinadora.
-  if (desde) condiciones.push(`a.creado_en >= (${par(desde)}::date at time zone 'America/Argentina/Tucuman')`)
-  if (hasta) condiciones.push(`a.creado_en < ((${par(hasta)}::date + 1) at time zone 'America/Argentina/Tucuman')`)
+  // Los rangos se leen en hora de Tucumán, que es lo que ve la coordinadora, y
+  // con el mismo corte que /movimientos: la zona la pone conSesion().
+  //
+  // Antes decía `::date at time zone 'America/Argentina/Tucuman'`, que parece
+  // explícito y no lo era. Un `date` pasa primero a timestamptz con la zona de
+  // la sesión, que era UTC; `at time zone` lo devuelve como las 21 del día
+  // anterior en hora local, y la base vuelve a leer esas 21 como UTC: el corte
+  // caía a las 18 de Tucumán. «Desde el 01/09» traía el 31 desde las 18, y
+  // «hasta el 01/09» perdía lo del 1 después de esa hora.
+  if (desde) condiciones.push(`a.creado_en >= ${par(desde)}::timestamptz`)
+  if (hasta) condiciones.push(`a.creado_en < (${par(hasta)}::date + interval '1 day')`)
   const donde = condiciones.length ? `where ${condiciones.join(' and ')}` : ''
 
   const { filas, total, actual } = await conSesion(sesion, async (tx) => {

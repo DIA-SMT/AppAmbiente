@@ -29,11 +29,6 @@ const DIA = 86_400_000
 // ── Fechas ──────────────────────────────────────────────────────────────
 
 /**
- * La semana y el mes llegan como date y, según el motor, como texto o como
- * Date. Se reducen a 'aaaa-mm-dd' leyendo el día local: pasar por toISOString()
- * corre la fecha un día para atrás si el servidor está al este de Greenwich.
- */
-/**
  * Una columna `date` de Postgres es una fecha de calendario, sin hora ni zona,
  * y el driver la entrega como Date a medianoche UTC. Hay que leerla en UTC: con
  * los getters locales, en Argentina (UTC−3) el 1 de septiembre se lee como 31

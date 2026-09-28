@@ -3,6 +3,11 @@
  * Todo el sistema muestra hora local de Tucumán (UTC-3, sin horario de verano).
  */
 
+/**
+ * db/sesion.ts la toma de acá y la pone en cada transacción, así la base corta
+ * los días donde la pantalla los muestra. Una sola constante para las dos
+ * puntas: si fueran dos, alcanzaría con cambiar una para que no coincidan.
+ */
 export const ZONA = 'America/Argentina/Tucuman'
 
 const fFecha = new Intl.DateTimeFormat('es-AR', {

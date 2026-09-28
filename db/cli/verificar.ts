@@ -15,6 +15,7 @@ import * as modulos from 'node:module'
 import { comoServicio, conSesion, type Sesion } from '../sesion'
 import { hashearCredencial } from '../credenciales'
 import { obtenerBase, describirMotor } from '../client'
+import { ZONA, fechaHora } from '../../src/lib/formato'
 
 let pasaron = 0
 let fallaron = 0
@@ -107,6 +108,11 @@ const ENTIDADES_PRUEBA = ['Carrero de prueba', 'Productor de prueba verificar', 
 const PILA_PRUEBA = 'VERIF-PRUEBA'
 /** De dónde dice venir la poda que forma la pila de prueba. */
 const PODA_PRUEBA = 'Poda de db:verificar'
+/**
+ * Adónde van las dos salidas del borde del día. Es lo que las separa de todo lo
+ * demás en el buscador de Movimientos, que busca también por destino.
+ */
+const DESTINO_BORDE = 'Borde del día de db:verificar'
 
 /**
  * Los tres usuarios que esta verificación necesita, y que se crea sola.
@@ -264,6 +270,9 @@ async function sesionesDePrueba(): Promise<Record<'admin' | 'planta' | 'punto' |
 
 type ModuloIngreso = typeof import('../../src/lib/acceso')
 let porQueNoSeCargo = ''
+type ModuloDatos = typeof import('../../src/lib/datos')
+let porQueNoSeCargaronLosDatos = ''
+let serverOnlyResuelto = false
 
 /**
  * `server-only` lo resuelve el build de Next por su cuenta, pero no está en
@@ -279,9 +288,14 @@ let porQueNoSeCargo = ''
  * `react-server`. Fuera de esta CLI no cambia nada: la app la sigue armando Next.
  */
 function resolverServerOnly() {
+  // Lo piden la capa de datos y el ingreso: con un enganche alcanza.
+  if (serverOnlyResuelto) return
+  serverOnlyResuelto = true
+
   // registerHooks() existe desde Node 22.15. En uno anterior no se engancha
-  // nada y las cuatro del ingreso se saltean como antes, avisando: vale más
-  // que corran las otras setenta que tumbar la verificación entera acá.
+  // nada y las cuatro del ingreso y las tres de los filtros por fecha se
+  // saltean, avisando: vale más que corran las otras setenta que tumbar la
+  // verificación entera acá.
   const registrar = modulos.registerHooks
   if (typeof registrar !== 'function') return
 
@@ -307,6 +321,23 @@ async function cargarIngreso(): Promise<ModuloIngreso | null> {
     return await import('../../src/lib/acceso')
   } catch (e) {
     porQueNoSeCargo = (e as Error).message.split('\n')[0].slice(0, 90)
+    return null
+  }
+}
+
+/**
+ * Las consultas de las pantallas, tal cual las usan ellas.
+ *
+ * Los filtros por fecha de /movimientos y /trazabilidad se prueban con sus
+ * propias funciones y no con un SQL copiado acá: una copia pasa aunque la
+ * pantalla se rompa, que es justo lo que no tiene que poder pasar.
+ */
+async function cargarDatos(): Promise<ModuloDatos | null> {
+  try {
+    resolverServerOnly()
+    return await import('../../src/lib/datos')
+  } catch (e) {
+    porQueNoSeCargaronLosDatos = (e as Error).message.split('\n')[0].slice(0, 90)
     return null
   }
 }
@@ -756,6 +787,142 @@ async function main() {
       ? `${cadena.pila}: ${Number(cadena.m3 ?? 0).toFixed(2)} m³ de ${cadena.procedencias ?? 'ninguna procedencia'}`
       : 'la salida no aparece en v_trazabilidad_salidas',
   )
+
+  // ═══ Dónde termina el día ═════════════════════════════════════════════
+  //
+  // Supabase y PGlite corren en UTC, y la base cortaba los días a la medianoche
+  // de allá, que en Tucumán son las 21: una salida del 31/08 a las 23:30 caía en
+  // septiembre en el tablero, y «hasta el 31/08» en Movimientos no la traía. Lo
+  // arregla la zona que ponen conSesion() y comoServicio(), así que se prueba
+  // por las dos puertas y con las consultas de las pantallas.
+  //
+  // Las dos salidas del borde salen de la pila de prueba: así sirven también
+  // para Trazabilidad, que es la otra pantalla que filtra por rango.
+  console.log('\n  Dónde termina el día')
+
+  const ZONA_PUESTA = "select current_setting('TimeZone') as zona"
+  const [conIdentidad] = await conSesion(admin, (tx) => tx.consultar<{ zona: string }>(ZONA_PUESTA))
+  const [comoElIngreso] = await comoServicio((tx) => tx.consultar<{ zona: string }>(ZONA_PUESTA))
+  revisar(
+    'las pantallas, el ingreso y estos comandos cortan los días en Tucumán',
+    conIdentidad?.zona === ZONA && comoElIngreso?.zona === ZONA,
+    `con sesión ${conIdentidad?.zona ?? '?'} · como servicio ${comoElIngreso?.zona ?? '?'}`,
+  )
+
+  /** Las salidas de la Planta que el tablero cuenta en agosto y en septiembre de 2026. */
+  const salidasPorMes = async () => {
+    const filas = await conSesion(admin, (tx) =>
+      tx.consultar<{ mes: string; n: string }>(
+        `select mes::text as mes, sum(movimientos)::text as n
+           from v_resumen_mensual
+          where flujo = 'planta' and tipo = 'salida' and mes in ('2026-08-01', '2026-09-01')
+          group by mes`,
+      ),
+    )
+    const del = (mes: string) => Number(filas.find((f) => f.mes === mes)?.n ?? 0)
+    return { agosto: del('2026-08-01'), septiembre: del('2026-09-01') }
+  }
+
+  // Se cuenta lo que suman y no lo que hay: en agosto y en septiembre ya hay
+  // salidas de verdad, y las de prueba tienen que caer una en cada mes.
+  const antesDelBorde = await salidasPorMes()
+
+  // Como servicio, igual que el resto de lo que esta verificación prepara: un
+  // vigilador no puede cargar nada de hace un mes. Los instantes llevan la zona
+  // escrita, así que qué hora son no depende de la sesión: lo que se mira es
+  // dónde los corta la base al leerlos.
+  const borde = await comoServicio(async (tx) => {
+    const [pila] = await tx.consultar<{ id: string }>('select id from pilas where codigo = $1', [PILA_PRUEBA])
+    const ids = { agosto: '', septiembre: '' }
+    for (const [mes, instante] of [
+      ['agosto', '2026-08-31T23:30:00-03:00'],
+      ['septiembre', '2026-09-01T00:30:00-03:00'],
+    ] as const) {
+      const [mov] = await tx.consultar<{ id: string }>(
+        `insert into movimientos (flujo, tipo, sitio_id, pila_id, ocurrido_en, origen_clase, origen_sitio_id,
+                                  destino_clase, destino_detalle, tipo_valorizacion,
+                                  cargado_por_id, observaciones)
+         values ('planta', 'salida', $1, $2, $3, 'sitio', $1, 'texto', $4, 'uso_interno_huerta', $5, $6)
+         returning id`,
+        [planta.sitioId, pila?.id ?? null, instante, DESTINO_BORDE, planta.perfilId, MARCA],
+      )
+      // Con su material: v_resumen_mensual sale de los ítems, y un movimiento
+      // sin ninguno no figura en ningún mes.
+      await tx.consultar(
+        `insert into movimiento_items (movimiento_id, material_id, cantidad, unidad_id)
+         select $1, m.id, 1, m.unidad_default_id
+           from materiales m
+          where m.activo and 'planta' = any(m.flujos) and 'salida' = any(m.tipos)
+          order by m.orden limit 1`,
+        [mov.id],
+      )
+      ids[mes] = mov.id
+    }
+    return ids
+  })
+
+  const despuesDelBorde = await salidasPorMes()
+  const sumaron =
+    `agosto sumó ${despuesDelBorde.agosto - antesDelBorde.agosto}, ` +
+    `septiembre ${despuesDelBorde.septiembre - antesDelBorde.septiembre}`
+  revisar(
+    'una salida del 31/08 a las 23:30 cuenta en agosto en el tablero',
+    despuesDelBorde.agosto - antesDelBorde.agosto === 1,
+    sumaron,
+  )
+  revisar(
+    'y una del 01/09 a las 00:30, en septiembre',
+    despuesDelBorde.septiembre - antesDelBorde.septiembre === 1,
+    sumaron,
+  )
+
+  const datos = await cargarDatos()
+  if (!datos) {
+    console.log(`  · no se pudo cargar src/lib/datos.ts → ${porQueNoSeCargaronLosDatos}`)
+    for (const queda of [
+      'el filtro «hasta el 31/08» de Movimientos trae la de las 23:30 y no la de las 00:30',
+      'y «el 01/09», al revés',
+      'Trazabilidad corta el rango antes del tope de filas',
+    ]) {
+      omitir(queda, 'sin la capa de datos')
+    }
+  } else {
+    const { buscarMovimientosEnTx, trazabilidadDeSalidasEnTx } = datos
+    const [hasta31, del1] = await conSesion(admin, (tx) =>
+      Promise.all([
+        buscarMovimientosEnTx(tx, { flujo: 'planta', texto: DESTINO_BORDE, hasta: '2026-08-31' }),
+        buscarMovimientosEnTx(tx, {
+          flujo: 'planta', texto: DESTINO_BORDE, desde: '2026-09-01', hasta: '2026-09-01',
+        }),
+      ]),
+    )
+    const HORA_DE = { [borde.agosto]: 'la de las 23:30', [borde.septiembre]: 'la de las 00:30' }
+    const cuales = (r: { filas: Array<{ id: string }> }) =>
+      r.filas.map((f) => HORA_DE[f.id] ?? f.id).join(' y ') || 'ninguna'
+    revisar(
+      'el filtro «hasta el 31/08» de Movimientos trae la de las 23:30 y no la de las 00:30',
+      hasta31.filas.length === 1 && hasta31.filas[0].id === borde.agosto,
+      `trajo ${cuales(hasta31)}`,
+    )
+    revisar(
+      'y «el 01/09», al revés',
+      del1.filas.length === 1 && del1.filas[0].id === borde.septiembre,
+      `trajo ${cuales(del1)}`,
+    )
+
+    // Con tope de una fila, lo más nuevo hasta el 31/08 tiene que ser la salida
+    // de las 23:30. Con el `hasta` aplicado después del tope, esa única fila era
+    // la más nueva de todas —la de la cadena del compost, de recién— y el corte
+    // la tiraba: el rango salía vacío.
+    const [ultima] = await conSesion(admin, (tx) =>
+      trazabilidadDeSalidasEnTx(tx, { desde: '2026-08-31', hasta: '2026-08-31', limite: 1 }),
+    )
+    revisar(
+      'Trazabilidad corta el rango antes del tope de filas',
+      ultima?.movimiento_id === borde.agosto,
+      ultima ? `trajo el Nº ${ultima.numero}, del ${fechaHora(ultima.ocurrido_en)}` : 'no trajo ninguna',
+    )
+  }
 
   // ═══ Conteo diario ════════════════════════════════════════════════════
   console.log('\n  Conteo diario de vecinos')

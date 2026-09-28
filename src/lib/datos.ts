@@ -788,15 +788,28 @@ export async function trazaDeSalida(sesion: Sesion, movimientoId: string): Promi
   return conSesion(sesion, (tx) => trazaDeSalidaEnTx(tx, movimientoId))
 }
 
-/** Salidas con pila declarada, para el listado de trazabilidad. */
+/**
+ * Salidas con pila declarada, para el listado de trazabilidad.
+ *
+ * Los dos bordes del rango van acá, antes del `limit`, con el mismo criterio
+ * que armarFiltros: `hasta` es inclusivo, hasta la medianoche del día siguiente.
+ * Antes el `hasta` lo aplicaba la pantalla sobre las filas que ya habían vuelto,
+ * y para entonces el tope ya se había llenado con las más nuevas: con 500
+ * salidas posteriores al rango, «el mes pasado» salía vacío aunque lo hubiera
+ * tenido entero.
+ */
 export async function trazabilidadDeSalidasEnTx(
   tx: Conexion,
-  opciones: { desde?: string; limite?: number } = {},
+  opciones: { desde?: string; hasta?: string; limite?: number } = {},
 ): Promise<TrazaDeSalida[]> {
-  const valores: unknown[] = [opciones.desde ?? '2000-01-01']
+  const valores: unknown[] = []
+  const par = (v: unknown) => `$${valores.push(v)}`
+  const cond = [`ocurrido_en >= ${par(opciones.desde ?? '2000-01-01')}::timestamptz`]
+  if (opciones.hasta) cond.push(`ocurrido_en < (${par(opciones.hasta)}::date + interval '1 day')`)
+
   return tx.consultar<TrazaDeSalida>(
     `select * from v_trazabilidad_salidas
-      where ocurrido_en >= $1::timestamptz
+      where ${cond.join(' and ')}
       order by ocurrido_en desc
       limit ${Math.min(Math.max(opciones.limite ?? 100, 1), 500)}`,
     valores,
@@ -805,7 +818,7 @@ export async function trazabilidadDeSalidasEnTx(
 
 export async function trazabilidadDeSalidas(
   sesion: Sesion,
-  opciones: { desde?: string; limite?: number } = {},
+  opciones: { desde?: string; hasta?: string; limite?: number } = {},
 ): Promise<TrazaDeSalida[]> {
   return conSesion(sesion, (tx) => trazabilidadDeSalidasEnTx(tx, opciones))
 }

@@ -59,17 +59,6 @@ function atajos(): Array<{ rotulo: string; desde: string; hasta: string }> {
   ]
 }
 
-/**
- * El corte de arriba del rango, igual que lo hace el SQL del listado de
- * movimientos: `ocurrido_en < hasta + 1 día`, con el día leído en UTC como lo
- * castea Postgres. La vista de trazabilidad no filtra por `hasta`, y si acá se
- * usara otro criterio las salidas con pila podrían dar más que el total.
- */
-function antesDelCorte(ocurrido: string | Date, hasta: string): boolean {
-  const [a, m, d] = hasta.split('-').map(Number)
-  return new Date(ocurrido).getTime() < Date.UTC(a, m - 1, d) + DIA
-}
-
 const limpiar = (crudo: string | null) =>
   (crudo ?? '').split('·').map((p) => p.trim()).filter(Boolean)
 
@@ -88,8 +77,18 @@ export default async function PantallaTrazabilidad({
   const desde = FECHA.test(pedidoDesde) ? pedidoDesde : ''
   const hasta = FECHA.test(pedidoHasta) ? pedidoHasta : ''
 
-  const [leidas, { total }] = await Promise.all([
-    trazabilidadDeSalidas(sesion, { desde: desde || undefined, limite: LIMITE }),
+  // Los dos bordes van al SQL, con el mismo criterio en las dos consultas: las
+  // salidas con pila salen del mismo rango que el total contra el que se
+  // comparan. El `hasta` se aplicaba acá, sobre lo que ya había vuelto, imitando
+  // el corte en UTC que hacía la base. Con la base cortando en Tucumán, esa
+  // imitación habría dejado afuera las salidas de las 21 a las 24 que el total
+  // sí cuenta.
+  const [filas, { total }] = await Promise.all([
+    trazabilidadDeSalidas(sesion, {
+      desde: desde || undefined,
+      hasta: hasta || undefined,
+      limite: LIMITE,
+    }),
     buscarMovimientos(sesion, {
       flujo: 'planta',
       tipo: 'salida',
@@ -99,15 +98,13 @@ export default async function PantallaTrazabilidad({
     }),
   ])
 
-  const filas = hasta ? leidas.filter((f) => antesDelCorte(f.ocurrido_en, hasta)) : leidas
-
   const conPila = filas.length
   // El total sale de las salidas de la Planta; la vista, de cualquier salida con
   // pila. Si por algo no cierran, el faltante se muestra en cero y no en rojo.
   const sinPila = Math.max(total - conPila, 0)
   const porcentaje = total > 0 ? Math.min(Math.round((conPila / total) * 100), 100) : null
   const mayoriaSinPila = total > 0 && sinPila > conPila
-  const seCortoElListado = leidas.length >= LIMITE
+  const seCortoElListado = filas.length >= LIMITE
 
   const periodo = desde && hasta
     ? `Del ${enDia(desde)} al ${enDia(hasta)}`

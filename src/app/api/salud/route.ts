@@ -16,6 +16,8 @@
  */
 import { NextResponse } from 'next/server'
 import { comoServicio } from '@db/sesion'
+import { leerConfiguracion, migueEstaInstalado } from '@/lib/migue/configuracion'
+import { estadoDeMigue, gastoDelMesSinSesionEnTx } from '@/lib/migue/pantallas'
 
 export const dynamic = 'force-dynamic'
 
@@ -71,5 +73,53 @@ export async function GET() {
     ].filter(Boolean)
   }
 
+  // ── Migue ─────────────────────────────────────────────────────────────
+  // Aparte y después de decidir `bien`, a propósito. Migue apagado es un
+  // estado normal —sin clave es como se despliega hasta que alguien la carga,
+  // y en el tope se queda hasta el 1°—, y si entrara en `bien` el sistema
+  // entero contestaría 503 y cualquiera que mirara esto lo daría por caído.
+  // Por lo mismo su frase va en su propio campo y no en que_hacer, que sólo
+  // existe cuando algo impide usar la app.
+  const migue = await estadoDeMigueParaSalud(salud.conecta === true)
+  salud.asistente = migue.estado
+  if (migue.que_hacer.length) salud.asistente_que_hacer = migue.que_hacer
+
   return NextResponse.json(salud, { status: bien ? 200 : 503 })
+}
+
+/**
+ * 'encendido', 'apagado' o 'tope', con lo que haya que hacer.
+ *
+ * Los motivos son las mismas frases que muestra «Lo que Migue recuerda». No
+ * traen la clave: de las variables, lo único que pueden repetir es un valor
+ * que está mal escrito —un modelo que no es un modelo, un tope que no es un
+ * número—. El gasto no sale en ningún caso, ni lo gastado ni el tope: sólo si
+ * se llegó.
+ */
+async function estadoDeMigueParaSalud(conecta: boolean): Promise<{ estado: string; que_hacer: string[] }> {
+  if (!conecta) return { estado: 'apagado', que_hacer: ['Sin base no hay Migue: primero que la base conteste.'] }
+
+  // En su propio try: si esto falla, lo de arriba ya está decidido y sigue
+  // valiendo. Con comoServicio porque acá no hay sesión, así que el gasto se
+  // lee sin la función con guarda (ver gastoDelMesSinSesionEnTx).
+  try {
+    const gastado = await comoServicio(async (tx) =>
+      (await migueEstaInstalado(tx)) ? gastoDelMesSinSesionEnTx(tx) : null,
+    )
+    if (gastado === null) {
+      return { estado: 'apagado', que_hacer: ['Falta aplicar db/migrations/0025_migue.sql en la base.'] }
+    }
+
+    const estado = estadoDeMigue(leerConfiguracion(), gastado)
+    if (estado.estado === 'apagado') return { estado: 'apagado', que_hacer: estado.motivos }
+    if (estado.estado === 'tope') {
+      return {
+        estado: 'tope',
+        que_hacer: ['Migue llegó al tope de gasto del mes: vuelve el 1°, o antes si se sube ASISTENTE_TOPE_MENSUAL_USD.'],
+      }
+    }
+    return { estado: 'encendido', que_hacer: [] }
+  } catch (e) {
+    return { estado: 'apagado', que_hacer: [`No se pudo saber cuánto gastó este mes: ${sinSecretos(e)}`] }
+  }
 }

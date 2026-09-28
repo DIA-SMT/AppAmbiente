@@ -3,6 +3,7 @@ import { conteosRecientes, puntosSinCarga, sitiosVisibles } from '@/lib/datos'
 import {
   claveDeCalendario, diaSemana, fecha, fechaDeCalendario, fechaHora, numero, paraInputFechaHora,
 } from '@/lib/formato'
+import { DIAS_DE_CONTEOS_EN_EL_PANEL, DIAS_PARA_PUNTO_CALLADO } from '@/lib/reglas'
 import { exigirPanel } from '@/lib/sesion'
 import type { ConteoDiario, PuntoSinCarga } from '@/lib/tipos'
 import { registrarConteo } from './acciones'
@@ -11,10 +12,10 @@ import estilos from './conteos.module.css'
 export const dynamic = 'force-dynamic'
 
 /** Cuántos días de silencio empiezan a ser un problema y no una jornada floja. */
-const DIAS_DE_ALERTA = 3
+const DIAS_DE_ALERTA = DIAS_PARA_PUNTO_CALLADO
 
 /** Ventana de los conteos que se listan. Más viejo que esto se mira en Auditoría. */
-const DIAS = 30
+const DIAS = DIAS_DE_CONTEOS_EN_EL_PANEL
 
 const MS_DIA = 86_400_000
 const FECHA = /^\d{4}-\d{2}-\d{2}$/

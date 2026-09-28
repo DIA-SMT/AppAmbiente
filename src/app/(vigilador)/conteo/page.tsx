@@ -5,6 +5,7 @@ import { conteosRecientesEnTx } from '@/lib/datos'
 import {
   claveDeCalendario, desdeInputFechaHora, diaSemana, fecha, numero, paraInputFechaHora,
 } from '@/lib/formato'
+import { DIAS_DE_CONTEO_PARA_ATRAS } from '@/lib/reglas'
 import { sesionActual } from '@/lib/sesion'
 import FormularioConteo, { type DiaDelConteo } from './FormularioConteo'
 
@@ -15,7 +16,7 @@ export const dynamic = 'force-dynamic'
  * abajo muestra exactamente esa ventana: un día que todavía se puede completar
  * tiene que estar a la vista, y uno que ya no, no tiene por qué prometerse.
  */
-const DIAS_ATRAS = 7
+const DIAS_ATRAS = DIAS_DE_CONTEO_PARA_ATRAS
 
 /** Hoy en Tucumán, como aaaa-mm-dd: el servidor puede estar en UTC. */
 function hoyEnTucuman(): string {

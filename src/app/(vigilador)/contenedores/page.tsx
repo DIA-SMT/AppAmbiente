@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { conSesion } from '@db/sesion'
 import { contenedoresDelSitioEnTx, pedidosDeRecambioEnTx } from '@/lib/datos'
 import { claveDeCalendario, fechaDeCalendario, paraInputFechaHora } from '@/lib/formato'
+import { HORAS_PARA_CANCELAR_PEDIDO } from '@/lib/reglas'
 import { sesionActual } from '@/lib/sesion'
 import type { PedidoRecambio } from '@/lib/tipos'
 import BotonPedido, { type PedidoAbierto } from './BotonPedido'
@@ -71,7 +72,7 @@ function comoAbierto(pedido: PedidoRecambio, perfilId: string): PedidoAbierto {
     puedeCancelar:
       pedido.estado === 'pedido' &&
       pedido.pedido_por_id === perfilId &&
-      Number.isFinite(horas) && horas < 24,
+      Number.isFinite(horas) && horas < HORAS_PARA_CANCELAR_PEDIDO,
   }
 }
 

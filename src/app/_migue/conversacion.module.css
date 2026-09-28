@@ -1,0 +1,349 @@
+/* Lo propio del chat con Migue: las burbujas, el alto de la conversación y la
+   disposición de la pantalla del panel. Todo lo demás sale de globals.css y el
+   color siempre de las variables, así que los dos temas salen solos. */
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* ── La conversación ──────────────────────────────────────────────────── */
+
+.mensajes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* En el panel la conversación tiene su propio alto y se desplaza adentro: el
+   cuadro para preguntar queda siempre a la vista, a la misma altura, y la
+   columna de las anteriores no se va para abajo con cada respuesta. En el
+   celular no: una caja con desplazamiento propio adentro de una pantalla que
+   también se desplaza no se maneja con el pulgar, y menos con guantes. */
+.panel .mensajes {
+  max-height: min(62dvh, 640px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px 8px 2px 2px;
+}
+
+.burbuja {
+  max-width: min(88%, 64ch);
+  padding: 11px 15px;
+  border-radius: var(--r);
+  overflow-wrap: anywhere;
+}
+
+/* La esquina de abajo más chica apunta a quién habló. */
+.persona {
+  align-self: flex-end;
+  color: var(--tinta);
+  background: color-mix(in srgb, var(--azul) 13%, var(--panel));
+  border-bottom-right-radius: 5px;
+}
+
+.migue {
+  align-self: flex-start;
+  color: var(--texto);
+  background: var(--panel);
+  border: 1px solid var(--linea);
+  border-bottom-left-radius: 5px;
+  box-shadow: var(--sombra);
+}
+
+/* Las respuestas de Migue van con su cara al lado. En una conversación larga
+   se sabe de un vistazo quién dijo qué, y en el celular, con el sol encima,
+   una cara se distingue antes que un rótulo en versalitas. La fila toma el
+   lugar de la burbuja en la lista, así que el ancho máximo pasa a ella y la
+   burbuja ocupa lo que queda al lado de la cara. */
+.filaMigue {
+  align-self: flex-start;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: min(94%, 68ch);
+}
+.filaMigue .migue {
+  max-width: none;
+  min-width: 0;
+}
+
+/* La cara viene sin fondo: el círculo lo pone esto, con el verde de los
+   ingresos apenas insinuado, así se ve igual en los dos temas. */
+.retrato {
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ingreso) 16%, var(--panel));
+  border: 1px solid var(--linea);
+}
+.retrato_chico { width: 24px; height: 24px; }
+.retrato_burbuja { width: 36px; height: 36px; }
+.retrato_titulo { width: 52px; height: 52px; }
+
+/* La primera vez, antes de preguntar nada: Migue entero y quién es. La figura
+   trae su fondo blanco —sacárselo dejaba restos grises junto a los talones que
+   en el tema oscuro se notaban— y se redondea como una tarjeta, que en los dos
+   temas se lee como ilustración y no como un recorte mal hecho. */
+.presentacion {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.figura {
+  flex: 0 0 auto;
+  width: auto;
+  height: 150px;
+  border-radius: var(--r);
+  border: 1px solid var(--linea);
+  box-shadow: var(--sombra);
+}
+.saludo {
+  margin: 0;
+  max-width: 46ch;
+  line-height: 1.5;
+}
+
+/* Los saltos de renglón de la respuesta son parte de la respuesta: una lista
+   de tres contenedores pegada en un solo párrafo no se lee. */
+.texto {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.quien {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--gris);
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+/* La pregunta que todavía no salió se ve distinta de las que ya tienen
+   respuesta: si no, parece que Migue la dejó sin contestar. */
+.sinMandar {
+  background: var(--panel-2);
+  border: 1px dashed var(--linea-fuerte);
+}
+
+.marca {
+  display: block;
+  margin-top: 4px;
+  color: var(--gris);
+  font-size: .76rem;
+  font-weight: 700;
+  text-align: right;
+}
+
+/* La línea gris de lo que Migue está haciendo. Se reemplaza, no se acumula. */
+.estado {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px;
+  color: var(--gris);
+  font-size: .92rem;
+  font-style: italic;
+}
+
+/* Un punto de referencia al final de la lista para llevarla a la vista. */
+.ancla {
+  height: 0;
+}
+
+/* ── Los botones de una respuesta ─────────────────────────────────────── */
+
+.enlaces {
+  list-style: none;
+  margin: 12px 0 2px;
+  padding: 10px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px solid var(--linea);
+}
+
+.enlaces :global(.boton) {
+  align-self: flex-start;
+}
+
+/* ── Preguntar ────────────────────────────────────────────────────────── */
+
+.pie {
+  padding-top: 4px;
+}
+
+.cuadro {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cuadro > :global(.boton) {
+  align-self: flex-end;
+}
+
+/* La especificidad cero de .control en globals.css deja mandar a ésta. */
+.pregunta {
+  min-height: 64px;
+  font-weight: 500;
+  resize: vertical;
+}
+
+.ejemplos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px 12px;
+}
+
+.motivos {
+  margin: 0;
+  padding-left: 18px;
+}
+
+/* ── El celular ──────────────────────────────────────────────────────────
+   Se lee de pie, al sol y con el teléfono en una mano: letra más grande, un
+   botón de preguntar a todo el ancho y los ejemplos y los enlaces uno debajo
+   del otro, del ancho entero, que se tocan sin apuntar. */
+
+.celular .burbuja {
+  max-width: 94%;
+  font-size: 1.06rem;
+}
+
+.celular .pregunta {
+  min-height: 96px;
+  font-size: 1.1rem;
+}
+
+.celular .cuadro > :global(.boton) {
+  align-self: stretch;
+}
+
+.celular .ejemplos {
+  flex-direction: column;
+}
+
+.celular .ejemplos :global(.boton),
+.celular .enlaces :global(.boton) {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.celular .enlaces :global(.boton) {
+  align-self: stretch;
+}
+
+/* Las de hoy en este teléfono: plegadas, porque casi nunca se miran.
+
+   El renglón que las abre se queda como list-item y no pasa a flex: con flex
+   Chrome se come el triangulito, y sin él nada dice que eso se toca. El alto
+   para el dedo sale del relleno. */
+.anteriores > summary,
+.anterior > summary {
+  padding: 14px 0;
+  cursor: pointer;
+  color: var(--tinta);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.anterior {
+  padding: 0 12px 10px;
+  background: var(--panel);
+  border: 1px solid var(--linea);
+  border-radius: var(--r-chico);
+}
+
+.anterior > summary {
+  font-weight: 600;
+}
+
+/* ── La pantalla del panel ───────────────────────────────────────────────
+   La conversación a la izquierda y las anteriores a la derecha. Abajo de
+   720 px, una debajo de la otra: la conversación primero, que es a lo que se
+   viene. */
+
+.disposicion {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(250px, 320px);
+  gap: 24px;
+  align-items: start;
+}
+
+.lateral {
+  min-width: 0;
+}
+
+.enlaceAnterior {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.enlaceAnterior:hover .tituloAnterior {
+  color: var(--azul);
+}
+
+.tituloAnterior {
+  color: var(--tinta);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+/* La que se está leyendo. `.lista > li` de globals.css pinta su propio fondo,
+   y hay que ganarle en especificidad para cambiarlo. */
+:global(.lista) > li.elegida {
+  background: var(--panel-2);
+  box-shadow: inset 4px 0 0 var(--azul);
+}
+
+@media (max-width: 720px) {
+  .disposicion {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Apilada, la caja con desplazamiento propio vuelve a ser el problema del
+     celular: la pantalla entera se desplaza y alcanza. */
+  .panel .mensajes {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .burbuja {
+    max-width: 94%;
+  }
+
+  /* Con la cara al lado, la fila ya descuenta el lugar: la burbuja de adentro
+     no tiene que volver a achicarse. */
+  .filaMigue {
+    max-width: 100%;
+  }
+  .filaMigue .migue {
+    max-width: none;
+  }
+
+  /* En el celular la figura se achica: la primera pantalla tiene que dejar ver
+     los ejemplos y el cuadro de la pregunta sin desplazarse. */
+  .figura {
+    height: 116px;
+  }
+}

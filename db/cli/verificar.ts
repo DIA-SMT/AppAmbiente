@@ -11,7 +11,10 @@
 import '../entorno'
 import { exigirConfirmacionSiEsRemota } from './guarda'
 import { randomUUID } from 'node:crypto'
+import { readdirSync, readFileSync } from 'node:fs'
 import * as modulos from 'node:module'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { comoServicio, conSesion, type Sesion } from '../sesion'
 import { hashearCredencial } from '../credenciales'
 import { obtenerBase, describirMotor } from '../client'
@@ -100,6 +103,75 @@ async function puede(rol: 'authenticated' | 'anon', sql: string): Promise<boolea
   }
 }
 
+interface Ensayo {
+  /** Cambia de sesión sin salir de la transacción. Con null vuelve al dueño de las tablas. */
+  como(sesion: Sesion | null): Promise<void>
+  consultar<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]>
+  /** Corre algo que la base tiene que rechazar. Devuelve el motivo, o '' si lo aceptó. */
+  rechazo(sql: string, params?: unknown[]): Promise<string>
+}
+
+/**
+ * Una escena entera que se prueba y se deshace: puede(), pero con sesiones.
+ *
+ * Es para lo de Migue que no se puede escribir de verdad en la base de la
+ * Secretaría, ni siquiera por un rato: todo lo de un punto —la conversación de
+ * PV-02 la vería su celular, y un recuerdo suyo entraría en la próxima
+ * conversación de verdad—, el gasto —sube el del mes, que es el tope de todos—
+ * y lo que no tiene dueño a propósito, como una expresión o un corte por
+ * maltrato, que después no habría cómo reconocer. Un corte de prueba a nombre
+ * de PV-02 sería un dato falso sobre un punto real.
+ *
+ * `como` pone la misma identidad que conSesion(), y con null vuelve al dueño,
+ * para preparar lo que ninguna sesión puede: correr un reloj para atrás.
+ * `rechazo` va con un savepoint porque un error deja la transacción inservible
+ * y lo que sigue de la escena ya no correría.
+ *
+ * Contra un Postgres de verdad esto anda porque la escena termina SIEMPRE en
+ * el throw: postgres-js se anota cualquier error que haya pasado adentro de la
+ * transacción, aunque alguien lo haya atajado, y lo tira al final en vez de
+ * confirmar. Convertir esto en algo que confirma lo rompería ahí y no en
+ * PGlite.
+ */
+async function ensayar<T>(escena: (e: Ensayo) => Promise<T>): Promise<T> {
+  const CORTE = '__deshacer__'
+  let resultado: T | undefined
+  try {
+    await comoServicio(async (tx) => {
+      const ensayo: Ensayo = {
+        async como(sesion) {
+          const claims = sesion
+            ? JSON.stringify({ sub: sesion.perfilId, rol: sesion.rol, sitio_id: sesion.sitioId ?? '' })
+            : ''
+          await tx.consultar(`select set_config('role', $1, true), set_config('request.jwt.claims', $2, true)`, [
+            sesion ? 'authenticated' : 'none',
+            claims,
+          ])
+        },
+        consultar<R>(sql: string, params: unknown[] = []) {
+          return tx.consultar<R>(sql, params)
+        },
+        async rechazo(sql, params = []) {
+          await tx.consultar('savepoint ensayo')
+          try {
+            await tx.consultar(sql, params)
+            await tx.consultar('release savepoint ensayo')
+            return ''
+          } catch (e) {
+            await tx.consultar('rollback to savepoint ensayo')
+            return (e as Error).message || 'la base la rechazó'
+          }
+        },
+      }
+      resultado = await escena(ensayo)
+      throw new Error(CORTE)
+    })
+  } catch (e) {
+    if ((e as Error).message !== CORTE) throw e
+  }
+  return resultado as T
+}
+
 const MARCA = 'Generado por db:verificar'
 const TELEFONOS_PRUEBA = ['3814569988']
 /** La que crea esta verificación para tener algo con CUIT y teléfono que leer. */
@@ -135,6 +207,9 @@ const PERFILES_PRUEBA: ReadonlyArray<readonly [string, string, 'admin' | 'vigila
   // PV-03 es el punto que solo informa el conteo del día (carga_detallada en
   // false), y eso es justo lo que separa "visitas" de "vecinos identificados".
   ['verif_andes',  'Verificación — solo conteo',  'vigilador', 'PV-03'],
+  // Migue no le muestra a una coordinadora lo que conversó ni lo que le pidió
+  // recordar la otra, y para probarlo hacen falta dos.
+  ['verif_admin_b', 'Verificación — otra coordinadora', 'admin',  null],
 ]
 
 /**
@@ -196,6 +271,12 @@ const INTENTOS_HASTA_TRABAR = 5
  * a la segunda corrida. Solo toca filas que creó esta misma verificación.
  */
 async function limpiarRastros() {
+  const usuarios = [
+    ...PERFILES_PRUEBA.map((p) => p[0]),
+    ...PERFILES_A_BORRAR.map((p) => p[0]),
+    USUARIO_INGRESO,
+    USUARIO_INGRESO_VIEJO,
+  ]
   await comoServicio(async (tx) => {
     await tx.consultar(
       `delete from movimiento_items
@@ -216,16 +297,40 @@ async function limpiarRastros() {
       [PILA_PRUEBA],
     )
     await tx.consultar('delete from pilas where codigo = $1', [PILA_PRUEBA])
+
+    // Migue. Sus conversaciones y los recuerdos de coordinación cuelgan del
+    // perfil en cascada y se irían solos con el delete de abajo, pero dos cosas
+    // no: un recuerdo de un punto es del punto y no lleva perfil, y el gasto no
+    // tiene clave foránea a propósito. Lo único que dice que eran de prueba es
+    // la conversación donde nacieron, así que salen antes de que el perfil se
+    // la lleve. Hoy esta verificación no deja ninguna de las dos —las ensaya y
+    // las deshace—: esto es para el día que algo que tenía que fallar pase.
+    //
+    // Y sólo si la 0025 está: esto tiene que poder correr contra una base
+    // donde Migue todavía no se instaló.
+    const [migue] = await tx.consultar<{ hay: boolean }>(
+      `select to_regclass('public.migue_mensajes') is not null as hay`,
+    )
+    if (migue?.hay) {
+      const DE_PRUEBA = `select c.id from migue_conversaciones c join perfiles p on p.id = c.abierta_por_id
+                          where p.usuario = any($1::text[])`
+      await tx.consultar(`delete from migue_recuerdos where conversacion_id in (${DE_PRUEBA})`, [usuarios])
+      await tx.consultar(
+        `delete from migue_gasto
+          where conversacion_id in (${DE_PRUEBA})
+             or dueno in (select 'perfil:' || id from perfiles where usuario = any($1::text[]))`,
+        [usuarios],
+      )
+      await tx.consultar(
+        `delete from migue_conversaciones
+          where abierta_por_id in (select id from perfiles where usuario = any($1::text[]))`,
+        [usuarios],
+      )
+    }
+
     // Último: casi todas las tablas de arriba los referencian con `on delete
     // restrict`, así que hasta acá no se pueden sacar.
-    await tx.consultar('delete from perfiles where usuario = any($1::text[])', [
-      [
-        ...PERFILES_PRUEBA.map((p) => p[0]),
-        ...PERFILES_A_BORRAR.map((p) => p[0]),
-        USUARIO_INGRESO,
-        USUARIO_INGRESO_VIEJO,
-      ],
-    ])
+    await tx.consultar('delete from perfiles where usuario = any($1::text[])', [usuarios])
   })
 }
 
@@ -233,7 +338,9 @@ async function limpiarRastros() {
  * Crea los usuarios de prueba y devuelve sus sesiones. La credencial es
  * un hash de algo al azar: nadie tiene que poder entrar con ellos.
  */
-async function sesionesDePrueba(): Promise<Record<'admin' | 'planta' | 'punto' | 'andes', Sesion>> {
+async function sesionesDePrueba(): Promise<
+  Record<'admin' | 'otraCoordinadora' | 'planta' | 'punto' | 'andes', Sesion>
+> {
   const filas = await comoServicio(async (tx) => {
     for (const [usuario, nombre, rol, sitioCodigo] of PERFILES_PRUEBA) {
       await tx.consultar(
@@ -262,6 +369,7 @@ async function sesionesDePrueba(): Promise<Record<'admin' | 'planta' | 'punto' |
 
   return {
     admin: buscar('verif_admin'),
+    otraCoordinadora: buscar('verif_admin_b'),
     planta: buscar('verif_planta'),
     punto: buscar('verif_punto'),
     andes: buscar('verif_andes'),
@@ -288,14 +396,14 @@ let serverOnlyResuelto = false
  * `react-server`. Fuera de esta CLI no cambia nada: la app la sigue armando Next.
  */
 function resolverServerOnly() {
-  // Lo piden la capa de datos y el ingreso: con un enganche alcanza.
+  // Lo piden la capa de datos, el ingreso y Migue: con un enganche alcanza.
   if (serverOnlyResuelto) return
   serverOnlyResuelto = true
 
   // registerHooks() existe desde Node 22.15. En uno anterior no se engancha
-  // nada y las cuatro del ingreso y las tres de los filtros por fecha se
-  // saltean, avisando: vale más que corran las otras setenta que tumbar la
-  // verificación entera acá.
+  // nada y las cuatro del ingreso, las tres de los filtros por fecha y las
+  // seis del código de Migue se saltean, avisando: vale más que corran las
+  // otras que tumbar la verificación entera acá.
   const registrar = modulos.registerHooks
   if (typeof registrar !== 'function') return
 
@@ -342,11 +450,959 @@ async function cargarDatos(): Promise<ModuloDatos | null> {
   }
 }
 
+interface ModuloMigue {
+  herramientas: typeof import('../../src/lib/migue/herramientas/index')
+  coordinacion: typeof import('../../src/lib/migue/herramientas/coordinacion')
+  catalogo: typeof import('../../src/lib/migue/catalogo')
+  verificador: typeof import('../../src/lib/migue/verificador')
+}
+let porQueNoSeCargoMigue = ''
+
+/**
+ * El código de Migue, que vive del lado de la app y arrastra `server-only`.
+ * Igual que cargarDatos(): con import dinámico, para poder decir por qué no se
+ * cargó en vez de tumbar todo lo demás.
+ */
+async function cargarMigue(): Promise<ModuloMigue | null> {
+  try {
+    resolverServerOnly()
+    const [herramientas, coordinacion, catalogo, verificador] = await Promise.all([
+      import('../../src/lib/migue/herramientas/index'),
+      import('../../src/lib/migue/herramientas/coordinacion'),
+      import('../../src/lib/migue/catalogo'),
+      import('../../src/lib/migue/verificador'),
+    ])
+    return { herramientas, coordinacion, catalogo, verificador }
+  } catch (e) {
+    porQueNoSeCargoMigue = (e as Error).message.split('\n')[0].slice(0, 90)
+    return null
+  }
+}
+
+/**
+ * Lo que el modo estricto del proveedor no acepta en la definición de una
+ * herramienta, con dónde está.
+ *
+ * Con `strict` el proveedor garantiza que los argumentos cumplan el esquema,
+ * pero sólo si el esquema entero es de los que sabe garantizar: cada objeto,
+ * también los de adentro, con additionalProperties en false y todas sus
+ * propiedades en `required`. Uno que no cumple no da error al armarlo: da un
+ * 400 del proveedor en la primera pregunta, o peor, argumentos inventados. Y
+ * un tipo 'null' es la otra forma de decir «sin filtro» que tipos.ts prohíbe:
+ * ahí va el centinela del enum o el texto vacío.
+ */
+function faltasDelEsquema(definicion: { function: { name: string; strict: unknown; parameters: unknown } }): string[] {
+  const { name: nombre, strict, parameters } = definicion.function
+  const faltas: string[] = []
+  if (strict !== true) faltas.push(`${nombre} sin strict`)
+  if ((parameters as { type?: unknown } | null)?.type !== 'object') faltas.push(`${nombre} no recibe un objeto`)
+
+  const mirar = (nodo: unknown, donde: string): void => {
+    if (Array.isArray(nodo)) {
+      nodo.forEach((hijo, i) => mirar(hijo, `${donde}[${i}]`))
+      return
+    }
+    if (typeof nodo !== 'object' || nodo === null) return
+    const esquema = nodo as Record<string, unknown>
+    const tipos = Array.isArray(esquema.type) ? esquema.type : [esquema.type]
+    if (tipos.includes('null') || (Array.isArray(esquema.enum) && esquema.enum.includes(null))) {
+      faltas.push(`${donde} admite null`)
+    }
+    if (tipos.includes('object')) {
+      const propiedades = Object.keys((esquema.properties ?? {}) as object).sort().join()
+      const requeridas = [...((esquema.required ?? []) as string[])].sort().join()
+      if (esquema.additionalProperties !== false) faltas.push(`${donde} sin additionalProperties: false`)
+      if (propiedades !== requeridas) faltas.push(`${donde} no pide todas sus propiedades`)
+    }
+    for (const [clave, valor] of Object.entries(esquema)) mirar(valor, `${donde}.${clave}`)
+  }
+  mirar(parameters, nombre)
+  return faltas
+}
+
+/**
+ * Migue, el asistente de consultas de la 0025.
+ *
+ * Va en una función aparte y no suelto en main() como lo demás por una sola
+ * razón: tiene que poder no correr. El despliegue es primero el SQL y después
+ * el código, y esto se corre antes; contra una base que todavía no tiene la
+ * 0025 se dice una vez y se sigue con el resto.
+ *
+ * Lo que se prueba de la base es lo que tiene que cumplirse aunque el código
+ * de src/lib/migue se equivoque: quién lee qué, que cada escritura pase por su
+ * función con guarda, que nada se borre. Lo que se prueba del código es lo que
+ * ninguna política ve: que las cifras que Migue cita sean las de la base, que
+ * las herramientas no tengan con qué salirse de la sesión y que el proveedor
+ * pueda cumplir sus esquemas.
+ *
+ * Esto se corre contra la base de la Secretaría, así que lo que se escribe se
+ * separa en dos:
+ *
+ *   de verdad   lo de las dos coordinadoras de prueba. Nadie más lo ve —la
+ *               coordinación no lee las conversaciones ni los recuerdos de la
+ *               otra— y se va en cascada con sus perfiles en limpiarRastros().
+ *   ensayado    todo lo que tocaría algo real, con ensayar(): lo de un punto,
+ *               el gasto, el vocabulario y el corte por maltrato.
+ */
+async function verificarMigue(sesiones: Record<'admin' | 'otraCoordinadora' | 'planta' | 'punto' | 'andes', Sesion>) {
+  const { admin, otraCoordinadora, planta, punto, andes } = sesiones
+
+  const [instalado] = await comoServicio((tx) =>
+    tx.consultar<{ hay: boolean }>(`select to_regclass('public.migue_mensajes') is not null as hay`),
+  )
+  if (!instalado?.hay) {
+    console.log('\n  Migue')
+    omitir('todo lo de Migue', 'esta base no tiene la 0025_migue.sql: correr npm run db:migrar')
+    return
+  }
+
+  const reglas = await import('../../src/lib/reglas')
+  const MODELO = 'openai/gpt-4o-mini'
+  const SISTEMA = `Sistema de prueba · ${MARCA}`
+  const ABRIR_DE_COORDINACION = `
+    insert into migue_conversaciones (rol, perfil_id, abierta_por_id, modelo, sistema, herramientas, recuerdos_incluidos)
+    values ('admin', $1, $2, $3, $4, '[]', $5::uuid[])
+    returning id`
+  const ABRIR_DEL_PUNTO = `
+    insert into migue_conversaciones (rol, sitio_id, dispositivo_id, abierta_por_id, modelo, sistema, herramientas)
+    values ('vigilador', $1, $2, $3, $4, $5, '[]')
+    returning id`
+  const RECLAMAR = 'select app.migue_reclamar($1, $2) as estado'
+  const GUARDAR = `select app.migue_guardar_turno($1, $2, $3::text[], $4::text[], $5::text[], $6::text[],
+                                                   $7::text[], $8::text[]) as orden`
+  const RECORDAR = 'select app.migue_recordar($1, $2) as id'
+  const VACIAR = `select app.migue_vaciar($1, 'olvido')`
+
+  // Un turno como los de verdad: la pregunta, un pedido de consulta, su
+  // resultado y la respuesta. Los mensajes salen de JSON.stringify, que deja
+  // las claves en el orden en que se escribieron —role, tool_call_id,
+  // content— y sin espacios. jsonb las reordena por largo y les agrega
+  // espacios: si la columna lo fuera, la historia volvería cambiada y el
+  // proveedor dejaría de reconocer el principio del pedido.
+  const MENSAJES = [
+    { role: 'user', content: '¿Cuánto entró hoy?' },
+    {
+      role: 'assistant',
+      content: null,
+      tool_calls: [{ id: 'call_verificar', type: 'function', function: { name: 'lo_de_hoy', arguments: '{}' } }],
+    },
+    { role: 'tool', tool_call_id: 'call_verificar', content: '{"total":3}' },
+    { role: 'assistant', content: 'Hoy entraron 3.' },
+  ].map((m) => JSON.stringify(m))
+  const TURNO = [
+    ['user', 'assistant', 'tool', 'assistant'],
+    ['pregunta', 'intermedio', 'resultado', 'respuesta'],
+    MENSAJES,
+    ['¿Cuánto entró hoy?', null, null, 'Hoy entraron 3.'],
+    [null, null, null, '[]'],
+    [null, null, '[3]', null],
+  ]
+
+  const abrirDeCoordinacion = async (quien: Sesion, sistema = SISTEMA, recuerdos: string[] = []) => {
+    const [c] = await conSesion(quien, (tx) =>
+      tx.consultar<{ id: string }>(ABRIR_DE_COORDINACION, [quien.perfilId, quien.perfilId, MODELO, sistema, recuerdos]),
+    )
+    return c.id
+  }
+  const reclamar = async (quien: Sesion, conversacion: string, pregunta: string) => {
+    const [f] = await conSesion(quien, (tx) => tx.consultar<{ estado: string }>(RECLAMAR, [conversacion, pregunta]))
+    return f.estado
+  }
+  const guardar = (quien: Sesion, conversacion: string, pregunta: string) =>
+    motivoDelRechazo(quien, GUARDAR, [conversacion, pregunta, ...TURNO])
+
+  // ── Una pregunta ────────────────────────────────────────────────────
+  console.log('\n  Migue · una pregunta')
+
+  const conversacionA = await abrirDeCoordinacion(admin)
+  const [primera, segunda] = [randomUUID(), randomUUID()]
+
+  const libre = await reclamar(admin, conversacionA, primera)
+  revisar('una conversación libre se reclama para la pregunta', libre === 'libre', `dio ${libre}`)
+  const ocupada = await reclamar(admin, conversacionA, segunda)
+  revisar('otra pregunta mientras tanto la encuentra ocupada', ocupada === 'ocupada', `dio ${ocupada}`)
+  // El reintento del celular mientras el primer pedido sigue andando: no se
+  // contesta dos veces ni se cobra dos veces.
+  const enCurso = await reclamar(admin, conversacionA, primera)
+  revisar('la misma pregunta reintentada está en curso', enCurso === 'en_curso', `dio ${enCurso}`)
+
+  const guardado = await guardar(admin, conversacionA, primera)
+  const [{ n: mensajesA }] = await conSesion(admin, (tx) =>
+    tx.consultar<{ n: number }>('select count(*)::int as n from migue_mensajes where conversacion_id = $1', [conversacionA]),
+  )
+  revisar(
+    'el turno entero se guarda de una vez',
+    guardado === '' && mensajesA === MENSAJES.length,
+    guardado.slice(0, 60) || `${mensajesA} mensajes de ${MENSAJES.length}`,
+  )
+
+  const volvieron = await conSesion(admin, (tx) =>
+    tx.consultar<{ contenido: string }>(
+      'select contenido from migue_mensajes where conversacion_id = $1 order by orden',
+      [conversacionA],
+    ),
+  )
+  // Y la prueba sólo prueba algo si jsonb de verdad lo habría cambiado.
+  const [jsonb] = await comoServicio((tx) =>
+    tx.consultar<{ cambiaria: boolean }>('select bool_or(c::jsonb::text <> c) as cambiaria from unnest($1::text[]) c', [
+      MENSAJES,
+    ]),
+  )
+  revisar(
+    'y vuelve idéntico, como texto: jsonb le habría reordenado las claves',
+    volvieron.map((f) => f.contenido).join('\n') === MENSAJES.join('\n') && jsonb?.cambiaria === true,
+    jsonb?.cambiaria ? 'volvió distinto de como se guardó' : 'jsonb tampoco lo habría cambiado: la prueba no prueba nada',
+  )
+
+  const hecha = await reclamar(admin, conversacionA, primera)
+  revisar('la pregunta ya guardada está hecha: se devuelve, no se cobra otra vez', hecha === 'hecha', `dio ${hecha}`)
+
+  await debeFallar(
+    'guardar un turno que no se reclamó falla',
+    admin,
+    GUARDAR,
+    [conversacionA, randomUUID(), ...TURNO],
+  )
+  await debeFallar(
+    'nadie inserta mensajes a mano, ni en su propia conversación',
+    admin,
+    `insert into migue_mensajes (conversacion_id, orden, pregunta_id, rol, tipo, contenido)
+     values ($1, 99, $2, 'user', 'pregunta', '{}')`,
+    [conversacionA, randomUUID()],
+  )
+  await debeFallar(
+    'ni cambia una conversación a mano',
+    admin,
+    `update migue_conversaciones set turnos = 0, sistema = 'otro' where id = $1`,
+    [conversacionA],
+  )
+
+  // app.migue_vaciar corre como el dueño y no mira de quién es: sólo la llaman
+  // las funciones que olvidan y cortan, cada una con su guarda.
+  const vaciar = await ensayar(async (e) => {
+    await e.como(admin)
+    const deCoordinacion = await e.rechazo(VACIAR, [conversacionA])
+    await e.como(punto)
+    const [c] = await e.consultar<{ id: string }>(ABRIR_DEL_PUNTO, [
+      punto.sitioId, randomUUID(), punto.perfilId, MODELO, SISTEMA,
+    ])
+    return { deCoordinacion, delPunto: await e.rechazo(VACIAR, [c.id]) }
+  })
+  revisar(
+    'nadie llama a app.migue_vaciar, ni la coordinación ni un punto',
+    vaciar.deCoordinacion !== '' && vaciar.delPunto !== '',
+    `${vaciar.deCoordinacion ? '' : 'la coordinación pudo '}${vaciar.delPunto ? '' : 'el punto pudo'}`,
+  )
+
+  // ── Recordar y olvidar ──────────────────────────────────────────────
+  console.log('\n  Migue · recordar y olvidar')
+
+  const conversacionNace = await abrirDeCoordinacion(admin)
+  const recordar = async (texto: string) => {
+    try {
+      const [f] = await conSesion(admin, (tx) => tx.consultar<{ id: string }>(RECORDAR, [conversacionNace, texto]))
+      return { id: f.id, rechazo: '' }
+    } catch (e) {
+      return { id: '', rechazo: (e as Error).message }
+    }
+  }
+
+  // Los límites están en la base y no en el prompt: pedirle al modelo que no
+  // guarde un teléfono no alcanza, y el recuerdo lo lee el del turno siguiente.
+  for (const [descripcion, texto] of [
+    ['no recuerda un teléfono', 'la señora Marta atiende al 381 555-1234'],
+    ['ni un documento con puntos', 'el DNI del chofer es 30.123.456'],
+    ['ni un correo', 'los pedidos van a compras@proveedor.com.ar'],
+  ]) {
+    const { rechazo } = await recordar(texto)
+    revisar(descripcion, rechazo.includes('No guardo'), rechazo.slice(0, 60) || 'lo guardó')
+  }
+  const conFecha = await recordar('desde el 28/09/2026 el punto abre a las 8')
+  revisar('una fecha con barras sí', conFecha.id !== '', conFecha.rechazo.slice(0, 60))
+
+  const TEXTO_OLVIDABLE = 'en esta coordinación los camiones se cuentan por viaje'
+  const olvidable = await recordar(TEXTO_OLVIDABLE)
+
+  const [{ activos }] = await conSesion(admin, (tx) =>
+    tx.consultar<{ activos: number }>(
+      'select count(*)::int as activos from migue_recuerdos where perfil_id = $1 and olvidado_en is null',
+      [admin.perfilId],
+    ),
+  )
+  const faltan = reglas.RECUERDOS_MAXIMOS - activos
+  // Todos en una sola sentencia: cada llamada ve lo que guardaron las
+  // anteriores, así que el tope se cuenta igual que de a uno.
+  const relleno =
+    faltan > 0
+      ? await motivoDelRechazo(
+          admin,
+          `select app.migue_recordar($1, 'relleno de db:verificar, el ' || n) from generate_series(1, $2::int) n`,
+          [conversacionNace, faltan],
+        )
+      : ''
+  const deMas = await recordar('uno más de la cuenta')
+  revisar(
+    `el recuerdo ${reglas.RECUERDOS_MAXIMOS + 1} se rechaza`,
+    relleno === '' && deMas.rechazo.includes('Ya recuerdo'),
+    relleno.slice(0, 60) || deMas.rechazo.slice(0, 60) || 'lo guardó',
+  )
+
+  // Olvidarlo tiene que vaciar la conversación donde se pidió —el pedido quedó
+  // escrito ahí— y las que lo recibieron en su sistema. conversacionA es la de
+  // control: no tiene nada que ver con él.
+  const preguntaNace = randomUUID()
+  await reclamar(admin, conversacionNace, preguntaNace)
+  await guardar(admin, conversacionNace, preguntaNace)
+  const conversacionIncluye = await abrirDeCoordinacion(admin, `${SISTEMA}\nLo que recordás: ${TEXTO_OLVIDABLE}`, [
+    olvidable.id,
+  ])
+
+  const olvido = await motivoDelRechazo(admin, 'select app.migue_olvidar_recuerdo($1)', [olvidable.id])
+  const [recuerdo] = await conSesion(admin, (tx) =>
+    tx.consultar<{ texto: string; olvidado: boolean }>(
+      'select texto, olvidado_en is not null as olvidado from migue_recuerdos where id = $1',
+      [olvidable.id],
+    ),
+  )
+  const trasOlvidar = await conSesion(admin, (tx) =>
+    tx.consultar<{ id: string; sistema: string; recuerdos: string; vaciada_por: string | null; mensajes: number; llenos: number }>(
+      `select c.id, c.sistema, c.recuerdos_incluidos::text as recuerdos, c.vaciada_por,
+              (select count(*)::int from migue_mensajes m where m.conversacion_id = c.id) as mensajes,
+              (select count(*)::int from migue_mensajes m where m.conversacion_id = c.id and m.contenido <> '') as llenos
+         from migue_conversaciones c
+        where c.id = any($1::uuid[])`,
+      [[conversacionNace, conversacionIncluye, conversacionA]],
+    ),
+  )
+  const nace = trasOlvidar.find((c) => c.id === conversacionNace)
+  const incluye = trasOlvidar.find((c) => c.id === conversacionIncluye)
+  const aparte = trasOlvidar.find((c) => c.id === conversacionA)
+  revisar(
+    'olvidar un recuerdo lo deja en blanco',
+    olvido === '' && recuerdo?.texto === '' && recuerdo.olvidado,
+    olvido.slice(0, 60) || `quedó «${recuerdo?.texto ?? '?'}»`,
+  )
+  revisar(
+    'y vacía la conversación donde nació, con sus mensajes',
+    nace?.vaciada_por === 'olvido' && nace.sistema === '' && nace.mensajes > 0 && nace.llenos === 0,
+    nace ? `vaciada por ${nace.vaciada_por ?? 'nadie'}, ${nace.llenos} mensajes con texto` : 'no se encontró',
+  )
+  revisar(
+    'y la que lo tenía entre sus recuerdos, con el sistema en blanco',
+    incluye?.vaciada_por === 'olvido' && incluye.sistema === '' && incluye.recuerdos === '{}',
+    incluye ? `vaciada por ${incluye.vaciada_por ?? 'nadie'}, recuerdos ${incluye.recuerdos}` : 'no se encontró',
+  )
+  revisar(
+    'pero no toca las demás',
+    aparte?.vaciada_por === null && aparte.sistema === SISTEMA && aparte.llenos === MENSAJES.length,
+    aparte ? `vaciada por ${aparte.vaciada_por}, ${aparte.llenos} mensajes con texto` : 'no se encontró',
+  )
+
+  // ── Quién lee qué ───────────────────────────────────────────────────
+  //
+  // Acá no va el `app.es_admin() or …` de casi todas las políticas: una charla
+  // con Migue no es un registro de trabajo, y la coordinación no la lee.
+  console.log('\n  Migue · quién lee qué')
+
+  const loDeA = async (quien: Sesion) => {
+    const [f] = await conSesion(quien, (tx) =>
+      tx.consultar<{ conversaciones: number; mensajes: number; recuerdos: number }>(
+        `select (select count(*) from migue_conversaciones where id = $1)::int as conversaciones,
+                (select count(*) from migue_mensajes where conversacion_id = $1)::int as mensajes,
+                (select count(*) from migue_recuerdos where perfil_id = $2)::int as recuerdos`,
+        [conversacionA, admin.perfilId],
+      ),
+    )
+    return f
+  }
+  // Lo que ve la dueña va en la condición: si la A tampoco viera lo suyo, que
+  // la B no lo vea no probaría nada.
+  const vistoPorA = await loDeA(admin)
+  const vistoPorB = await loDeA(otraCoordinadora)
+  revisar(
+    'la coordinadora B no ve las conversaciones de la A, ni sus mensajes',
+    vistoPorA.conversaciones === 1 && vistoPorA.mensajes > 0 && vistoPorB.conversaciones === 0 && vistoPorB.mensajes === 0,
+    `la A ve ${vistoPorA.conversaciones} y ${vistoPorA.mensajes}, la B ${vistoPorB.conversaciones} y ${vistoPorB.mensajes}`,
+  )
+  revisar(
+    'ni los recuerdos de la A',
+    vistoPorA.recuerdos > 0 && vistoPorB.recuerdos === 0,
+    `la A ve ${vistoPorA.recuerdos}, la B ${vistoPorB.recuerdos}`,
+  )
+  await debeFallar(
+    'ni reclama la de la A para contestar en ella',
+    otraCoordinadora,
+    RECLAMAR,
+    [conversacionA, randomUUID()],
+  )
+
+  const delPunto = await ensayar(async (e) => {
+    await e.como(punto)
+    const [c] = await e.consultar<{ id: string }>(ABRIR_DEL_PUNTO, [
+      punto.sitioId, randomUUID(), punto.perfilId, MODELO, SISTEMA,
+    ])
+    const pregunta = randomUUID()
+    await e.consultar(RECLAMAR, [c.id, pregunta])
+    await e.consultar(GUARDAR, [c.id, pregunta, ...TURNO])
+    const [r] = await e.consultar<{ id: string }>(RECORDAR, [
+      c.id, 'en este punto al contenedor de RSU le dicen el tacho grande',
+    ])
+
+    const cuanto = async (quien: Sesion) => {
+      await e.como(quien)
+      const [f] = await e.consultar<{ conversaciones: number; mensajes: number; recuerdos: number }>(
+        `select (select count(*) from migue_conversaciones where id = $1)::int as conversaciones,
+                (select count(*) from migue_mensajes where conversacion_id = $1)::int as mensajes,
+                (select count(*) from migue_recuerdos where id = $2)::int as recuerdos`,
+        [c.id, r.id],
+      )
+      return f
+    }
+    const visto = {
+      porElPunto: await cuanto(punto),
+      porCoordinacion: await cuanto(admin),
+      porOtroPunto: await cuanto(andes),
+      porLaPlanta: await cuanto(planta),
+    }
+
+    await e.como(punto)
+    const aOtroPunto = await e.rechazo(ABRIR_DEL_PUNTO, [andes.sitioId, randomUUID(), punto.perfilId, MODELO, SISTEMA])
+    const aCoordinacion = await e.rechazo(ABRIR_DE_COORDINACION, [admin.perfilId, punto.perfilId, MODELO, SISTEMA, []])
+    await e.como(otraCoordinadora)
+    const aLaOtra = await e.rechazo(ABRIR_DE_COORDINACION, [
+      admin.perfilId, otraCoordinadora.perfilId, MODELO, SISTEMA, [],
+    ])
+    return { visto, aOtroPunto, aCoordinacion, aLaOtra }
+  })
+
+  const { porElPunto, porCoordinacion, porOtroPunto, porLaPlanta } = delPunto.visto
+  const conteo = (v: { conversaciones: number; mensajes: number; recuerdos: number }) =>
+    `${v.conversaciones} conversación, ${v.mensajes} mensajes, ${v.recuerdos} recuerdo`
+  revisar(
+    'la coordinación no ve las conversaciones de un punto, ni sus mensajes',
+    porElPunto.conversaciones === 1 && porElPunto.mensajes > 0 &&
+      porCoordinacion.conversaciones === 0 && porCoordinacion.mensajes === 0,
+    `el punto ve ${conteo(porElPunto)}; la coordinación, ${conteo(porCoordinacion)}`,
+  )
+  // Los recuerdos de un punto son del trabajo —cómo se nombran las cosas ahí—
+  // y la coordinación tiene que poder verlos y olvidarlos.
+  revisar(
+    'pero sí sus recuerdos',
+    porElPunto.recuerdos === 1 && porCoordinacion.recuerdos === 1,
+    `la coordinación ve ${porCoordinacion.recuerdos}`,
+  )
+  revisar(
+    'un punto no ve las conversaciones de otro',
+    porOtroPunto.conversaciones === 0 && porOtroPunto.mensajes === 0 &&
+      porLaPlanta.conversaciones === 0 && porLaPlanta.mensajes === 0,
+    `PV-03 ve ${conteo(porOtroPunto)}; la Planta, ${conteo(porLaPlanta)}`,
+  )
+  revisar(
+    'ni los recuerdos del otro punto',
+    porOtroPunto.recuerdos === 0 && porLaPlanta.recuerdos === 0,
+    `PV-03 ve ${porOtroPunto.recuerdos}, la Planta ${porLaPlanta.recuerdos}`,
+  )
+  revisar('un punto no abre una conversación a nombre de otro punto', delPunto.aOtroPunto !== '', 'la base la aceptó')
+  revisar('ni a nombre de la coordinación', delPunto.aCoordinacion !== '', 'la base la aceptó')
+  revisar('una coordinadora no abre una a nombre de la otra', delPunto.aLaOtra !== '', 'la base la aceptó')
+
+  // ── Maltrato ────────────────────────────────────────────────────────
+  //
+  // Se avisa una vez y se corta si sigue, y la cuenta la lleva la base: el
+  // corte sólo pasa si el aviso fue en una pregunta ANTERIOR a la que está en
+  // curso. Con la coordinación se prueba de verdad, en transacciones
+  // separadas, porque ahí el corte no anota ningún evento: la conversación es
+  // de prueba y se va con su perfil.
+  console.log('\n  Migue · maltrato')
+
+  const conversacionM = await abrirDeCoordinacion(admin)
+  const cortar = async () => {
+    const [f] = await conSesion(admin, (tx) =>
+      tx.consultar<{ cortada: boolean }>('select app.migue_cortar_por_maltrato($1) as cortada', [conversacionM]),
+    )
+    return f.cortada
+  }
+  const preguntaDelAviso = randomUUID()
+  await reclamar(admin, conversacionM, preguntaDelAviso)
+  const sinAviso = await cortar()
+  await conSesion(admin, (tx) => tx.consultar('select app.migue_avisar_maltrato($1)', [conversacionM]))
+  const enLaDelAviso = await cortar()
+  await guardar(admin, conversacionM, preguntaDelAviso)
+  await reclamar(admin, conversacionM, randomUUID())
+  const enLaSiguiente = await cortar()
+  const [cortada] = await conSesion(admin, (tx) =>
+    tx.consultar<{ vaciada_por: string | null; sistema: string }>(
+      'select vaciada_por, sistema from migue_conversaciones where id = $1',
+      [conversacionM],
+    ),
+  )
+  revisar('cortar por maltrato sin haber avisado no corta', sinAviso === false)
+  revisar('ni en la misma pregunta en que avisó', enLaDelAviso === false)
+  revisar(
+    'en la pregunta siguiente sí, y la conversación queda vaciada',
+    enLaSiguiente === true && cortada?.vaciada_por === 'maltrato' && cortada.sistema === '',
+    `cortó: ${enLaSiguiente}, vaciada por ${cortada?.vaciada_por ?? 'nadie'}`,
+  )
+
+  // En un punto el corte sí anota un evento, y ése no se puede escribir de
+  // verdad: no tiene ni conversación ni perfil, a propósito, y sería un corte
+  // que nunca pasó en PV-02.
+  const enUnPunto = await ensayar(async (e) => {
+    await e.como(punto)
+    const [c] = await e.consultar<{ id: string }>(ABRIR_DEL_PUNTO, [
+      punto.sitioId, randomUUID(), punto.perfilId, MODELO, SISTEMA,
+    ])
+    const pregunta = randomUUID()
+    await e.consultar(RECLAMAR, [c.id, pregunta])
+    await e.consultar('select app.migue_avisar_maltrato($1)', [c.id])
+    await e.consultar(GUARDAR, [c.id, pregunta, ...TURNO])
+    // Adentro de una transacción now() no se mueve: el aviso y el reclamo de
+    // la pregunta siguiente tendrían la misma hora y la base no cortaría
+    // nunca. Se corre el aviso un minuto para atrás, que es lo que habría
+    // pasado entre una pregunta y la otra.
+    await e.como(null)
+    await e.consultar(
+      `update migue_conversaciones set aviso_maltrato_en = aviso_maltrato_en - interval '1 minute' where id = $1`,
+      [c.id],
+    )
+    const EVENTOS = `
+      select count(*)::int as n from migue_eventos
+       where tipo = 'maltrato' and sitio_id = $1
+         and semana = date_trunc('week', now() at time zone 'America/Argentina/Tucuman')::date`
+    const [antes] = await e.consultar<{ n: number }>(EVENTOS, [punto.sitioId])
+    await e.como(punto)
+    await e.consultar(RECLAMAR, [c.id, randomUUID()])
+    const [f] = await e.consultar<{ cortada: boolean }>('select app.migue_cortar_por_maltrato($1) as cortada', [c.id])
+    await e.como(null)
+    const [despues] = await e.consultar<{ n: number }>(EVENTOS, [punto.sitioId])
+    const columnas = await e.consultar<{ c: string }>(
+      `select column_name as c from information_schema.columns
+        where table_schema = 'public' and table_name = 'migue_eventos' order by 1`,
+    )
+    return { cortada: f.cortada, sumo: despues.n - antes.n, columnas: columnas.map((x) => x.c).join(', ') }
+  })
+  revisar(
+    'en un punto el corte se cuenta por semana, sin hora, conversación ni perfil',
+    enUnPunto.cortada && enUnPunto.sumo === 1 && enUnPunto.columnas === 'id, rol, semana, sitio_id, tipo',
+    `cortó: ${enUnPunto.cortada}, sumó ${enUnPunto.sumo}; la tabla tiene ${enUnPunto.columnas}`,
+  )
+
+  // ── Gasto y vencimiento ─────────────────────────────────────────────
+  console.log('\n  Migue · gasto y vencimiento')
+
+  // Ensayado: una fila de gasto de prueba subiría el del mes, que es el tope
+  // de todos, y le restaría preguntas a la Secretaría. Se mira lo que suma y
+  // no lo que hay, porque en la base de verdad ya hay gasto.
+  const gasto = await ensayar(async (e) => {
+    const GASTADO = 'select app.migue_gasto_del_mes()::float8 as mes, app.migue_gasto_de_hoy()::float8 as hoy'
+    const ANOTAR = `select app.migue_anotar_gasto(null, null, $1, $1, 'db:verificar', '{}', $2)`
+    await e.como(admin)
+    const [antesCoordinacion] = await e.consultar<{ mes: number; hoy: number }>(GASTADO)
+    await e.como(punto)
+    const [antesPunto] = await e.consultar<{ mes: number; hoy: number }>(GASTADO)
+    await e.como(admin)
+    await e.consultar(ANOTAR, [MODELO, 0.25])
+    await e.como(punto)
+    await e.consultar(ANOTAR, [MODELO, 0.125])
+    const [despuesPunto] = await e.consultar<{ mes: number; hoy: number }>(GASTADO)
+    const [filasDelPunto] = await e.consultar<{ n: number }>('select count(*)::int as n from migue_gasto')
+    await e.como(admin)
+    const [despuesCoordinacion] = await e.consultar<{ mes: number; hoy: number }>(GASTADO)
+    const [filasDeCoordinacion] = await e.consultar<{ n: number }>('select count(*)::int as n from migue_gasto')
+    return {
+      mes: despuesPunto.mes - antesPunto.mes,
+      mesIgual: Math.abs(despuesPunto.mes - despuesCoordinacion.mes) < 1e-9,
+      hoyCoordinacion: despuesCoordinacion.hoy - antesCoordinacion.hoy,
+      hoyPunto: despuesPunto.hoy - antesPunto.hoy,
+      filasDelPunto: filasDelPunto.n,
+      filasDeCoordinacion: filasDeCoordinacion.n,
+    }
+  })
+  const casi = (a: number, b: number) => Math.abs(a - b) < 1e-9
+  revisar(
+    'el gasto del mes es uno solo, de todos',
+    casi(gasto.mes, 0.375) && gasto.mesIgual,
+    `sumó ${gasto.mes.toFixed(6)} de 0,375${gasto.mesIgual ? '' : ', y la coordinación ve otro'}`,
+  )
+  revisar(
+    'el de hoy es de cada dueño: la persona o el punto',
+    casi(gasto.hoyCoordinacion, 0.25) && casi(gasto.hoyPunto, 0.125),
+    `coordinación sumó ${gasto.hoyCoordinacion.toFixed(6)}, el punto ${gasto.hoyPunto.toFixed(6)}`,
+  )
+  revisar(
+    'un punto no lee las filas del gasto',
+    gasto.filasDeCoordinacion > 0 && gasto.filasDelPunto === 0,
+    `lee ${gasto.filasDelPunto}`,
+  )
+
+  // Ensayado también: app.migue_vencer recorre todas las conversaciones, y
+  // en la base de verdad vaciaría las que ya tocaba vaciar antes de que las
+  // vacíe la próxima pregunta, que es a quien le corresponde.
+  const { HORAS_DE_CONVERSACION_DEL_PUNTO: HORAS_PUNTO, DIAS_DE_CONVERSACION_DE_COORDINACION: DIAS_COORDINACION } = reglas
+  const vence = await ensayar(async (e) => {
+    await e.como(punto)
+    const abrir = async () =>
+      (await e.consultar<{ id: string }>(ABRIR_DEL_PUNTO, [punto.sitioId, randomUUID(), punto.perfilId, MODELO, SISTEMA]))[0].id
+    const vieja = await abrir()
+    const quieta = await abrir()
+    await e.como(admin)
+    const deCoordinacion = (await e.consultar<{ id: string }>(ABRIR_DE_COORDINACION, [
+      admin.perfilId, admin.perfilId, MODELO, SISTEMA, [],
+    ]))[0].id
+    const viejisima = (await e.consultar<{ id: string }>(ABRIR_DE_COORDINACION, [
+      admin.perfilId, admin.perfilId, MODELO, SISTEMA, [],
+    ]))[0].id
+
+    await e.como(null)
+    for (const [id, hace] of [
+      [vieja, `${HORAS_PUNTO + 1} hours`],
+      [quieta, `${HORAS_PUNTO - 1} hours`],
+      [deCoordinacion, `${HORAS_PUNTO + 1} hours`],
+      [viejisima, `${DIAS_COORDINACION + 1} days`],
+    ]) {
+      await e.consultar('update migue_conversaciones set actualizada_en = now() - $2::interval where id = $1', [id, hace])
+    }
+    // Recorre de a 50, de la más vieja a la más nueva. En la base de verdad
+    // puede haber más de 50 esperando —una semana sin que nadie pregunte— y
+    // las de prueba quedarían para la vuelta siguiente: se repite hasta que no
+    // vacíe ninguna, que acá adentro no le hace nada a nadie porque se deshace.
+    await e.como(punto)
+    for (let vuelta = 0; vuelta < 100; vuelta++) {
+      const [f] = await e.consultar<{ vaciadas: number }>('select app.migue_vencer() as vaciadas')
+      if (!f?.vaciadas) break
+    }
+    await e.como(null)
+    const filas = await e.consultar<{ id: string; vaciada_por: string | null; cerrada_por: string | null }>(
+      'select id, vaciada_por, cerrada_por from migue_conversaciones where id = any($1::uuid[])',
+      [[vieja, quieta, deCoordinacion, viejisima]],
+    )
+    const de = (id: string) => filas.find((f) => f.id === id)
+    return { vieja: de(vieja), quieta: de(quieta), deCoordinacion: de(deCoordinacion), viejisima: de(viejisima) }
+  })
+  const estadoDe = (f?: { vaciada_por: string | null; cerrada_por: string | null }) =>
+    f ? `vaciada: ${f.vaciada_por ?? 'no'}, cerrada: ${f.cerrada_por ?? 'no'}` : 'no se encontró'
+  revisar(
+    `lo del punto de más de ${HORAS_PUNTO} h se vacía solo`,
+    vence.vieja?.vaciada_por === 'vencida',
+    estadoDe(vence.vieja),
+  )
+  revisar(
+    `a las ${HORAS_PUNTO - 1} h sólo se cierra por quieta, sin vaciarse`,
+    vence.quieta?.vaciada_por === null && vence.quieta.cerrada_por === 'quieta',
+    estadoDe(vence.quieta),
+  )
+  revisar(
+    `lo de coordinación de ${HORAS_PUNTO + 1} h sigue entero`,
+    vence.deCoordinacion?.vaciada_por === null && vence.deCoordinacion.cerrada_por === null,
+    estadoDe(vence.deCoordinacion),
+  )
+  revisar(
+    `y a los ${DIAS_COORDINACION + 1} días se vacía`,
+    vence.viejisima?.vaciada_por === 'vencida',
+    estadoDe(vence.viejisima),
+  )
+
+  // ── Vocabulario ─────────────────────────────────────────────────────
+  //
+  // Ensayado: una expresión no tiene dueño —es del sistema, no de una charla—
+  // y una de prueba le aparecería a la coordinación para revisar.
+  console.log('\n  Migue · vocabulario')
+
+  const vocabulario = await ensayar(async (e) => {
+    const ANOTAR = `select app.migue_anotar_expresion($1, 'Una expresión de prueba', 'otro', '')`
+    await e.como(punto)
+    await e.consultar(ANOTAR, ['la de db:verificar'])
+    // Otro punto la dice con otras mayúsculas: es la misma.
+    await e.como(andes)
+    await e.consultar(ANOTAR, ['La de DB:Verificar'])
+    await e.como(admin)
+    const filas = await e.consultar<{ id: string; veces: number; estado: string }>(
+      `select id, veces, estado from migue_expresiones
+        where normalizada = 'la de db:verificar' and tipo = 'otro' and referencia = ''`,
+    )
+    const id = filas[0]?.id ?? null
+    await e.como(punto)
+    const delPunto = await e.rechazo(`select app.migue_revisar_expresion($1, 'aprobada')`, [id])
+    await e.como(admin)
+    const deCoordinacion = await e.rechazo(`select app.migue_revisar_expresion($1, 'aprobada')`, [id])
+    const [revisada] = await e.consultar<{ estado: string }>('select estado from migue_expresiones where id = $1', [id])
+    return { filas, delPunto, deCoordinacion, estado: revisada?.estado ?? '' }
+  })
+  revisar(
+    'una expresión repetida suma veces, no se duplica',
+    vocabulario.filas.length === 1 && vocabulario.filas[0].veces === 2 && vocabulario.filas[0].estado === 'propuesta',
+    vocabulario.filas.map((f) => `${f.veces} veces, ${f.estado}`).join(' · ') || 'no quedó ninguna',
+  )
+  revisar(
+    'sólo la coordinación la revisa',
+    vocabulario.delPunto.includes('coordinación') && vocabulario.deCoordinacion === '' && vocabulario.estado === 'aprobada',
+    vocabulario.delPunto ? vocabulario.deCoordinacion.slice(0, 60) || `quedó ${vocabulario.estado}` : 'el punto la aprobó',
+  )
+
+  // ── Nada se borra ───────────────────────────────────────────────────
+  //
+  // Olvidar vacía, no borra. DELETE y TRUNCATE siguen revocados para todos
+  // (0019), y la 0025 los vuelve a sacar a mano porque aquel revoke alcanzó
+  // sólo a las tablas que existían entonces. TRUNCATE no pasa por las
+  // políticas: si el permiso estuviera, RLS no lo frenaría.
+  console.log('\n  Migue · nada se borra')
+
+  for (const tabla of [
+    'migue_conversaciones', 'migue_mensajes', 'migue_recuerdos', 'migue_expresiones', 'migue_gasto', 'migue_eventos',
+  ]) {
+    const borra = await puede('authenticated', `delete from ${tabla}`)
+    const trunca = await puede('authenticated', `truncate ${tabla} cascade`)
+    revisar(
+      `nadie borra ni trunca ${tabla}`,
+      !borra && !trunca,
+      [borra ? 'DELETE pasa' : '', trunca ? 'TRUNCATE pasa' : ''].filter(Boolean).join(' y '),
+    )
+  }
+
+  // ── Las cifras de las reglas ────────────────────────────────────────
+  //
+  // Migue cita estas cifras desde src/lib/reglas.ts, y las cita como
+  // respaldadas: «tenés 10 minutos para deshacerlo» pasa el control de
+  // números porque el 10 sale de ahí. Si la política dijera 15, Migue le
+  // mentiría al vigilador con el aval del control. Se lee el texto que la base
+  // tiene guardado —el de la política, la función o la vista—, no el de la
+  // migración: es el que se cumple.
+  //
+  // Los nombres son los de las migraciones, y no siempre los que dice el
+  // comentario de reglas.ts: el disparador es app.validar_fecha_movimiento y
+  // la corrección del conteo es la política conteos_editar.
+  console.log('\n  Migue · las cifras de las reglas')
+
+  type Unidad = 'minutes' | 'hours' | 'days'
+  const CIFRAS: Array<[keyof typeof reglas, 'la política' | 'la función' | 'la vista', string, Unidad | RegExp]> = [
+    ['MINUTOS_PARA_DESHACER', 'la política', 'movimientos_deshacer', 'minutes'],
+    ['HORAS_VISIBLES_EN_EL_CELULAR', 'la política', 'movimientos_leer', 'hours'],
+    ['HORAS_DE_ATRASO_MAXIMO', 'la función', 'app.validar_fecha_movimiento', 'hours'],
+    ['MINUTOS_PARA_CARGA_DIFERIDA', 'la función', 'app.validar_fecha_movimiento', 'minutes'],
+    ['DIAS_DE_CONTEO_PARA_ATRAS', 'la política', 'conteos_crear', /current_date\s*-\s*(\d+)/gi],
+    ['DIAS_DE_CONTEO_PARA_ATRAS', 'la política', 'conteos_editar', /current_date\s*-\s*(\d+)/gi],
+    ['HORAS_PARA_CANCELAR_PEDIDO', 'la política', 'pedidos_cancelar', 'hours'],
+    ['DIAS_PARA_PEDIDO_DEMORADO', 'la vista', 'v_pedidos_recambio', 'days'],
+    ['HORAS_DE_CONVERSACION_DEL_PUNTO', 'la función', 'app.migue_vencer', 'hours'],
+    ['DIAS_DE_CONVERSACION_DE_COORDINACION', 'la función', 'app.migue_vencer', 'days'],
+    ['HORAS_PARA_CERRAR_QUIETA', 'la función', 'app.migue_vencer', 'hours'],
+    ['RECUERDOS_MAXIMOS', 'la función', 'app.migue_recordar', /v_activos\s*>=\s*(\d+)/gi],
+  ]
+  const nombres = (clase: string) => CIFRAS.filter((c) => c[1] === clase).map((c) => c[2].replace(/^app\./, ''))
+  const textos = new Map(
+    (
+      await comoServicio((tx) =>
+        tx.consultar<{ objeto: string; texto: string }>(
+          `select policyname as objeto, concat_ws(' ', qual, with_check) as texto
+             from pg_policies where schemaname = 'public' and policyname = any($1::text[])
+           union all
+           select 'app.' || p.proname, string_agg(p.prosrc, ' ')
+             from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+            where n.nspname = 'app' and p.proname = any($2::text[])
+            group by p.proname
+           union all
+           select c.relname, pg_get_viewdef(c.oid)
+             from pg_class c join pg_namespace n on n.oid = c.relnamespace
+            where n.nspname = 'public' and c.relkind = 'v' and c.relname = any($3::text[])`,
+          [nombres('la política'), nombres('la función'), nombres('la vista')],
+        ),
+      )
+    ).map((f) => [f.objeto, f.texto]),
+  )
+
+  for (const [constante, clase, objeto, forma] of CIFRAS) {
+    const valor = reglas[constante]
+    const texto = textos.get(objeto)
+    const dice = typeof forma === 'string' ? `${valor} ${forma}` : String(valor)
+    let coincide = false
+    let enLaBase = 'no está en la base'
+    if (texto !== undefined && typeof forma === 'string') {
+      // Una política o una vista vuelven deparseadas —'00:10:00'::interval—
+      // y una función plpgsql vuelve tal cual se escribió —interval '10
+      // minutes'—. Se juntan las dos formas y los compara la base, que sabe
+      // que las dos son lo mismo.
+      const hallados = [...texto.matchAll(/interval\s+'([^']+)'|'([^']+)'::interval/gi)].map((m) => m[1] ?? m[2])
+      const [f] = await comoServicio((tx) =>
+        tx.consultar<{ esta: boolean }>('select $1::interval = any($2::text[]::interval[]) as esta', [dice, hallados]),
+      )
+      coincide = f?.esta === true
+      enLaBase = hallados.join(', ') || 'ningún intervalo'
+    } else if (texto !== undefined && forma instanceof RegExp) {
+      const hallados = [...texto.matchAll(forma)].map((m) => Number(m[1]))
+      coincide = hallados.includes(valor)
+      enLaBase = hallados.join(', ') || 'ninguna cifra'
+    }
+    revisar(
+      `${constante} coincide con ${clase} ${objeto}`,
+      coincide,
+      `reglas.ts dice ${dice}; ${clase} dice ${enLaBase}`,
+    )
+  }
+
+  // ── El código ───────────────────────────────────────────────────────
+  console.log('\n  Migue · el código')
+
+  /*
+   * Lo que un archivo de código nombra, sin sus comentarios: los nombres y los
+   * textos —cadenas y plantillas, que es donde vive el SQL—.
+   *
+   * Se lee con el analizador de TypeScript y no con una expresión regular
+   * porque los comentarios de src/lib/migue explican justamente lo que el
+   * código no hace —«acá no hay un solo comoServicio»— y una búsqueda sobre el
+   * texto crudo los daría por culpables. Lo que importa es lo que corre.
+   */
+  const ts = (await import('typescript')).default
+  const loQueNombra = (ruta: string) => {
+    const fuente = ts.createSourceFile(
+      ruta, readFileSync(ruta, 'utf8'), ts.ScriptTarget.Latest, false,
+      ruta.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+    )
+    const nombres = new Set<string>()
+    const textos: string[] = []
+    const recorrer = (nodo: import('typescript').Node): void => {
+      if (ts.isIdentifier(nodo)) nombres.add(nodo.text)
+      else if (ts.isStringLiteralLike(nodo) || ts.isTemplateHead(nodo) || ts.isTemplateMiddle(nodo) || ts.isTemplateTail(nodo)) {
+        textos.push(nodo.text)
+      }
+      ts.forEachChild(nodo, recorrer)
+    }
+    recorrer(fuente)
+    return { nombres, textos }
+  }
+
+  const RAIZ_MIGUE = fileURLToPath(new URL('../../src/lib/migue/', import.meta.url))
+  const archivos = readdirSync(RAIZ_MIGUE, { recursive: true, encoding: 'utf8' })
+    .filter((f) => /\.tsx?$/.test(f))
+    .sort()
+  const leido = new Map(archivos.map((f) => [f, loQueNombra(path.join(RAIZ_MIGUE, f))]))
+  const deHerramientas = archivos.filter((f) => f.startsWith(`herramientas${path.sep}`))
+
+  // comoServicio es la única puerta que esquiva las políticas. Migue lee con
+  // la sesión de quien pregunta o no lee: una herramienta que la cruzara le
+  // contaría al celular de un punto lo de todos los demás.
+  const conComoServicio = archivos.filter((f) => {
+    const { nombres, textos } = leido.get(f)!
+    return nombres.has('comoServicio') || textos.some((t) => t.includes('comoServicio'))
+  })
+  revisar(
+    'ningún archivo de src/lib/migue nombra comoServicio',
+    archivos.length > 0 && conComoServicio.length === 0,
+    conComoServicio.join(', ') || 'no se encontraron los archivos',
+  )
+
+  // Las que escriben datos de personas o de entidades, las que borran o
+  // formalizan, y la que cuenta lo que dejó hecho cualquier usuario mirando
+  // tablas enteras. Son `security definer`: con la sesión del punto igual
+  // escriben, y Migue sólo lee.
+  const PROHIBIDAS = /\bapp\.(anonimizar_vecino|registrar_vecino|registrar_entidad_rapida|formalizar_destino|eliminar_perfil|rastro_de_perfil)\b/g
+  const conProhibidas = deHerramientas.flatMap((f) => [
+    ...new Set(leido.get(f)!.textos.flatMap((t) => [...t.matchAll(PROHIBIDAS)].map((m) => `${path.basename(f)}: app.${m[1]}`))),
+  ])
+  revisar(
+    'ninguna herramienta nombra las funciones que escriben personas, borran o miran de más',
+    deHerramientas.length > 0 && conProhibidas.length === 0,
+    conProhibidas.join(', ') || 'no se encontraron las herramientas',
+  )
+
+  // La auditoría la lee entera la coordinación y guarda el antes y el después
+  // de cada fila, con nombres y teléfonos. Un chat es una exportación con otro
+  // nombre. Sin tilde a propósito: «auditoría» con tilde es lo que se le dice
+  // a la persona, «auditoria» es la tabla.
+  const AUDITORIA = /(?<![\p{L}\d_])auditoria(?![\p{L}\d_])/iu
+  const conAuditoria = deHerramientas.filter((f) => leido.get(f)!.textos.some((t) => AUDITORIA.test(t)))
+  revisar(
+    'ninguna consulta de las herramientas nombra la tabla auditoria',
+    deHerramientas.length > 0 && conAuditoria.length === 0,
+    conAuditoria.map((f) => path.basename(f)).join(', ') || 'no se encontraron las herramientas',
+  )
+
+  const migue = await cargarMigue()
+  if (!migue) {
+    console.log(`  · no se pudo cargar src/lib/migue → ${porQueNoSeCargoMigue}`)
+    for (const queda of [
+      'las herramientas de coordinación tienen esquemas estrictos, y no más de 20',
+      'las de un punto verde también',
+      'y las de la Planta',
+      'el vigilador no tiene ninguna herramienta de coordinación',
+      'el control de números rechaza una cifra que ninguna consulta devolvió',
+      'y deja pasar la que sí salió de una',
+    ]) {
+      omitir(queda, 'sin el código de Migue')
+    }
+    return
+  }
+
+  // Lo que recibe una conversación nueva de cada uno, armado como lo arma el
+  // orquestador: el catálogo vivo leído con su sesión, sus herramientas y las
+  // definiciones que salen de los dos. Los enums salen del catálogo, así que
+  // con uno vacío o de mentira la prueba miraría otros esquemas.
+  const { herramientasPara, definiciones } = migue.herramientas
+  const loQueRecibe = (quien: Sesion) =>
+    conSesion(quien, async (tx) => {
+      const [sitio] = quien.sitioId
+        ? await tx.consultar<{ id: string; codigo: string; nombre: string; tipo: 'planta' | 'punto_verde'; carga_detallada: boolean }>(
+            'select id, codigo, nombre, tipo, carga_detallada from sitios where id = $1',
+            [quien.sitioId],
+          )
+        : []
+      const puntoDeLaSesion = sitio
+        ? { id: sitio.id, codigo: sitio.codigo, nombre: sitio.nombre, tipo: sitio.tipo, cargaDetallada: sitio.carga_detallada }
+        : null
+      const catalogo = await migue.catalogo.leerCatalogo(tx, {
+        rol: quien.rol, perfilId: quien.perfilId, punto: puntoDeLaSesion,
+      })
+      const herramientas = herramientasPara(quien.rol, puntoDeLaSesion)
+      return { herramientas, definiciones: definiciones(herramientas, catalogo) }
+    })
+
+  // Veinte es lo que el proveedor recomienda no pasar: con más, el modelo
+  // elige peor, y cada definición viaja entera en cada pregunta.
+  const HERRAMIENTAS_MAXIMAS = 20
+  const recibe = { coordinacion: await loQueRecibe(admin), puntoVerde: await loQueRecibe(punto), planta: await loQueRecibe(planta) }
+  for (const [descripcion, r] of [
+    ['las herramientas de coordinación tienen esquemas estrictos, y no más de 20', recibe.coordinacion],
+    ['las de un punto verde también', recibe.puntoVerde],
+    ['y las de la Planta', recibe.planta],
+  ] as const) {
+    const faltas = r.definiciones.flatMap((d) => faltasDelEsquema(d))
+    if (r.definiciones.length > HERRAMIENTAS_MAXIMAS) faltas.unshift(`son ${r.definiciones.length}`)
+    revisar(descripcion, r.definiciones.length > 0 && faltas.length === 0, faltas.slice(0, 3).join(' · ') || 'no tiene ninguna')
+  }
+
+  // Ni una de las de coordinación, ni una compartida que sea sólo de
+  // coordinación: la negativa por permiso se decide antes de consultar,
+  // porque RLS recorta en silencio y un cero leído como «no cargó nada» es una
+  // acusación falsa.
+  const deCoordinacion = new Set(migue.coordinacion.HERRAMIENTAS_DE_COORDINACION.map((h) => h.nombre))
+  const prestadas = [...recibe.puntoVerde.herramientas, ...recibe.planta.herramientas]
+    .filter((h) => deCoordinacion.has(h.nombre) || !h.roles.includes('vigilador'))
+    .map((h) => h.nombre)
+  revisar(
+    'el vigilador no tiene ninguna herramienta de coordinación',
+    deCoordinacion.size > 0 && prestadas.length === 0,
+    [...new Set(prestadas)].join(', '),
+  )
+
+  // El control de números, que es lo que no deja pasar una cifra hecha de
+  // memoria: «312,5 m³» inventado se lee igual que el verdadero.
+  const { verificarNumeros } = migue.verificador
+  const ahora = new Date()
+  const inventada = verificarNumeros('En agosto entraron 312,5 m³ a la Planta.', [296.4], ahora)
+  revisar(
+    'el control de números rechaza una cifra que ninguna consulta devolvió',
+    !inventada.ok && inventada.sinRespaldo.includes('312,5'),
+    inventada.sinRespaldo.join(', ') || 'la dejó pasar',
+  )
+  const respaldada = verificarNumeros('En agosto entraron 296,4 m³ a la Planta.', [296.4], ahora)
+  revisar('y deja pasar la que sí salió de una', respaldada.ok, `rechazó ${respaldada.sinRespaldo.join(', ')}`)
+}
+
 async function main() {
   console.log(`\n  Verificación de permisos · ${describirMotor()}\n`)
   await limpiarRastros()
 
-  const { admin, planta, punto: otroPunto, andes } = await sesionesDePrueba()
+  const sesiones = await sesionesDePrueba()
+  const { admin, planta, punto: otroPunto, andes } = sesiones
 
   // Contra una base recién creada no hay nada cargado, y una comprobación sobre
   // la nada engaña en las dos direcciones: "la coordinadora ve los movimientos"
@@ -1515,6 +2571,9 @@ async function main() {
     )
   }
 
+  // ═══ Migue ════════════════════════════════════════════════════════════
+  await verificarMigue(sesiones)
+
   console.log('\n  Lo que no entra a la auditoría')
 
   // Las credenciales que se escribieron recién no pueden haber quedado
@@ -1644,7 +2703,8 @@ exigirConfirmacionSiEsRemota({
   variable: 'CONFIRMO_VERIFICAR',
   que:
     'La verificación crea sus propios usuarios, movimientos y entidades para poder ' +
-    'comprobar los permisos, y los saca al terminar. Si se corta en el medio, quedan.',
+    'comprobar los permisos, y los saca al terminar. Si se corta en el medio, quedan.\n' +
+    '  También crea conversaciones de Migue de prueba, y se borran junto con esos usuarios.',
   comando: 'npm run db:verificar',
 })
 

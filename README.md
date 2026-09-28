@@ -407,12 +407,20 @@ Lo que queda vacío lo carga la coordinadora:
 
 #### Variables en Vercel
 
-Son dos, y ninguna más:
+Dos obligatorias:
 
 | Nombre | Valor |
 |---|---|
 | `DATABASE_URL` | la cadena del pooler en **modo transacción** (`:6543`) |
 | `AUTH_SECRET` | `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"` |
+
+Y las de Migue, que si faltan lo apagan sin tocar nada más (ver [Migue](#migue-el-asistente-de-consultas)):
+
+| Nombre | Valor |
+|---|---|
+| `OPENROUTER_API_KEY` | la clave de OpenRouter, empieza con `sk-or-` |
+| `ASISTENTE_MODELO` | `openai/gpt-4.1-mini` (vacío es lo mismo) |
+| `ASISTENTE_TOPE_MENSUAL_USD` | `20`. Vacío **apaga** a Migue: no quiere decir «sin tope» |
 
 Sin `AUTH_SECRET` la app no arranca y lo dice. Se deja vacío en `.env.example` a
 propósito: con la clave de firma publicada, cualquiera podría emitirse una sesión de
@@ -429,7 +437,7 @@ coordinación.
 
 ```
 db/
-  migrations/        24 migraciones SQL, en orden. Es la fuente de verdad del modelo.
+  migrations/        25 migraciones SQL, en orden. Es la fuente de verdad del modelo.
   client.ts          conexión: PGlite o postgres-js según DATABASE_URL
   sesion.ts          conSesion() pone la identidad en la base antes de consultar
   credenciales.ts    hasheo de PIN y contraseña con scrypt
@@ -438,15 +446,19 @@ db/
   cli/               migrar · sembrar · reset · verificar · exportar-sql ·
                      clave (la salida para el que se olvidó la suya)
 src/
-  lib/               tipos, capa de datos, sesión, formato argentino
+  lib/               tipos, capa de datos, sesión, formato argentino, reglas de tiempo
+    migue/           el asistente: orquestador, herramientas por rol, control de
+                     números, cliente de OpenRouter, memoria y gasto
   app/
     ingresar/        pantalla de acceso
     (vigilador)/     turno, carga de ingreso y salida, conteo diario, control de
                      pilas, listo, lo de hoy
     (admin)/         tablero (planta y puntos verdes), movimientos, trazabilidad,
                      pilas, conteos, listas, revisiones, vecinos, usuarios, cuenta
-                     (correo y contraseña), auditoría
-    api/             exportar a Excel, sincronizar la cola offline
+                     (correo y contraseña), auditoría, Migue y lo que recuerda
+    (vigilador)/preguntar/  Migue en el celular y lo que recuerda del punto
+    _migue/          el chat, compartido por las dos pantallas
+    api/             exportar a Excel, sincronizar la cola offline, Migue
 docs/                documento de validación de fase 0
 assets/marca/        identidad institucional (logos y plantilla de referencia)
 ```
@@ -593,6 +605,98 @@ el vigilador lo da de alta desde el celular para no quedarse trabado; queda marc
 *pendiente de revisión* y solo habilitado como destino. La coordinadora lo confirma,
 lo fusiona con uno escrito distinto, o lo descarta, desde **Revisiones**. No puede
 dar de alta una empresa ni una dependencia municipal: eso sigue siendo de ella.
+
+## Migue, el asistente de consultas
+
+Migue contesta preguntas sobre lo cargado. La coordinación le pregunta desde el panel
+(*Migue*) y el vigilador desde el celular (*Preguntale a Migue*, abajo en *Turno*).
+**Sólo lee**: no carga, no anula, no corrige nada. Si se lo piden, dice dónde se hace,
+porque así el cambio queda firmado por quien lo hizo y la auditoría sigue contestando
+quién hizo qué.
+
+### Cómo contesta sin inventar
+
+- **No escribe consultas.** El modelo elige entre herramientas ya escritas
+  (`src/lib/migue/herramientas/`), cada una con un esquema estricto. Las de lectura
+  corren en una transacción de **sólo lectura** con la sesión de quien pregunta: RLS
+  filtra igual que en las pantallas, y aunque una consulta tuviera un insert, la base
+  lo rechazaría. En `src/lib/migue` no aparece `comoServicio`.
+- **Cada número sale de la misma función que la pantalla del enlace.** Por eso
+  */movimientos* tiene ahora una tabla *Cuánto suman*: es la que respalda lo que
+  Migue dice de los movimientos de un filtro. Debajo de cada respuesta van los
+  botones a esas pantallas, con los filtros ya puestos y el alcance escrito.
+- **Un control revisa cada número antes de mostrarlo.** Sólo valen los que salieron
+  de columnas numéricas de una consulta de esa conversación: ni los de un texto que
+  escribió alguien, ni los de la pregunta, ni los que el modelo calculó. Si alguno no
+  tiene respaldo, se le pide una vez que reescriba; si tampoco, se muestra una
+  respuesta sin números y los botones.
+- **Cada rol tiene sus herramientas.** El vigilador ve su punto y, de los
+  movimientos, las últimas 48 horas —igual que en el celular—, así que no tiene
+  ninguna herramienta que sume el mes ni que mire otro punto: esa pregunta no tiene
+  con qué intentarse, y contesta que eso lo ve la coordinación. Dejarlo consultar y
+  que RLS filtre en silencio haría que dijera «Italia cargó 0», que es falso.
+
+### Lo que recuerda, y cómo se olvida
+
+La conversación sigue el hilo mientras dure. Lo que la persona le pide recordar
+(«acordate que acá al RSU le dicen el tacho grande») es **de la persona** en
+coordinación y **del punto** en los celulares, porque la cuenta la comparten los que
+rotan. Todo se ve y se olvida en *Lo que Migue recuerda*, también con Migue apagado.
+
+Olvidar vacía, no borra —`DELETE` sigue revocado— y además cierra y vacía cada
+conversación donde Migue lo tenía presente. Las conversaciones vencen solas: las del
+punto a las 48 horas y las de coordinación a los 90 días. Nadie lee las de otro: la
+coordinación tampoco.
+
+Si alguien lo insulta, Migue no devuelve ni sermonea: la primera vez redirige y, si
+sigue, corta **esa conversación**. La cuenta no se toca —es del punto—, se puede empezar
+otra enseguida, y queda contado por punto y por semana, sin texto ni hora. Una puteada
+de frustración con la señal no es maltrato, y así está escrito en sus instrucciones.
+
+### El vocabulario
+
+Cuando alguien nombra algo de una forma que no tenía anotada («la del Inca») y lo
+entiende por el contexto, lo propone. **No entra solo**: la coordinación lo aprueba en
+*Lo que Migue recuerda*, y recién ahí lo usan las conversaciones nuevas. El catálogo
+—puntos con su dirección, materiales, recipientes— se lee al abrir cada conversación:
+un material nuevo lo entiende desde la siguiente, sin tocar código. El modelo no se
+reentrena: lo que mejora es lo que se le da.
+
+### El proveedor, el modelo y la plata
+
+Va por **OpenRouter**, con `openai/gpt-4.1-mini`. Cada pedido exige proveedores que
+no guarden ni entrenen con lo que reciben (`data_collection: deny`). El costo lo
+devuelve OpenRouter en cada respuesta, y se anota apenas vuelve cada llamada.
+
+El modelo se eligió midiendo: 38 preguntas reales, con errores de tipeo, corridas por
+el orquestador de verdad. `gpt-4o-mini` presentó datos de un punto como si fueran de
+otro y eligió una de las dos Huertas sin decirlo; `gpt-4.1-mini` no se equivocó en
+ninguna. Cuesta unos **0,0015 USD por pregunta**: el tope de 20 USD alcanza para unas
+13.000 por mes. Llegado el tope, Migue deja de contestar hasta el 1° y lo avisa. Cada
+punto puede usar por día hasta el 10% del tope y cada coordinadora el 25%.
+
+### Ponerlo en producción
+
+1. **La base primero.** `npm run db:sql -- --desde 0025` escribe
+   `db/actualizacion.sql`: pegarlo en Supabase → SQL Editor. Es aditiva: el código que
+   ya está en el aire no la nota.
+2. **Las variables** de la tabla de arriba, en Vercel.
+3. **El código.** Sin la 0025, Migue no aparece en ningún lado; sin la clave o sin el
+   tope, aparece apagado y dice por qué.
+
+`/api/salud` dice si Migue está encendido, apagado o en el tope, sin cambiar el estado
+general: Migue apagado es un estado normal del sistema.
+
+### Lo que Migue no toca, a propósito
+
+- **Los volteos de las pilas.** El celular los anota en `pila_controles` y el tablero de
+  pilas los cuenta desde `pila_controles_proceso`, así que un volteo anotado desde
+  */pila* no llega a `v_pilas` y la alarma de volteo atrasado no se enciende nunca.
+  Es un defecto anterior, que pide decidir cuál de las dos tablas manda. Hasta
+  entonces Migue no habla de volteos.
+- **La auditoría**, que guarda los datos de los vecinos anonimizados en crudo.
+- **Datos de personas**: ni vecinos, ni choferes, ni quién estaba de turno. Una
+  pregunta con un teléfono, un documento o un correo no se manda ni se guarda.
 
 ## Lo que falta para cerrar la fase 3
 

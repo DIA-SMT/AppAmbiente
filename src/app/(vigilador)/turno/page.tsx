@@ -1,10 +1,12 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { conSesion } from '@db/sesion'
+import { Retrato } from '@/app/_migue/Retrato'
 import {
   contenedoresDelSitioEnTx, listasDelFormularioEnTx, movimientosDelTurnoEnTx,
 } from '@/lib/datos'
 import { diaSemana } from '@/lib/formato'
+import { migueEstaInstalado } from '@/lib/migue/configuracion'
 import { sesionActual } from '@/lib/sesion'
 import SelectorVigilador, { AvisoPendientes } from './SelectorVigilador'
 
@@ -86,7 +88,7 @@ export default async function InicioDeTurno() {
   // sola consulta trae todo lo del sitio. El flujo que se pasa acá solo cambia
   // qué materiales y qué entidades vuelven, y esta pantalla no usa ninguno de
   // los dos: el tipo de sitio sale de la misma respuesta.
-  const [listas, movimientos, sitios, contenedores] = await conSesion(sesion, (tx) =>
+  const [listas, movimientos, sitios, contenedores, conMigue] = await conSesion(sesion, (tx) =>
     Promise.all([
       listasDelFormularioEnTx(tx, sesion, 'planta', 'ingreso'),
       movimientosDelTurnoEnTx(tx, 100),
@@ -104,6 +106,11 @@ export default async function InicioDeTurno() {
       // hace que el botón diga cuántos están esperando, y ese número es lo que
       // hace que entren.
       contenedoresDelSitioEnTx(tx, sesion),
+      // Sólo si la base tiene lo de Migue. Es una lectura del catálogo, que no
+      // puede fallar, y ninguna otra cosa: si acá se leyera el gasto del mes y
+      // la función reventara, se caería el turno entero y el vigilador no
+      // podría cargar. Si Migue está apagado o en el tope, lo dice /preguntar.
+      migueEstaInstalado(tx),
     ]),
   )
 
@@ -268,6 +275,16 @@ export default async function InicioDeTurno() {
         </div>
         <Link href="/hoy" className="boton secundario chico">Ver lo de hoy</Link>
       </div>
+
+      {/* Abajo, sin ícono y sin borde: esta pantalla es para cargar, y Migue es
+          para cuando hay una duda. Justo abajo de «Ver lo de hoy», que es la
+          otra forma de mirar en vez de cargar. */}
+      {conMigue && (
+        <Link href="/preguntar" className="boton fantasma ancho-total">
+          <Retrato tamano="chico" />
+          Preguntale a Migue
+        </Link>
+      )}
 
       {/* Abajo y a propósito: el vigilador entra a esta pantalla a registrar un
           movimiento, y decir quién está de turno es opcional. */}

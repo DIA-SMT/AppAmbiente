@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { consultarConSesion } from '@db/sesion'
 import { destinosAFormalizar, entidadesPendientes } from '@/lib/datos'
 import { ETIQUETA_ENTIDAD, ETIQUETA_FLUJO, fecha, fechaHora, haceCuanto, numero } from '@/lib/formato'
+import { VECES_PARA_DESTINO_REPETIDO } from '@/lib/reglas'
 import { exigirPanel } from '@/lib/sesion'
 import { confirmar, descartar } from './acciones'
 import FormalizarDestino from './FormalizarDestino'
@@ -11,7 +12,7 @@ import estilos from './revisiones.module.css'
 export const dynamic = 'force-dynamic'
 
 /** A partir de acá el destino dejó de ser una excepción y merece ser opción fija. */
-const SE_REPITE = 5
+const SE_REPITE = VECES_PARA_DESTINO_REPETIDO
 
 interface FilaEntidad {
   id: string

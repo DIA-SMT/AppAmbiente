@@ -3,13 +3,11 @@ import { notFound, redirect } from 'next/navigation'
 import { consultarConSesion } from '@db/sesion'
 import { anularMovimiento, movimientoPorId } from '@/lib/datos'
 import { ETIQUETA_TIPO, cantidad, fechaHora } from '@/lib/formato'
+import { MINUTOS_PARA_DESHACER } from '@/lib/reglas'
 import { sesionActual } from '@/lib/sesion'
 import type { ItemListado } from '@/lib/tipos'
 
 export const dynamic = 'force-dynamic'
-
-/** Diez minutos: lo mismo que permite la política de la base. */
-const MINUTOS_PARA_DESHACER = 10
 
 async function deshacer(datos: FormData) {
   'use server'

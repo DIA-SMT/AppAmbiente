@@ -12,6 +12,8 @@ const SECCIONES = [
   { destino: '/trazabilidad', rotulo: 'Trazabilidad', icono: 'trazabilidad' },
   { destino: '/conteos', rotulo: 'Conteos', icono: 'conteos' },
   { destino: '/recambios', rotulo: 'Recambios', icono: 'recambios' },
+  // Sólo si la base tiene la 0025: ver la prop `migue` más abajo.
+  { destino: '/migue', rotulo: 'Migue', icono: 'migue' },
   { destino: '/listas', rotulo: 'Listas', icono: 'listas' },
   { destino: '/revisiones', rotulo: 'Revisiones', icono: 'revisiones' },
   { destino: '/vecinos', rotulo: 'Vecinos', icono: 'vecinos' },
@@ -25,10 +27,11 @@ type Icono = (typeof SECCIONES)[number]['icono']
 interface Cuentas {
   pendientes: number
   recambios: number
+  expresiones: number
 }
 
 /**
- * Las dos secciones que llevan un número al lado. Lo que cuenta cada una y cómo
+ * Las secciones que llevan un número al lado. Lo que cuenta cada una y cómo
  * se lee en voz alta viven juntos: un número sin rótulo no dice si son altas,
  * pedidos o mensajes sin leer.
  */
@@ -42,6 +45,13 @@ const CONTADORES: Record<string, { cuantos: (c: Cuentas) => number; una: string;
     cuantos: (c) => c.recambios,
     una: ' recambio pendiente',
     varias: ' recambios pendientes',
+  },
+  // Las palabras que Migue propone no entran solas: esperan a que alguien las
+  // apruebe, y sin el número nadie entraría a mirarlas.
+  '/migue': {
+    cuantos: (c) => c.expresiones,
+    una: ' palabra para revisar',
+    varias: ' palabras para revisar',
   },
 }
 
@@ -59,6 +69,7 @@ function IconoNavegacion({ nombre }: { nombre: Icono }) {
     usuarios: <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><circle cx="12" cy="9" r="2" /><path d="M8.8 16a3.5 3.5 0 0 1 6.4 0" /></>,
     importar: <><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></>,
     auditoria: <><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></>,
+    migue: <><path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 20.5l1.4-5.2A8.5 8.5 0 1 1 21 11.5Z" /><path d="M8.5 11.5h.01M12.5 11.5h.01M16.5 11.5h.01" /></>,
   }[nombre]
 
   return (
@@ -69,10 +80,24 @@ function IconoNavegacion({ nombre }: { nombre: Icono }) {
   )
 }
 
-export default function Navegacion({ contraida = false }: { contraida?: boolean }) {
+export default function Navegacion({
+  contraida = false,
+  migue = false,
+}: {
+  contraida?: boolean
+  /**
+   * Si la base tiene la 0025. Ésta sí viene por prop, y no contradice lo de
+   * abajo: lo que se congela en un layout es lo que cambia al navegar, y esto
+   * no cambia —la migración se aplica una vez y no se deshace—. Pedirlo con
+   * los números haría aparecer la entrada recién cuando vuelve el fetch,
+   * corriendo media barra un renglón para abajo cada vez que se abre el panel.
+   */
+  migue?: boolean
+}) {
   const ruta = usePathname() ?? ''
   const [pendientes, setPendientes] = useState(0)
   const [recambios, setRecambios] = useState(0)
+  const [expresiones, setExpresiones] = useState(0)
 
   // Los números al lado de "Revisiones" y "Recambios" son lo que hace que
   // alguien entre: sin ellos, las altas de la calle se quedan ahí para siempre y
@@ -86,8 +111,8 @@ export default function Navegacion({ contraida = false }: { contraida?: boolean 
   // llamada desde el navegador vuelve por la cola del router, y Next aprovecha
   // la respuesta para volver a pedir ENTERA la pantalla que acababa de llegar.
   // Eran dos idas y vueltas encadenadas más una pantalla de más en cada cambio
-  // de sección; un fetch normal no entra en esa cola y no dispara nada. Los dos
-  // números vienen juntos en la misma respuesta.
+  // de sección; un fetch normal no entra en esa cola y no dispara nada. Los
+  // números vienen todos juntos en la misma respuesta.
   useEffect(() => {
     // Al cambiar de sección se corta el pedido anterior: si llegara tarde,
     // pintaría en la barra nueva el número que se pidió para la barra vieja.
@@ -99,6 +124,7 @@ export default function Navegacion({ contraida = false }: { contraida?: boolean 
         if (!cuentas) return
         setPendientes(cuentas.pendientes ?? 0)
         setRecambios(cuentas.recambios ?? 0)
+        setExpresiones(cuentas.expresiones ?? 0)
       })
       .catch(() => { /* La barra funciona igual sin los números. */ })
 
@@ -108,10 +134,10 @@ export default function Navegacion({ contraida = false }: { contraida?: boolean 
   return (
     <nav id="navegacion-panel" className={`${estilos.barra} ${contraida ? estilos.contraida : ''}`} aria-label="Secciones del panel">
       <div className={estilos.pistas}>
-        {SECCIONES.map(({ destino, rotulo, icono }) => {
+        {SECCIONES.filter(({ destino }) => migue || destino !== '/migue').map(({ destino, rotulo, icono }) => {
           const activa = ruta === destino || ruta.startsWith(`${destino}/`)
           const contador = CONTADORES[destino]
-          const cuantos = contador ? contador.cuantos({ pendientes, recambios }) : 0
+          const cuantos = contador ? contador.cuantos({ pendientes, recambios, expresiones }) : 0
 
           return (
             <Link

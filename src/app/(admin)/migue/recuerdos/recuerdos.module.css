@@ -1,0 +1,89 @@
+/* Lo propio de «Lo que Migue recuerda». Todo lo demás sale de globals.css, y la
+   confirmación sin modal de gente.module.css. El color siempre de las
+   variables, así que los dos temas salen solos. */
+
+/* ── Un recuerdo ──────────────────────────────────────────────────────── */
+
+/* El texto a la izquierda y «Olvidar» a la derecha. En el celular el botón
+   baja abajo del texto en vez de apretarlo contra el borde: un recuerdo son
+   hasta doscientas letras, y al lado de un botón, en el ancho de un teléfono,
+   se leería de a dos o tres palabras por renglón. */
+.recuerdo {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+}
+
+.texto {
+  flex: 1 1 280px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* Lo escribió alguien en la calle: una palabra de cuarenta letras sin
+     espacios no puede empujar la fila fuera de la pantalla. */
+  overflow-wrap: anywhere;
+}
+
+/* Abierta, la confirmación trae una frase entera. Sin tope de ancho se
+   estiraría hasta comerse la columna del texto, y lo que se está por olvidar
+   quedaría angostado justo cuando hay que leerlo. */
+.recuerdo > details { margin-left: auto; max-width: 360px; }
+
+.grupo {
+  display: flex;
+  align-items: baseline;
+  gap: 6px 10px;
+  flex-wrap: wrap;
+}
+
+.codigo {
+  font-family: var(--mono);
+  font-weight: 800;
+  color: var(--tinta);
+}
+
+/* ── El gasto del mes ─────────────────────────────────────────────────── */
+
+.cifra {
+  font-size: 1.9rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -.02em;
+  color: var(--tinta);
+  font-variant-numeric: tabular-nums;
+}
+
+/* La barra no lleva texto: los números van escritos al lado, que es lo que
+   lee un lector de pantalla. Sin mínimo de ancho a propósito: con 0,03 % no
+   se tiene que ver nada, porque no se gastó nada. */
+.medidor {
+  height: 10px;
+  border-radius: 99px;
+  background: var(--panel-2);
+  border: 1px solid var(--linea);
+  overflow: hidden;
+}
+
+.relleno {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--azul);
+}
+
+/* Desde el 80 % en ámbar, que es lo que en el resto de la app pide atención, y
+   en rojo al llegar: ahí Migue ya no contesta. */
+.relleno[data-nivel="alto"] { background: var(--salida); }
+.relleno[data-nivel="tope"] { background: var(--peligro); }
+
+/* ── Tablas ───────────────────────────────────────────────────────────── */
+
+/* La expresión y lo que significa son lo que se lee para decidir. Sin un
+   mínimo, el reparto automático de la tabla puede darle el ancho a «Dónde se
+   escuchó» y «Se refiere a», que son de consulta. */
+.expresion { min-width: 150px; overflow-wrap: anywhere; }
+.significado { min-width: 200px; overflow-wrap: anywhere; }
+
+.enCurso { font-weight: 400; text-transform: none; letter-spacing: 0; }

@@ -2,6 +2,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { salir } from '@/app/ingresar/acciones'
+import { migueSeMuestra } from '@/lib/migue/pantallas'
 import { ErrorSinPermiso, exigirAdmin, pendientesDeCuenta, type Sesion } from '@/lib/sesion'
 import PanelCuerpo from './PanelCuerpo'
 import { PortonDeCuenta } from './cuenta/Cuenta'
@@ -41,10 +42,16 @@ export default async function LayoutPanel({ children }: { children: React.ReactN
    * entera afuera del sistema, y con una sola cuenta no hay quien lo destrabe
    * desde adentro.
    */
-  const pendientes = await pendientesDeCuenta(sesion).catch(() => ({
-    correo: false,
-    credencial: false,
-  }))
+  const [pendientes, conMigue] = await Promise.all([
+    pendientesDeCuenta(sesion).catch(() => ({
+      correo: false,
+      credencial: false,
+    })),
+    // Si la base tiene la 0025, y nada más: Migue apagado —sin clave, en el
+    // tope— sigue en la barra, porque lo que recuerda se tiene que poder ver y
+    // olvidar también el día que no contesta. No falla nunca: sin base, false.
+    migueSeMuestra(sesion),
+  ])
   const falta = pendientes.correo || pendientes.credencial
 
   return (
@@ -103,7 +110,7 @@ export default async function LayoutPanel({ children }: { children: React.ReactN
       </header>
       <div className={estilos.regla} />
 
-      <PanelCuerpo>
+      <PanelCuerpo migue={conMigue}>
         <PortonDeCuenta falta={falta}>{children}</PortonDeCuenta>
       </PanelCuerpo>
     </div>

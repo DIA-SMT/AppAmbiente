@@ -6,7 +6,14 @@ import estilos from './PanelLayout.module.css'
 
 const CLAVE_MENU = 'ambiente.menu-contraido'
 
-export default function PanelCuerpo({ children }: { children: React.ReactNode }) {
+export default function PanelCuerpo({
+  children,
+  migue = false,
+}: {
+  children: React.ReactNode
+  /** Si va la entrada «Migue» en la barra. Ver la prop del mismo nombre en Navegacion. */
+  migue?: boolean
+}) {
   const [contraida, setContraida] = useState(false)
 
   useEffect(() => {
@@ -45,7 +52,7 @@ export default function PanelCuerpo({ children }: { children: React.ReactNode })
           </button>
         </div>
 
-        <Navegacion contraida={contraida} />
+        <Navegacion contraida={contraida} migue={migue} />
 
         <div className={estilos.pieLateral}>
           <strong>Ambiente SMT</strong>

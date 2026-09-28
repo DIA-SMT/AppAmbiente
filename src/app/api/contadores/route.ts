@@ -1,7 +1,7 @@
 /**
- * Los dos números que van al lado de «Revisiones» y «Recambios» en la barra.
+ * Los números que van al lado de «Revisiones», «Recambios» y «Migue» en la barra.
  *
- *     GET /api/contadores  →  { "pendientes": 3, "recambios": 7 }
+ *     GET /api/contadores  →  { "pendientes": 3, "recambios": 7, "expresiones": 2 }
  *
  * Es una ruta y no dos Server Actions porque el costo estaba en cómo se pedían,
  * no en qué se pedía. Una Server Action llamada desde el navegador vuelve por
@@ -10,11 +10,11 @@
  * acciones encadenadas más una pantalla de más, en cada cambio de sección. Un
  * fetch común no entra en esa cola y no dispara nada.
  *
- * Los dos conteos van dentro de una sola llamada a conSesion y lanzados juntos:
+ * Los conteos van dentro de una sola llamada a conSesion y lanzados juntos:
  * abrir una transacción son cuatro viajes a la base (BEGIN, identidad, consulta,
  * COMMIT) y el pool serverless tiene una sola conexión, así que dos
- * transacciones costaban el doble que una. Sobre el mismo `tx` las dos cuentas
- * se encauzan y viajan juntas.
+ * transacciones costaban el doble que una. Sobre el mismo `tx` las cuentas se
+ * encauzan y viajan juntas.
  *
  * Los números no se calculan en el layout del panel a propósito: los layouts no
  * se vuelven a renderizar al navegar entre secciones hermanas, y el número
@@ -26,6 +26,7 @@
  */
 import { NextResponse } from 'next/server'
 import { conSesion } from '@db/sesion'
+import { migueEstaInstalado } from '@/lib/migue/configuracion'
 import { ErrorCuentaIncompleta, ErrorSinPermiso, ErrorSinSesion, exigirAdminCompleto } from '@/lib/sesion'
 
 export const dynamic = 'force-dynamic'
@@ -33,11 +34,16 @@ export const dynamic = 'force-dynamic'
 interface Cuentas {
   pendientes: number
   recambios: number
+  /** Las palabras que Migue propuso y nadie revisó todavía. */
+  expresiones: number
 }
 
+const EN_CERO: Cuentas = { pendientes: 0, recambios: 0, expresiones: 0 }
+
 /**
- * Nunca se guarda: son dos números que cambian con cada alta de la calle y con
- * cada pedido de contenedor, y mostrarlos viejos es peor que no mostrarlos.
+ * Nunca se guarda: son números que cambian con cada alta de la calle, con cada
+ * pedido de contenedor y con cada palabra que propone Migue, y mostrarlos
+ * viejos es peor que no mostrarlos.
  */
 function respuesta(cuentas: Cuentas, estado = 200) {
   return NextResponse.json(cuentas, {
@@ -56,9 +62,9 @@ export async function GET() {
     // La cuenta a medio configurar cuenta como sin permiso: mientras esté en
     // /cuenta no tiene barra que llenar, y este camino no puede ser la rendija
     // por la que el panel igual le contesta.
-    if (e instanceof ErrorCuentaIncompleta) return respuesta({ pendientes: 0, recambios: 0 }, 403)
-    if (e instanceof ErrorSinPermiso) return respuesta({ pendientes: 0, recambios: 0 }, 403)
-    if (e instanceof ErrorSinSesion) return respuesta({ pendientes: 0, recambios: 0 }, 401)
+    if (e instanceof ErrorCuentaIncompleta) return respuesta(EN_CERO, 403)
+    if (e instanceof ErrorSinPermiso) return respuesta(EN_CERO, 403)
+    if (e instanceof ErrorSinSesion) return respuesta(EN_CERO, 401)
     throw e
   }
 
@@ -66,7 +72,7 @@ export async function GET() {
     // Las altas de la calle sin revisar y los pedidos de recambio que todavía
     // no terminaron. Son las mismas dos cuentas de siempre: «pedido» y
     // «avisado» van juntos porque el rótulo de la barra dice «pendientes».
-    const [pendientes, recambios] = await conSesion(sesion, (tx) => Promise.all([
+    const [pendientes, recambios, expresiones] = await conSesion(sesion, (tx) => Promise.all([
       tx.consultar<{ total: number }>(
         `select count(*)::int as total from entidades
           where pendiente_revision and activo`,
@@ -75,14 +81,26 @@ export async function GET() {
         `select count(*)::int as total from pedidos_recambio
           where estado in ('pedido', 'avisado')`,
       ),
+      // Sólo si la base tiene la 0025, y preguntándolo antes. Nombrar
+      // migue_expresiones sin ella no rompe sólo esta cuenta: aborta la
+      // transacción entera, y con ella se van a cero Revisiones y Recambios,
+      // que son los números que hacen que alguien entre. Una vez que la sonda
+      // dijo que sí ya no consulta, así que la cuenta sale en el mismo viaje
+      // que las otras dos.
+      migueEstaInstalado(tx).then((hay) => hay
+        ? tx.consultar<{ total: number }>(
+            `select count(*)::int as total from migue_expresiones where estado = 'propuesta'`,
+          )
+        : [{ total: 0 }]),
     ]))
 
     return respuesta({
       pendientes: pendientes[0]?.total ?? 0,
       recambios: recambios[0]?.total ?? 0,
+      expresiones: expresiones[0]?.total ?? 0,
     })
   } catch (e) {
     console.error('[contadores] no se pudieron contar', e)
-    return respuesta({ pendientes: 0, recambios: 0 })
+    return respuesta(EN_CERO)
   }
 }

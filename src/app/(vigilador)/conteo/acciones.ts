@@ -13,6 +13,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { guardarConteo, mensajeDeError } from '@/lib/datos'
 import { desdeInputFechaHora, diaSemana, numero, paraInputFechaHora } from '@/lib/formato'
+import { DIAS_DE_CONTEO_PARA_ATRAS } from '@/lib/reglas'
 import { sesionActual } from '@/lib/sesion'
 
 export interface EstadoConteo {
@@ -25,7 +26,7 @@ export interface EstadoConteo {
 }
 
 /** Hasta dónde para atrás deja la base cargar o corregir. Igual que en 0017. */
-const DIAS_ATRAS = 7
+const DIAS_ATRAS = DIAS_DE_CONTEO_PARA_ATRAS
 
 const FECHA = /^\d{4}-\d{2}-\d{2}$/
 

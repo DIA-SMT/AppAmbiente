@@ -369,8 +369,12 @@ const COLUMNAS_MOV = `
  * Arma el WHERE de los filtros del listado. Devuelve texto y parámetros.
  * `par(valor)` agrega un parámetro y devuelve su marcador, así el número nunca
  * se escribe a mano y reusar el mismo valor en tres columnas es trivial.
+ *
+ * Se exporta porque Migue cuenta con el mismo WHERE: si armara el suyo, el
+ * «hubo 57» de una respuesta y el «57 movimientos» de la pantalla enlazada
+ * podrían no coincidir, y ahí el enlace deja de respaldar nada.
  */
-function armarFiltros(f: FiltrosMovimientos) {
+export function armarFiltros(f: FiltrosMovimientos) {
   const valores: unknown[] = []
   const par = (valor: unknown) => `$${valores.push(valor)}`
   const cond: string[] = []
@@ -1163,4 +1167,90 @@ export async function cancelarPedido(
   } catch (e) {
     return { ok: false, error: mensajeDeError(e) }
   }
+}
+
+// ── Totales del listado de movimientos ──────────────────────────────────
+
+/** Una fila de los totales: lo que sumó un material en una unidad, en ingresos o en salidas. */
+export interface TotalDeMovimientos {
+  tipo: TipoMovimiento
+  material_id: string
+  material_nombre: string
+  material_color: string
+  unidad_codigo: string
+  unidad_nombre: string
+  unidad_plural: string
+  /** Null en kg y bolsas: esas cantidades no se pasan a m³. */
+  factor_m3: number | string | null
+  movimientos: number
+  cantidad: string
+  equivalente_m3: string
+}
+
+/**
+ * Cuánto suman los movimientos que muestra /movimientos, por tipo, material
+ * y unidad.
+ *
+ * Sale del mismo armarFiltros que el listado, así que suma exactamente los
+ * movimientos que cuenta la pantalla. Con una salvedad a propósito, que es el
+ * material: el filtro del listado es un `exists`, y un camión que trajo poda
+ * y chipeo aparece cuando se filtra por poda. Si se sumaran todos sus ítems,
+ * «cuánta poda entró» traería también el chipeo de ese camión. Por eso, con
+ * material, se suman sólo los ítems de ese material.
+ *
+ * Los anulados se cuentan en el listado si se los pide, pero no suman acá:
+ * como en el tablero, un movimiento anulado sigue registrado para consulta y
+ * no es material que haya entrado o salido.
+ *
+ * Unidades distintas no se juntan: 3 m³ de poda y 2 camiones de poda son dos
+ * filas, porque «5» de poda no quiere decir nada.
+ */
+export async function totalesDeMovimientosEnTx(
+  tx: Conexion,
+  filtros: FiltrosMovimientos = {},
+): Promise<TotalDeMovimientos[]> {
+  const { where, par } = armarFiltros(filtros)
+  const valores = [...par]
+  const delMaterial = filtros.materialId
+    ? `and i.material_id = $${valores.push(filtros.materialId)}`
+    : ''
+
+  return tx.consultar<TotalDeMovimientos>(
+    `select i.tipo, i.material_id, i.material_nombre, i.material_color,
+            i.unidad_codigo, i.unidad_nombre, i.unidad_plural, i.factor_m3,
+            count(distinct i.movimiento_id)::int as movimientos,
+            sum(i.cantidad)::text                 as cantidad,
+            sum(i.equivalente_m3)::text           as equivalente_m3
+       from v_movimiento_items i
+      where i.movimiento_id in (select id from v_movimientos ${where})
+        and i.estado = 'vigente'
+        ${delMaterial}
+      group by i.tipo, i.material_id, i.material_nombre, i.material_color,
+               i.unidad_id, i.unidad_codigo, i.unidad_nombre, i.unidad_plural, i.factor_m3
+      order by i.tipo, sum(i.equivalente_m3) desc, i.material_nombre, i.unidad_codigo`,
+    valores,
+  )
+}
+
+/**
+ * Los m³ equivalentes de cada tipo, sumando todos los materiales.
+ *
+ * Es la única suma que cruza materiales, y se puede hacer porque es en m³:
+ * los kilos y las bolsas no tienen factor y entran con cero, igual que en el
+ * tablero. Está acá y no en la pantalla porque Migue dice el mismo número, y
+ * dos cuentas escritas dos veces terminan dando dos números.
+ *
+ * Null cuando ningún material de ese tipo se pasa a m³: si lo que salió son
+ * doce bolsas de compost, «salieron 0 m³» sería falso, no un cero.
+ */
+export function metrosCubicosPorTipo(
+  totales: TotalDeMovimientos[],
+): { ingreso: number | null; salida: number | null } {
+  const suma: { ingreso: number | null; salida: number | null } = { ingreso: null, salida: null }
+  for (const t of totales) {
+    if (t.tipo !== 'ingreso' && t.tipo !== 'salida') continue
+    if (t.factor_m3 === null) continue
+    suma[t.tipo] = (suma[t.tipo] ?? 0) + (Number(t.equivalente_m3) || 0)
+  }
+  return suma
 }

@@ -1,7 +1,13 @@
 import Link from 'next/link'
-import { buscarMovimientos, materialesVisibles, sitiosVisibles } from '@/lib/datos'
+import { conSesion } from '@db/sesion'
+import {
+  buscarMovimientosEnTx, materialesVisiblesEnTx, metrosCubicosPorTipo, sitiosVisiblesEnTx,
+  totalesDeMovimientosEnTx, type TotalDeMovimientos,
+} from '@/lib/datos'
 import { exigirPanel } from '@/lib/sesion'
-import { ETIQUETA_FLUJO, ETIQUETA_TIPO, cantidadDeMovimiento, fechaHora, numero } from '@/lib/formato'
+import {
+  ETIQUETA_FLUJO, ETIQUETA_TIPO, cantidad, cantidadDeMovimiento, fechaHora, numero,
+} from '@/lib/formato'
 import type {
   EstadoMovimiento, FiltrosMovimientos, Flujo, MovimientoListado, TipoMovimiento,
 } from '@/lib/tipos'
@@ -77,6 +83,123 @@ function ChipTipo({ tipo }: { tipo: MovimientoListado['tipo'] }) {
   return <span className={`chip${clase}`}>{ETIQUETA_TIPO[tipo] ?? tipo}</span>
 }
 
+/** Kilos, bolsas y camiones son enteros; los m³ no. Como en la ficha del movimiento. */
+const decimalesDe = (valor: number) => (Number.isInteger(valor) ? 0 : 2)
+
+/**
+ * Cuánto suman los movimientos del filtro.
+ *
+ * Sin esto la pantalla contaba camiones y no material: «57 movimientos» no
+ * contesta cuánta poda entró la semana pasada, y la cuenta había que sacarla
+ * exportando a Excel. Va arriba de la tabla porque es lo que se vino a buscar;
+ * la tabla es el detalle.
+ */
+function Totales({
+  totales,
+  estado,
+  material,
+}: {
+  totales: TotalDeMovimientos[]
+  estado: string
+  material: string | null
+}) {
+  const m3 = metrosCubicosPorTipo(totales)
+  // En m³ la equivalencia repetiría la cantidad, y en kg o en bolsas no existe:
+  // sólo se escribe donde agrega algo. Si no agrega nada en ninguna fila —lo
+  // común en la Planta, que carga casi todo en m³— la columna entera se va: una
+  // columna de guiones se lee como un dato que falta.
+  const convierte = (t: TotalDeMovimientos) => t.factor_m3 !== null && t.unidad_codigo !== 'm3'
+  const conEquivalencia = totales.some(convierte)
+  const resumen = (['ingreso', 'salida'] as const)
+    .flatMap((tipo) => {
+      const suma = m3[tipo]
+      return suma === null ? [] : [`${tipo === 'ingreso' ? 'entraron' : 'salieron'} ${numero(suma, 1)} m³`]
+    })
+    .join(' · ')
+
+  return (
+    <section className="tarjeta pila-chica" aria-label="Cuánto suman los movimientos del filtro">
+      <div className="fila-entre">
+        <h2 style={{ fontSize: '1rem' }}>Cuánto suman</h2>
+        {resumen && <span className="menor gris cifras">{resumen}</span>}
+      </div>
+
+      {totales.length === 0 ? (
+        <p className="menor gris" style={{ margin: 0 }}>
+          Los movimientos anulados siguen registrados para consulta, pero no suman: no es material
+          que haya entrado o salido.
+        </p>
+      ) : (
+        /* Cinco columnas no entran en 390 px: abajo de 720 cada fila pasa a
+           ser una ficha apilada, como la tabla de materiales de la ficha. */
+        <div className="desplazable tabla-ficha">
+          <table className="datos">
+            <caption className="sr-solo">
+              Cantidad por tipo, material y unidad de los movimientos del filtro.
+            </caption>
+            <thead>
+              <tr>
+                <th>Tipo</th>
+                <th>Material</th>
+                <th style={{ textAlign: 'right' }}>Cantidad</th>
+                {conEquivalencia && <th style={{ textAlign: 'right' }}>Equivale a</th>}
+                <th style={{ textAlign: 'right' }}>Movimientos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {totales.map((t) => {
+                const suma = Number(t.cantidad)
+                return (
+                  <tr key={`${t.tipo}|${t.material_id}|${t.unidad_codigo}`}>
+                    <td data-rotulo="Tipo"><ChipTipo tipo={t.tipo} /></td>
+                    <td data-rotulo="Material">
+                      <span className="fila" style={{ gap: 8, flexWrap: 'nowrap' }}>
+                        <span className="punto" style={{ background: t.material_color }} aria-hidden="true" />
+                        <span className="fuerte">{t.material_nombre}</span>
+                      </span>
+                    </td>
+                    <td data-rotulo="Cantidad" className="numero fuerte">
+                      {cantidad(suma, {
+                        nombre: t.unidad_nombre,
+                        nombre_plural: t.unidad_plural,
+                        decimales: decimalesDe(suma),
+                      })}
+                    </td>
+                    {conEquivalencia && (
+                      <td data-rotulo="Equivale a" className="numero gris">
+                        {convierte(t) ? `${numero(t.equivalente_m3, 1)} m³` : '—'}
+                      </td>
+                    )}
+                    <td data-rotulo="Movimientos" className="numero">{numero(t.movimientos)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {material && totales.length > 0 && (
+        <p className="menor gris" style={{ margin: 0 }}>
+          Suma sólo lo cargado como {material}. Si un movimiento trajo además otro material, ese
+          otro no entra en esta cuenta, aunque el movimiento sí aparezca en la lista.
+        </p>
+      )}
+      {estado === 'todos' && totales.length > 0 && (
+        <p className="menor gris" style={{ margin: 0 }}>
+          La lista incluye los anulados, pero la suma es sólo de los vigentes.
+        </p>
+      )}
+      {totales.some((t) => t.factor_m3 === null) && (
+        <p className="menor gris" style={{ margin: 0 }}>
+          Los kilos y las bolsas no se pasan a m³: se informan en su unidad y no entran en los m³
+          de arriba.
+        </p>
+      )}
+    </section>
+  )
+}
+
 export default async function PantallaMovimientos({
   searchParams,
 }: {
@@ -104,11 +227,17 @@ export default async function PantallaMovimientos({
     porPagina: POR_PAGINA,
   }
 
-  const [{ filas, total }, sitios, materiales] = await Promise.all([
-    buscarMovimientos(sesion, filtros),
-    sitiosVisibles(sesion),
-    materialesVisibles(sesion),
-  ])
+  // Una sola transacción para las cuatro lecturas: abrir cada una por separado
+  // son cuatro viajes fijos por cabeza, y el pool en serverless tiene una sola
+  // conexión, así que se hacían cola. Sobre el mismo `tx` viajan juntas.
+  const [{ filas, total }, totales, sitios, materiales] = await conSesion(sesion, (tx) =>
+    Promise.all([
+      buscarMovimientosEnTx(tx, filtros),
+      totalesDeMovimientosEnTx(tx, filtros),
+      sitiosVisiblesEnTx(tx),
+      materialesVisiblesEnTx(tx),
+    ]),
+  )
 
   const paginas = Math.max(1, Math.ceil(total / POR_PAGINA))
   const desdeFila = total === 0 ? 0 : (pagina - 1) * POR_PAGINA + 1
@@ -120,6 +249,10 @@ export default async function PantallaMovimientos({
     return qs ? `/movimientos?${qs}` : '/movimientos'
   }
   const hrefExportar = `/api/exportar?${['vista=movimientos', qsBase].filter(Boolean).join('&')}`
+
+  const materialElegido = valores.materialId
+    ? materiales.find((m) => m.id === valores.materialId)?.nombre ?? 'ese material'
+    : null
 
   // Para el estado vacío: decir exactamente qué está achicando el resultado.
   const puestos: string[] = []
@@ -161,6 +294,10 @@ export default async function PantallaMovimientos({
       </div>
 
       <Filtros valores={valores} sitios={sitios} materiales={materiales} />
+
+      {filas.length > 0 && (
+        <Totales totales={totales} estado={valores.estado} material={materialElegido} />
+      )}
 
       {filas.length === 0 ? (
         <div className="tarjeta centrado pila" style={{ padding: 36 }}>

@@ -59,11 +59,18 @@ self.addEventListener('activate', (evento) => {
   )
 })
 
-/** Solo archivos estáticos con nombre estable o con hash en la ruta. */
+/**
+ * Solo archivos estáticos con nombre estable o con hash en la ruta.
+ *
+ * /migue/ es la cara de la burbuja, que está en todas las pantallas: sin
+ * guardarla, sin señal la esquina quedaba con un círculo vacío. Como los de
+ * /marca/, no lleva hash: para cambiarla hay que subirla con otro nombre.
+ */
 function esArmazon(url) {
   return (
     url.pathname.startsWith('/_next/static/') ||
     url.pathname.startsWith('/marca/') ||
+    url.pathname.startsWith('/migue/') ||
     url.pathname === '/manifest.webmanifest' ||
     url.pathname === '/favicon.ico'
   )

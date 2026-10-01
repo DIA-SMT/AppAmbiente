@@ -457,7 +457,7 @@ src/
                      pilas, conteos, listas, revisiones, vecinos, usuarios, cuenta
                      (correo y contraseña), auditoría, Migue y lo que recuerda
     (vigilador)/preguntar/  Migue en el celular y lo que recuerda del punto
-    _migue/          el chat, compartido por las dos pantallas
+    _migue/          el chat, compartido por las dos pantallas y la burbuja de la esquina
     api/             exportar a Excel, sincronizar la cola offline, Migue
 docs/                documento de validación de fase 0
 assets/marca/        identidad institucional (logos y plantilla de referencia)
@@ -610,6 +610,11 @@ dar de alta una empresa ni una dependencia municipal: eso sigue siendo de ella.
 
 Migue contesta preguntas sobre lo cargado. La coordinación le pregunta desde el panel
 (*Migue*) y el vigilador desde el celular (*Preguntale a Migue*, abajo en *Turno*).
+Además, su cara está en la esquina de abajo de todas las pantallas: tocarla abre la
+misma conversación encima de lo que se está mirando, sin perder un formulario a medio
+llenar. La ventana se puede cerrar con una pregunta en viaje: cuando llega la
+respuesta, la cara lo avisa con un punto. En su propia pantalla la burbuja no está, y
+en el panel tampoco mientras falte completar la cuenta.
 **Sólo lee**: no carga, no anula, no corrige nada. Si se lo piden, dice dónde se hace,
 porque así el cambio queda firmado por quien lo hizo y la auditoría sigue contestando
 quién hizo qué.

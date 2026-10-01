@@ -1,6 +1,8 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import BurbujaMigue from '@/app/_migue/BurbujaMigue'
+import { apagadoDelPanel, EJEMPLOS_DEL_PANEL, PRIVACIDAD_DEL_PANEL } from '@/app/_migue/textos'
 import { salir } from '@/app/ingresar/acciones'
 import { migueSeMuestra } from '@/lib/migue/pantallas'
 import { ErrorSinPermiso, exigirAdmin, pendientesDeCuenta, type Sesion } from '@/lib/sesion'
@@ -113,6 +115,19 @@ export default async function LayoutPanel({ children }: { children: React.ReactN
       <PanelCuerpo migue={conMigue}>
         <PortonDeCuenta falta={falta}>{children}</PortonDeCuenta>
       </PanelCuerpo>
+
+      {/* Con la cuenta a medio completar, no: la ruta que contesta pide la
+          cuenta completa, como exigirPanel, y la burbuja abriría un error. */}
+      {conMigue && !falta && (
+        <BurbujaMigue
+          pantalla="/migue"
+          rol="admin"
+          dueno={sesion.perfilId}
+          privacidad={PRIVACIDAD_DEL_PANEL}
+          apagado={apagadoDelPanel()}
+          ejemplos={EJEMPLOS_DEL_PANEL}
+        />
+      )}
     </div>
   )
 }

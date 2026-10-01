@@ -27,7 +27,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode, type Ref } from 'react'
 import { alCambiar, listar } from '@/lib/cola'
 import { fechaHora, hora } from '@/lib/formato'
 import type { CierreQueSeExplica, ConversacionAnterior, EstadoDeLaConversacion } from '@/lib/migue/historial'
@@ -35,6 +35,7 @@ import { LARGO_MAXIMO_PREGUNTA } from '@/lib/migue/limites'
 import type { EnlaceConAlcance, EventoDeMigue, MensajeVisible, PedidoAMigue, RolDeMigue } from '@/lib/migue/tipos'
 import { HORAS_VISIBLES_EN_EL_CELULAR } from '@/lib/reglas'
 import estilos from './conversacion.module.css'
+import { TECLADO_EN_PANTALLA } from './pantallaEntera'
 import { Retrato } from './Retrato'
 
 // ── Lo que se guarda en este navegador ──────────────────────────────────
@@ -353,6 +354,8 @@ function Olvidar({
   alPedir,
   alConfirmar,
   alDesistir,
+  refNo,
+  refPedir,
 }: {
   confirmando: boolean
   trabajando: boolean
@@ -360,10 +363,14 @@ function Olvidar({
   alPedir: () => void
   alConfirmar: () => void
   alDesistir: () => void
+  /** «No, dejala»: en la burbuja, adonde va el foco cuando aparece la confirmación. */
+  refNo?: Ref<HTMLButtonElement>
+  /** «Olvidar esta conversación»: en la burbuja, adonde vuelve el foco si se desiste. */
+  refPedir?: Ref<HTMLButtonElement>
 }) {
   if (!confirmando) {
     return (
-      <button type="button" className="boton fantasma chico" disabled={bloqueado} onClick={alPedir}>
+      <button ref={refPedir} type="button" className="boton fantasma chico" disabled={bloqueado} onClick={alPedir}>
         Olvidar esta conversación
       </button>
     )
@@ -379,10 +386,25 @@ function Olvidar({
         <button type="button" className="boton peligro chico" disabled={trabajando || bloqueado} onClick={alConfirmar}>
           {trabajando ? 'Olvidando…' : 'Sí, olvidala'}
         </button>
-        <button type="button" className="boton fantasma chico" disabled={trabajando} onClick={alDesistir}>
+        <button ref={refNo} type="button" className="boton fantasma chico" disabled={trabajando} onClick={alDesistir}>
           No, dejala
         </button>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Adentro de la burbuja, lo único que se desplaza: el saludo y los ejemplos,
+ * o la conversación con sus avisos y, al final, empezar de nuevo y olvidar.
+ * En las pantallas enteras no hay envoltorio —un fragmento no deja nada en el
+ * DOM— y /migue y /preguntar quedan exactamente como estaban.
+ */
+function Hilo({ enBurbuja, caja, children }: { enBurbuja: boolean; caja: Ref<HTMLDivElement>; children: ReactNode }) {
+  if (!enBurbuja) return <>{children}</>
+  return (
+    <div ref={caja} className={estilos.hilo} tabIndex={0} role="region" aria-label="Lo hablado con Migue">
+      {children}
     </div>
   )
 }
@@ -447,6 +469,16 @@ export interface PropsDeConversacion {
   ejemplos: string[]
   /** Una conversación vieja, para leerla: sin cuadro y sin empezar de nuevo. */
   soloLectura?: boolean
+  /**
+   * Adentro de la burbuja que flota sobre las otras pantallas. Ahí no van las
+   * anteriores, que quedan para la pantalla entera, y entonces tampoco hay
+   * nada que refrescar.
+   */
+  enBurbuja?: boolean
+  /** Si se está viendo. La burbuja cerrada lo esconde, y al abrirla la lista tiene que bajar hasta lo último. */
+  aLaVista?: boolean
+  /** Llegó una respuesta de Migue. La burbuja cerrada lo avisa con un punto. */
+  alContestar?: () => void
 }
 
 export default function Conversacion({
@@ -457,9 +489,15 @@ export default function Conversacion({
   apagado,
   ejemplos,
   soloLectura = false,
+  enBurbuja = false,
+  aLaVista = true,
+  alContestar,
 }: PropsDeConversacion) {
   const router = useRouter()
   const esCelular = rol === 'vigilador'
+  // Lo llaman funciones async que arrancaron varios renders atrás.
+  const alContestarRef = useRef(alContestar)
+  alContestarRef.current = alContestar
 
   const [mensajes, setMensajes] = useState<MensajeVisible[]>(inicial?.mensajes ?? [])
   const [conversacionId, setConversacionId] = useState<string | null>(inicial?.conversacionId ?? null)
@@ -505,6 +543,26 @@ export default function Conversacion({
   const montado = useRef(false)
   const lista = useRef<HTMLOListElement>(null)
   const final = useRef<HTMLLIElement>(null)
+  /** En la burbuja, lo único que se desplaza. En las pantallas enteras no existe. */
+  const hilo = useRef<HTMLDivElement>(null)
+  /** El cuadro de la burbuja, para hacerlo crecer donde field-sizing no existe. */
+  const cuadro = useRef<HTMLTextAreaElement>(null)
+  /**
+   * Si el hilo quedó abajo del todo. Lo marca el efecto que lo baja —aunque
+   * bajar no haya movido nada, que es cuando todo entra y no hay evento de
+   * scroll— y lo desmarca quien sube a releer.
+   */
+  const hiloAlFondo = useRef(false)
+  /** La respuesta que ya se llevó a su primer renglón: la misma no se vuelve a llevar. */
+  const respuestaUbicada = useRef<string | null>(null)
+  const seccion = useRef<HTMLElement>(null)
+  /** En la burbuja: si el foco andaba por el chat, para devolvérselo si se cae. */
+  const focoAdentro = useRef(false)
+  const confirmacionNo = useRef<HTMLButtonElement>(null)
+  const empezarOtra = useRef<HTMLButtonElement>(null)
+  /** «Olvidar esta conversación», adonde vuelve el foco después de «No, dejala». */
+  const pedirOlvido = useRef<HTMLButtonElement>(null)
+  const volverAOlvidar = useRef(false)
 
   function ponerConversacion(id: string | null) {
     conversacionRef.current = id
@@ -591,8 +649,14 @@ export default function Conversacion({
     return 'leida'
   }
 
-  /** El panel dibuja las anteriores del lado del servidor; el celular las trae con la conversación. */
+  /**
+   * Lo que se refresca son las anteriores: el panel las dibuja del lado del
+   * servidor y el celular las trae con la conversación. La burbuja no las
+   * muestra, y refrescar el panel desde ahí volvería a armar la pantalla de
+   * abajo —el tablero entero— para nada.
+   */
   function refrescar() {
+    if (enBurbuja) return
     if (esCelular) void cargar()
     else router.refresh()
   }
@@ -611,6 +675,7 @@ export default function Conversacion({
     // La burbuja entra en una lista que no es región viva: sin esto, con
     // TalkBack la respuesta llega y nadie la dice.
     anunciar(`Migue respondió: ${sinMarcas(texto)}`)
+    alContestarRef.current?.()
   }
 
   /**
@@ -1107,6 +1172,8 @@ export default function Conversacion({
   // quedaba sin ver «Buscando…» ni la respuesta.
   const estadoVisible = envio.fase === 'mandando' || envio.fase === 'recuperando' ? envio.estado : ''
   useEffect(() => {
+    // La burbuja baja su hilo en el efecto de abajo.
+    if (enBurbuja) return
     const caja = lista.current
     // El overflow también, no sólo el alto: una lista que no se desplaza
     // puede medir un pixel más que su caja y asignarle scrollTop no hace nada.
@@ -1115,16 +1182,144 @@ export default function Conversacion({
       return
     }
     if (mensajes.length > 0 || pendiente) final.current?.scrollIntoView({ block: 'nearest' })
-  }, [mensajes.length, pendiente, estadoVisible])
+  }, [enBurbuja, mensajes.length, pendiente, estadoVisible])
+
+  // En la burbuja se desplaza el hilo entero y el cuadro queda afuera, fijo
+  // abajo: nada lo tapa. Se baja el hilo y no hasta el ancla, porque debajo
+  // de la lista vienen el aviso con «Probar de nuevo», las acciones y la
+  // confirmación de olvidar.
+  const fase = envio.fase
+  // «Está tardando más que de costumbre» se suma al mismo renglón sin cambiar
+  // el estado: sin esto el hilo no bajaba y las acciones quedaban cortadas.
+  const lento = envio.fase === 'mandando' && envio.lento
+  useEffect(() => {
+    const caja = hilo.current
+    if (!enBurbuja || !aLaVista || !caja) return
+    // Vacía no se baja: arriba está el saludo. Salvo que la primera pregunta
+    // haya vuelto al cuadro con un error —un dato personal, el tope del mes—:
+    // el porqué va abajo de los ejemplos, y en la ventana baja no se veía.
+    if (mensajes.length === 0 && !pendiente && !cerrada && !aviso && fase !== 'error') {
+      respuestaUbicada.current = null
+      caja.scrollTop = 0
+      hiloAlFondo.current = false
+      return
+    }
+    const alFinal = caja.scrollHeight - caja.clientHeight
+    const ultima = mensajes[mensajes.length - 1]
+    const clave = ultima?.quien === 'migue' ? ultima.preguntaId : null
+    const nueva = clave !== null && clave !== respuestaUbicada.current
+    respuestaUbicada.current = clave
+    const quieta = fase === 'quieto' && !pendiente && !olvido && !aviso && !cerrada
+    // Nada nuevo: se desistió de olvidar, se corrigió una pregunta, se volvió
+    // a abrir la ventana. El hilo queda donde estaba —o abajo, si estaba
+    // abajo—, y no vuelve al principio de una respuesta que ya se leyó.
+    if (quieta && clave !== null && !nueva) {
+      if (hiloAlFondo.current) caja.scrollTop = alFinal
+      return
+    }
+    // Recién contestada, que se lea desde su primer renglón: en la ventana
+    // baja una respuesta con dos botones es más alta que el hilo, y bajando
+    // hasta el final se veían sólo los botones. Una corta llega igual al
+    // final. No si abajo hay algo que importa más: «Buscando…», un aviso con
+    // «Probar de nuevo», la confirmación de olvidar. La que llegó con la
+    // ventana cerrada cuenta como nueva al abrir: acá no se la anotó.
+    const filas = quieta && nueva ? caja.querySelectorAll<HTMLElement>(`.${estilos.filaMigue}`) : null
+    const fila = filas?.[filas.length - 1]
+    const inicio = fila ? fila.getBoundingClientRect().top - caja.getBoundingClientRect().top + caja.scrollTop - 10 : alFinal
+    const destino = Math.min(alFinal, inicio)
+    caja.scrollTop = destino
+    hiloAlFondo.current = destino >= alFinal - 1
+  }, [enBurbuja, aLaVista, mensajes.length, pendiente, estadoVisible, lento, fase, cerrada, aviso, olvido])
+
+  // Cuando el hilo se achica —el cuadro crece un renglón, aparece «Te quedan
+  // N letras», se abre el teclado— lo último sigue a la vista. Sólo si ya
+  // estaba abajo: a quien subió a releer no se lo mueve.
+  useEffect(() => {
+    const caja = hilo.current
+    if (!enBurbuja || !caja || typeof ResizeObserver === 'undefined') return
+    const alDesplazar = () => { hiloAlFondo.current = caja.scrollHeight - caja.scrollTop - caja.clientHeight < 24 }
+    const observador = new ResizeObserver(() => { if (hiloAlFondo.current) caja.scrollTop = caja.scrollHeight })
+    caja.addEventListener('scroll', alDesplazar, { passive: true })
+    observador.observe(caja)
+    return () => {
+      observador.disconnect()
+      caja.removeEventListener('scroll', alDesplazar)
+    }
+  }, [enBurbuja])
+
+  // El cuadro de la burbuja crece con lo escrito. Chrome y Edge lo hacen
+  // solos, con field-sizing (en el CSS); donde no lo hay todavía —Safari y
+  // Firefox de hace poco— se mide acá. El tope lo pone el max-height del CSS.
+  // Con box-sizing: border-box, al scrollHeight se le suman los bordes. Se
+  // vuelve a medir cuando el cuadro reaparece —«Empezar otra» después de una
+  // cerrada, o se prende Migue—, que vuelve con lo que tenía escrito y un
+  // renglón de alto; y cuando cambia el ancho, al girar el teléfono, que
+  // cambia los renglones sin cambiar lo escrito.
+  useLayoutEffect(() => {
+    const c = cuadro.current
+    if (!enBurbuja || !aLaVista || !c || CSS.supports('field-sizing', 'content')) return
+    const medir = () => {
+      c.style.height = 'auto'
+      c.style.height = `${c.scrollHeight + c.offsetHeight - c.clientHeight}px`
+    }
+    medir()
+    window.addEventListener('resize', medir)
+    return () => window.removeEventListener('resize', medir)
+  }, [enBurbuja, aLaVista, borrador, cerrada === null, apagado === null])
 
   // Se tocó un ejemplo: su botón ya no está. El foco va a la conversación,
   // que es donde va a aparecer la respuesta, y no al cuadro: en el celular
-  // eso abriría el teclado encima de la respuesta.
+  // eso abriría el teclado encima de la respuesta. Antes que el efecto que
+  // devuelve el foco cuando se cae, que si no lo mandaba primero al cuadro.
   useEffect(() => {
     if (!enfocarLista.current || !lista.current) return
     enfocarLista.current = false
     lista.current.focus({ preventScroll: true })
   }, [pendiente])
+
+  // Adentro de la burbuja el foco no se puede caer afuera. Cuando se desmonta
+  // o se deshabilita el botón que lo tenía —«Olvidar» pasa a la confirmación,
+  // «Preguntar» se apaga al mandar, llega «cerrada»—, cae al body, fuera de
+  // la ventana: Escape dejaba de cerrarla y el Tab arrancaba en la pantalla de
+  // abajo. Se devuelve sólo si andaba por acá: tocar la pantalla de abajo,
+  // que en escritorio sigue a la vista, no lo trae de vuelta.
+  useEffect(() => {
+    const s = seccion.current
+    if (!enBurbuja || !s) return
+    const mirar = (e: Event) => { focoAdentro.current = e.target instanceof Node && s.contains(e.target) }
+    document.addEventListener('focusin', mirar)
+    document.addEventListener('pointerdown', mirar, true)
+    return () => {
+      document.removeEventListener('focusin', mirar)
+      document.removeEventListener('pointerdown', mirar, true)
+    }
+  }, [enBurbuja])
+
+  // Después de cada cambio, sin dependencias a propósito: lo que tira el foco
+  // es cualquier render. Va a lo que se puede hacer: «No, dejala» si se está
+  // confirmando un olvido, «Olvidar» de nuevo si se desistió, «Empezar otra»
+  // si se cerró la conversación. Si no, al cuadro, salvo con el dedo, donde
+  // levantaría el teclado: ahí al hilo. El hilo va último: viniendo del
+  // teclado se lo marca entero con el recuadro de foco.
+  useEffect(() => {
+    const aOlvidar = volverAOlvidar.current
+    volverAOlvidar.current = false
+    if (!enBurbuja || !aLaVista || !focoAdentro.current) return
+    if (document.activeElement && document.activeElement !== document.body) return
+    const conDedo = window.matchMedia(TECLADO_EN_PANTALLA).matches
+    const destinos = [
+      confirmacionNo.current,
+      aOlvidar ? pedirOlvido.current : null,
+      empezarOtra.current,
+      conDedo ? null : cuadro.current,
+      hilo.current,
+    ]
+    for (const destino of destinos) {
+      if (!destino || (destino instanceof HTMLButtonElement && destino.disabled)) continue
+      destino.focus({ preventScroll: true })
+      if (document.activeElement === destino) return
+    }
+  })
 
   // ── Lo que se dibuja ──────────────────────────────────────────────────
 
@@ -1157,8 +1352,59 @@ export default function Conversacion({
       ? 'Sin mandar'
       : envio.fase === 'error' ? 'Sin contestar' : null
 
+  // Sin role: cuando se cierra mientras se pregunta, la región viva ya lo
+  // dijo; al volver a abrir una cerrada, es parte de la pantalla.
+  const avisoCerrada = cerrada && !soloLectura && (
+    <div className="aviso atencion pila-chica">
+      <span>{cerrada}</span>
+      <div className="fila">
+        <button ref={empezarOtra} type="button" className="boton chico" onClick={() => { void empezarDeNuevo() }}>
+          Empezar otra
+        </button>
+      </div>
+    </div>
+  )
+  // En la burbuja, cerrada va abajo, en el lugar del cuadro: es donde se
+  // estaba por escribir.
+  const cerradaAbajo = enBurbuja && !apagado ? avisoCerrada : null
+
+  const acciones = hayConversacion && (
+    <div className={estilos.acciones}>
+      {/* Apagado no hay a quién preguntarle de nuevo; olvidar, sí. */}
+      {!cerrada && !apagado && (
+        <button
+          type="button"
+          className="boton fantasma chico"
+          disabled={enVuelo || atendiendo || olvidando}
+          onClick={() => { void empezarDeNuevo() }}
+        >
+          Empezar de nuevo
+        </button>
+      )}
+      {conversacionId && mensajes.length > 0 && (
+        <Olvidar
+          confirmando={olvido?.id === conversacionId}
+          trabajando={olvido?.id === conversacionId && olvido.trabajando}
+          bloqueado={olvidarBloqueado(conversacionId)}
+          alPedir={() => setOlvido({ id: conversacionId, trabajando: false })}
+          alConfirmar={() => { void olvidar(conversacionId) }}
+          alDesistir={() => {
+            volverAOlvidar.current = true
+            setOlvido(null)
+          }}
+          refNo={confirmacionNo}
+          refPedir={pedirOlvido}
+        />
+      )}
+    </div>
+  )
+
   return (
-    <section className={`${estilos.chat} ${esCelular ? estilos.celular : estilos.panel}`} aria-label="Conversación con Migue">
+    <section
+      ref={seccion}
+      className={[estilos.chat, esCelular ? estilos.celular : estilos.panel, enBurbuja && estilos.enBurbuja].filter(Boolean).join(' ')}
+      aria-label="Conversación con Migue"
+    >
       {/* La región que lee el lector de pantalla. Está siempre, vacía o no:
           una región viva que aparece ya con su texto casi nunca se lee, y la
           burbuja de la respuesta entra en una lista que no avisa nada. Lo que
@@ -1167,128 +1413,116 @@ export default function Conversacion({
         {anuncio.texto}{anuncio.vez % 2 === 1 ? '\u00a0' : ''}
       </p>
 
-      {!cargada && !sinCargar && <p className="menor gris" style={{ margin: 0 }}>Trayendo la conversación…</p>}
+      <Hilo enBurbuja={enBurbuja} caja={hilo}>
+        {!cargada && !sinCargar && <p className="menor gris" style={{ margin: 0 }}>Trayendo la conversación…</p>}
 
-      {sinCargar && (
-        <div className="aviso atencion fila-entre">
-          <span className="crecer">
-            {sinCargar === 'servidor'
-              ? 'Migue no está pudiendo traer la conversación ahora. Lo que escribas queda guardado; probá en un rato.'
-              : 'Sin señal: no se pudo traer la conversación. Lo que escribas queda guardado y lo mandás cuando vuelva.'}
-          </span>
-          <button type="button" className="boton secundario chico" onClick={() => { void cargar() }}>
-            Probar de nuevo
-          </button>
-        </div>
-      )}
+        {sinCargar && (
+          <div className="aviso atencion fila-entre">
+            <span className="crecer">
+              {sinCargar === 'servidor'
+                ? 'Migue no está pudiendo traer la conversación ahora. Lo que escribas queda guardado; probá en un rato.'
+                : 'Sin señal: no se pudo traer la conversación. Lo que escribas queda guardado y lo mandás cuando vuelva.'}
+            </span>
+            <button type="button" className="boton secundario chico" onClick={() => { void cargar() }}>
+              Probar de nuevo
+            </button>
+          </div>
+        )}
 
-      {(mensajes.length > 0 || pendiente) && (
-        <ol ref={lista} className={estilos.mensajes} tabIndex={-1} aria-label="Mensajes">
-          {mensajes.map((m) => <Burbuja key={`${m.preguntaId}-${m.quien}`} mensaje={m} />)}
+        {(mensajes.length > 0 || pendiente) && (
+          <ol ref={lista} className={estilos.mensajes} tabIndex={-1} aria-label="Mensajes">
+            {mensajes.map((m) => <Burbuja key={`${m.preguntaId}-${m.quien}`} mensaje={m} />)}
 
-          {pendiente && (
-            <li className={`${estilos.burbuja} ${estilos.persona} ${marcaDePendiente ? estilos.sinMandar : ''}`}>
-              <p className={estilos.texto}>{pendiente.texto}</p>
-              {marcaDePendiente && <span className={estilos.marca}>{marcaDePendiente}</span>}
-            </li>
-          )}
+            {pendiente && (
+              <li className={`${estilos.burbuja} ${estilos.persona} ${marcaDePendiente ? estilos.sinMandar : ''}`}>
+                <p className={estilos.texto}>{pendiente.texto}</p>
+                {marcaDePendiente && <span className={estilos.marca}>{marcaDePendiente}</span>}
+              </li>
+            )}
 
-          {estadoVisible && (
-            <li className={estilos.estado}>
-              <Retrato tamano="chico" />
-              {estadoVisible}
-              {envio.fase === 'mandando' && envio.lento && TARDANDO}
-            </li>
-          )}
+            {estadoVisible && (
+              <li className={estilos.estado}>
+                <Retrato tamano="chico" />
+                {estadoVisible}
+                {envio.fase === 'mandando' && envio.lento && TARDANDO}
+              </li>
+            )}
 
-          <li ref={final} className={estilos.ancla} aria-hidden="true" />
-        </ol>
-      )}
+            <li ref={final} className={estilos.ancla} aria-hidden="true" />
+          </ol>
+        )}
 
-      {/* Antes de la primera pregunta, quién es Migue y qué hace, en una frase.
-          Lo que NO hace va dicho de entrada: el vigilador que crea que le puede
-          dictar un movimiento lo va a intentar, y la primera respuesta sería un
-          «no». */}
-      {vacia && cargada && (
-        <div className={estilos.presentacion}>
-          <img
-            src="/migue/migue-cuerpo.webp"
-            alt="Migue, con el chaleco de la Secretaría de Ambiente"
-            width={97}
-            height={158}
-            className={estilos.figura}
-            decoding="async"
-          />
-          <p className={estilos.saludo}>
-            <strong>Hola, soy Migue.</strong>{' '}
-            {esCelular
-              ? 'Preguntame lo que necesites saber de lo cargado en tu punto. Yo no cargo ni cambio nada: eso lo hacés vos desde tu pantalla.'
-              : 'Te contesto con lo que está cargado en el sistema, y cada número viene con el botón a la pantalla que lo calcula. Sólo leo: no cargo, no anulo ni cambio nada.'}
-          </p>
-        </div>
-      )}
+        {/* Antes de la primera pregunta, quién es Migue y qué hace, en una frase.
+            Lo que NO hace va dicho de entrada: el vigilador que crea que le puede
+            dictar un movimiento lo va a intentar, y la primera respuesta sería un
+            «no». */}
+        {vacia && cargada && (
+          <div className={estilos.presentacion}>
+            <img
+              src="/migue/migue-cuerpo.webp"
+              alt="Migue, con el chaleco de la Secretaría de Ambiente"
+              width={97}
+              height={158}
+              className={estilos.figura}
+              decoding="async"
+            />
+            <p className={estilos.saludo}>
+              <strong>Hola, soy Migue.</strong>{' '}
+              {esCelular
+                ? 'Preguntame lo que necesites saber de lo cargado en tu punto. Yo no cargo ni cambio nada: eso lo hacés vos desde tu pantalla.'
+                : enBurbuja
+                  // «Contesta con lo cargado» ya lo dice la cabeza de la ventana.
+                  ? 'Cada número trae el botón a la pantalla que lo calcula. Sólo leo: no cargo ni cambio nada.'
+                  : 'Te contesto con lo que está cargado en el sistema, y cada número viene con el botón a la pantalla que lo calcula. Sólo leo: no cargo, no anulo ni cambio nada.'}
+            </p>
+          </div>
+        )}
 
-      {vacia && puedeEscribir && cargada && ejemplos.length > 0 && (
-        <div className="pila-chica">
-          <p className="menor gris" style={{ margin: 0 }}>Podés preguntarle, por ejemplo:</p>
-          <div className={estilos.ejemplos}>
-            {ejemplos.map((ejemplo) => (
+        {vacia && puedeEscribir && cargada && ejemplos.length > 0 && (
+          <div className="pila-chica">
+            <p className={enBurbuja ? `menor gris ${estilos.rotuloEjemplos}` : 'menor gris'} style={{ margin: 0 }}>
+              Podés preguntarle, por ejemplo:
+            </p>
+            <div className={estilos.ejemplos}>
+              {ejemplos.map((ejemplo) => (
+                <button
+                  key={ejemplo}
+                  type="button"
+                  className="boton secundario"
+                  disabled={sinPoderPreguntar}
+                  onClick={() => {
+                    enfocarLista.current = true
+                    preguntar(ejemplo)
+                  }}
+                >
+                  {ejemplo}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Sin role: lo que dice ya lo leyó la región de arriba. */}
+        {envio.fase === 'sin_senal' && pendiente && (
+          <div className="aviso atencion pila-chica">
+            <span>{SIN_SENAL}</span>
+            <div className="fila">
               <button
-                key={ejemplo}
                 type="button"
-                className="boton secundario"
-                disabled={sinPoderPreguntar}
-                onClick={() => {
-                  enfocarLista.current = true
-                  preguntar(ejemplo)
-                }}
+                className="boton secundario chico"
+                disabled={atendiendo || olvidando}
+                onClick={() => { void atender(pendiente, pendiente.mandada ? 'recuperar' : 'mandar') }}
               >
-                {ejemplo}
+                Mandarla ahora
               </button>
-            ))}
+              <button type="button" className="boton fantasma chico" onClick={corregir}>Corregirla</button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Sin role: lo que dice ya lo leyó la región de arriba. */}
-      {envio.fase === 'sin_senal' && pendiente && (
-        <div className="aviso atencion pila-chica">
-          <span>{SIN_SENAL}</span>
-          <div className="fila">
-            <button
-              type="button"
-              className="boton secundario chico"
-              disabled={atendiendo || olvidando}
-              onClick={() => { void atender(pendiente, pendiente.mandada ? 'recuperar' : 'mandar') }}
-            >
-              Mandarla ahora
-            </button>
-            <button type="button" className="boton fantasma chico" onClick={corregir}>Corregirla</button>
-          </div>
-        </div>
-      )}
-
-      {envio.fase === 'sin_mandar' && pendiente && (
-        <div className="aviso atencion pila-chica" role="status">
-          <span>Esta pregunta quedó escrita y todavía no salió.</span>
-          <div className="fila">
-            <button
-              type="button"
-              className="boton secundario chico"
-              disabled={atendiendo || olvidando}
-              onClick={() => { void atender(pendiente, 'mandar') }}
-            >
-              Mandarla ahora
-            </button>
-            <button type="button" className="boton fantasma chico" onClick={corregir}>Corregirla</button>
-          </div>
-        </div>
-      )}
-
-      {envio.fase === 'error' && (
-        <div className="aviso error pila-chica" role="alert">
-          <span>{envio.texto}</span>
-          {envio.reintentar && pendiente && (
+        {envio.fase === 'sin_mandar' && pendiente && (
+          <div className="aviso atencion pila-chica" role="status">
+            <span>Esta pregunta quedó escrita y todavía no salió.</span>
             <div className="fila">
               <button
                 type="button"
@@ -1296,41 +1530,59 @@ export default function Conversacion({
                 disabled={atendiendo || olvidando}
                 onClick={() => { void atender(pendiente, 'mandar') }}
               >
-                Probar de nuevo
+                Mandarla ahora
               </button>
               <button type="button" className="boton fantasma chico" onClick={corregir}>Corregirla</button>
             </div>
-          )}
-        </div>
-      )}
-
-      {/* Sin role: cuando se cierra mientras se pregunta, la región de arriba
-          ya lo dijo; al volver a abrir una cerrada, es parte de la pantalla. */}
-      {cerrada && !soloLectura && (
-        <div className="aviso atencion pila-chica">
-          <span>{cerrada}</span>
-          <div className="fila">
-            <button type="button" className="boton chico" onClick={() => { void empezarDeNuevo() }}>
-              Empezar otra
-            </button>
           </div>
-        </div>
-      )}
+        )}
 
-      {aviso && (
-        <div className={`aviso ${aviso.clase}`} role={aviso.clase === 'error' ? 'alert' : undefined}>
-          {aviso.texto}
-        </div>
-      )}
+        {envio.fase === 'error' && (
+          <div className="aviso error pila-chica" role="alert">
+            <span>{envio.texto}</span>
+            {envio.reintentar && pendiente && (
+              <div className="fila">
+                <button
+                  type="button"
+                  className="boton secundario chico"
+                  disabled={atendiendo || olvidando}
+                  onClick={() => { void atender(pendiente, 'mandar') }}
+                >
+                  Probar de nuevo
+                </button>
+                <button type="button" className="boton fantasma chico" onClick={corregir}>Corregirla</button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {!cerradaAbajo && avisoCerrada}
+
+        {aviso && (
+          <div className={`aviso ${aviso.clase}`} role={aviso.clase === 'error' ? 'alert' : undefined}>
+            {aviso.texto}
+          </div>
+        )}
+
+        {/* En la burbuja, al final de lo hablado y lejos de «Preguntar». */}
+        {enBurbuja && acciones}
+      </Hilo>
 
       {!soloLectura && (
         <div className={`pila-chica ${estilos.pie}`}>
-          {!apagado && (
-            <p id={`privacidad-${rol}`} className="menor gris" style={{ margin: 0 }}>{privacidad}</p>
+          {/* Cerrada, en la burbuja no hay cuadro: la frase es de lo que se escribe. */}
+          {!apagado && !cerradaAbajo && (
+            <p
+              id={`privacidad-${rol}`}
+              className={enBurbuja ? `menor gris ${estilos.privacidad}` : 'menor gris'}
+              style={{ margin: 0 }}
+            >
+              {privacidad}
+            </p>
           )}
 
           {esCelular && enCola > 0 && (
-            <p className="menor gris" style={{ margin: 0 }}>
+            <p className={enBurbuja ? `menor gris ${estilos.enCola}` : 'menor gris'} style={{ margin: 0 }}>
               {enCola === 1
                 ? 'Hay 1 movimiento guardado en el celular sin subir: Migue todavía no lo ve.'
                 : `Hay ${enCola} movimientos guardados en el celular sin subir: Migue todavía no los ve.`}
@@ -1346,21 +1598,30 @@ export default function Conversacion({
                 </ul>
               )}
             </div>
-          ) : puedeEscribir && (
+          ) : cerradaAbajo ? cerradaAbajo : puedeEscribir && (
             <form className={estilos.cuadro} onSubmit={alMandar}>
               <label htmlFor={`pregunta-${rol}`} className="sr-solo">Tu pregunta para Migue</label>
               <textarea
+                ref={cuadro}
                 id={`pregunta-${rol}`}
                 className={`control ${estilos.pregunta}`}
-                rows={esCelular ? 3 : 2}
+                rows={enBurbuja ? 1 : esCelular ? 3 : 2}
                 maxLength={LARGO_MAXIMO_PREGUNTA}
                 enterKeyHint="send"
-                placeholder={esCelular ? 'Escribí tu pregunta…' : 'Escribí tu pregunta. Enter la manda; Shift+Enter baja de renglón.'}
-                aria-describedby={`privacidad-${rol}`}
+                // En la ventana, el atajo del teclado no entraba en el renglón
+                // y sacaba una barra con flechitas: va para el lector de
+                // pantalla. Y corto: el cuadro vacío mide lo que su texto, y en
+                // un teléfono de 360 con la letra agrandada «Escribí tu
+                // pregunta…» ya iba en dos renglones.
+                placeholder={enBurbuja ? 'Tu pregunta…' : esCelular ? 'Escribí tu pregunta…' : 'Escribí tu pregunta. Enter la manda; Shift+Enter baja de renglón.'}
+                aria-describedby={enBurbuja && !esCelular ? `privacidad-${rol} atajo-${rol}` : `privacidad-${rol}`}
                 value={borrador}
                 onChange={(e) => ponerBorrador(e.target.value)}
                 onKeyDown={alTeclear}
               />
+              {enBurbuja && !esCelular && (
+                <span id={`atajo-${rol}`} className="sr-solo">Enter la manda; Shift+Enter baja de renglón.</span>
+              )}
               {restan <= 100 && (
                 <span className="ayuda" aria-live="polite">
                   {restan === 1 ? 'Te queda 1 letra.' : `Te quedan ${restan} letras.`}
@@ -1368,39 +1629,18 @@ export default function Conversacion({
               )}
               <button
                 type="submit"
-                className={`boton ${esCelular ? 'grande ancho-total' : ''}`}
+                className={enBurbuja ? 'boton' : `boton ${esCelular ? 'grande ancho-total' : ''}`}
                 disabled={sinPoderPreguntar || pendiente !== null || !borrador.trim()}
               >
-                {enVuelo ? 'Preguntando…' : 'Preguntar'}
+                {/* En la burbuja no cambia: «Preguntando…» es más ancho y
+                    achicaba el cuadro. Lo que pasa lo dice la línea gris del
+                    hilo, y la región viva lo lee. */}
+                {enVuelo && !enBurbuja ? 'Preguntando…' : 'Preguntar'}
               </button>
             </form>
           )}
 
-          {hayConversacion && (
-            <div className={estilos.acciones}>
-              {/* Apagado no hay a quién preguntarle de nuevo; olvidar, sí. */}
-              {!cerrada && !apagado && (
-                <button
-                  type="button"
-                  className="boton fantasma chico"
-                  disabled={enVuelo || atendiendo || olvidando}
-                  onClick={() => { void empezarDeNuevo() }}
-                >
-                  Empezar de nuevo
-                </button>
-              )}
-              {conversacionId && mensajes.length > 0 && (
-                <Olvidar
-                  confirmando={olvido?.id === conversacionId}
-                  trabajando={olvido?.id === conversacionId && olvido.trabajando}
-                  bloqueado={olvidarBloqueado(conversacionId)}
-                  alPedir={() => setOlvido({ id: conversacionId, trabajando: false })}
-                  alConfirmar={() => { void olvidar(conversacionId) }}
-                  alDesistir={() => setOlvido(null)}
-                />
-              )}
-            </div>
-          )}
+          {!enBurbuja && acciones}
         </div>
       )}
 
@@ -1419,7 +1659,7 @@ export default function Conversacion({
 
       {/* Las de hoy de este teléfono. En el panel van en la columna de al lado,
           y las dibuja la página. */}
-      {esCelular && !soloLectura && anteriores.length > 0 && (
+      {esCelular && !soloLectura && !enBurbuja && anteriores.length > 0 && (
         <details className={estilos.anteriores}>
           <summary>
             {anteriores.length === 1 ? 'Otra conversación de hoy en este celular' : `Otras ${anteriores.length} conversaciones de hoy en este celular`}

@@ -4,8 +4,9 @@ import { conSesion } from '@db/sesion'
 import Conversacion from '@/app/_migue/Conversacion'
 import estilos from '@/app/_migue/conversacion.module.css'
 import { Retrato } from '@/app/_migue/Retrato'
+import { apagadoDelPanel, EJEMPLOS_DEL_PANEL, PRIVACIDAD_DEL_PANEL } from '@/app/_migue/textos'
 import { fechaHora, numero } from '@/lib/formato'
-import { leerConfiguracion, migueEstaInstalado } from '@/lib/migue/configuracion'
+import { migueEstaInstalado } from '@/lib/migue/configuracion'
 import {
   conversacionGuardadaEnTx, estadoDeLaConversacionEnTx, type ConversacionAnterior, type DuenoDeLaConversacion,
   type MotivoDeCierre,
@@ -18,18 +19,6 @@ export const dynamic = 'force-dynamic'
 type Parametros = Record<string, string | string[] | undefined>
 
 const uno = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] ?? '' : v ?? '').trim()
-
-/**
- * Preguntas para arrancar. Son de las que el relevamiento encontró que la
- * coordinación hace de verdad, y cada una cae en una pantalla que ya existe:
- * un ejemplo que Migue no puede contestar enseña, de entrada, a no creerle.
- */
-const EJEMPLOS = [
-  '¿Qué puntos hace días que no cargan nada?',
-  '¿Cuánto entró a la Planta el mes pasado?',
-  '¿Qué pedidos de recambio están demorados?',
-  '¿Cuántas salidas no dicen de qué pila salieron?',
-]
 
 /** Lo que dice cada cierre en la lista de las anteriores. Los que no se nombran no llevan marca. */
 const CIERRE_EN_LA_LISTA: Partial<Record<MotivoDeCierre, string>> = {
@@ -79,18 +68,7 @@ export default async function PantallaMigue({
   if (!datos) redirect('/tablero')
 
   const { estado, guardada, propuestas } = datos
-  const config = leerConfiguracion()
-
-  // Apagado no es escondido: sin clave o con el tope de gasto mal puesto,
-  // Migue no contesta, pero lo que ya se habló se sigue viendo y se puede
-  // olvidar. La coordinación es quien lo puede arreglar, así que acá sí se
-  // dice qué falta con el nombre de la variable.
-  const apagado = config.problemas.length > 0
-    ? { titulo: 'Migue no está contestando. Falta arreglar esto en la configuración:', detalle: config.problemas }
-    : null
-
-  const privacidad =
-    `Tus conversaciones son sólo tuyas y se borran solas a los ${numero(DIAS_DE_CONVERSACION_DE_COORDINACION)} días.`
+  const apagado = apagadoDelPanel()
 
   return (
     <div className="pila">
@@ -150,7 +128,7 @@ export default async function PantallaMigue({
                 rol="admin"
                 dueno={sesion.perfilId}
                 inicial={{ conversacionId: guardada.id, cerrada: null, mensajes: guardada.mensajes, anteriores: [] }}
-                privacidad={privacidad}
+                privacidad={PRIVACIDAD_DEL_PANEL}
                 apagado={apagado}
                 ejemplos={[]}
                 soloLectura
@@ -162,9 +140,9 @@ export default async function PantallaMigue({
               rol="admin"
               dueno={sesion.perfilId}
               inicial={estado}
-              privacidad={privacidad}
+              privacidad={PRIVACIDAD_DEL_PANEL}
               apagado={apagado}
-              ejemplos={EJEMPLOS}
+              ejemplos={EJEMPLOS_DEL_PANEL}
             />
           )}
         </section>

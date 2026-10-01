@@ -316,6 +316,471 @@
   box-shadow: inset 4px 0 0 var(--azul);
 }
 
+/* ── Adentro de la burbuja ───────────────────────────────────────────────
+   Tres pisos, como cualquier chat: la cabeza de la ventana arriba
+   (burbuja.module.css); el hilo en el medio, que es lo ÚNICO que se
+   desplaza; y el pie abajo, quieto y siempre entero, con la frase de
+   privacidad, lo que falta subir y el cuadro. Antes se desplazaba todo junto
+   y en la ventana de una notebook baja el cuadro quedaba cortado, la
+   confirmación de olvidar sin sus botones y la conversación en 4 px. En
+   /migue y /preguntar el hilo no existe (es un fragmento) y todo esto cuelga
+   de .enBurbuja. */
+.chat.enBurbuja {
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 0;
+}
+
+/* Sin sombras de «hay más»: el truco de .desplazable pinta en el fondo, las
+   burbujas opacas la tapaban justo donde tenía que avisar, y en oscuro no se
+   distinguía (1,06:1). Lo avisan la barra fina y el renglón cortado.
+
+   position: relative para que sea el bloque contenedor de lo que está oculto
+   a la vista y queda para el lector de pantalla (el «Migue» de cada
+   respuesta): si no, lo era la ventana, esos rótulos no se movían con el
+   hilo, y cuando un lector llevaba uno a la vista desplazaba la ventana
+   entera y la dejaba en blanco, sin forma de volver. */
+.chat.enBurbuja .hilo {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Lo que toma el foco con Tab se trae a la vista con su recuadro, que sale
+     5 px por fuera del botón y quedaba cortado contra el pie. */
+  scroll-padding-block: 8px;
+  background: var(--fondo);
+}
+/* El :focus-visible de globals redondea 4 px: acá la caja es la que se
+   desplaza, recta contra la cabeza y el pie. */
+.chat.enBurbuja .hilo:focus-visible {
+  outline: 3px solid var(--celeste);
+  outline-offset: -3px;
+  border-radius: 0;
+}
+
+/* Barras finas y sin flechitas, con mouse. Chrome y Edge usan las -webkit-
+   sólo si el elemento NO tiene scrollbar-width ni scrollbar-color (tampoco
+   heredado): las estándar van aparte, para Firefox, que no conoce las otras.
+   Con el dedo no: una barra -webkit- es clásica y ocupa 10 px también en el
+   teléfono, donde la del sistema va superpuesta y no corre nada. El pulgar,
+   de 6 px y al 85 %: sin las sombras de «hay más», es lo que avisa que la
+   conversación sigue, y al 45 % casi no se distinguía del fondo. */
+@media (hover: hover) and (pointer: fine) {
+  .chat.enBurbuja .hilo::-webkit-scrollbar,
+  .chat.enBurbuja .pie::-webkit-scrollbar,
+  .chat.enBurbuja .pregunta::-webkit-scrollbar {
+    width: 10px;
+  }
+  .chat.enBurbuja .hilo::-webkit-scrollbar-button,
+  .chat.enBurbuja .pie::-webkit-scrollbar-button,
+  .chat.enBurbuja .pregunta::-webkit-scrollbar-button {
+    display: none;
+  }
+  .chat.enBurbuja .hilo::-webkit-scrollbar-track,
+  .chat.enBurbuja .pie::-webkit-scrollbar-track,
+  .chat.enBurbuja .pregunta::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .chat.enBurbuja .hilo::-webkit-scrollbar-thumb,
+  .chat.enBurbuja .pie::-webkit-scrollbar-thumb,
+  .chat.enBurbuja .pregunta::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--gris) 85%, transparent) padding-box;
+  }
+  .chat.enBurbuja .hilo::-webkit-scrollbar-thumb:hover,
+  .chat.enBurbuja .pie::-webkit-scrollbar-thumb:hover,
+  .chat.enBurbuja .pregunta::-webkit-scrollbar-thumb:hover {
+    background-color: var(--gris);
+  }
+}
+@supports not selector(::-webkit-scrollbar) {
+  .chat.enBurbuja .hilo,
+  .chat.enBurbuja .pie,
+  .chat.enBurbuja .pregunta {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--gris) 85%, transparent) transparent;
+  }
+}
+
+/* La lista ya no se desplaza sola: la lleva el hilo. (0,3,0) le gana a
+   .panel .mensajes, también a la del final. */
+.chat.enBurbuja .mensajes {
+  flex: none;
+  max-height: none;
+  overflow: visible;
+  padding: 0;
+  gap: 10px;
+}
+.enBurbuja .filaMigue {
+  max-width: 100%;
+}
+.enBurbuja .persona {
+  max-width: 85%;
+}
+.enBurbuja .migue {
+  box-shadow: none;
+}
+.panel.enBurbuja .burbuja {
+  padding: 9px 13px;
+}
+.panel.enBurbuja .enlaces {
+  margin-top: 10px;
+  padding-top: 8px;
+  gap: 8px;
+}
+/* «Migue» sólo para el lector de pantalla: en la ventana la cara ya dice
+   quién habla, y el rótulo en versalitas se comía un renglón por respuesta. */
+.enBurbuja .quien {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+/* La cara de 24 centrada en la columna de las de 36, el texto a la altura de
+   las burbujas, y la cara que late mientras busca. */
+.enBurbuja .estado {
+  padding-left: 6px;
+  gap: 14px;
+}
+.enBurbuja .estado .retrato {
+  animation: pensando 1.6s ease-in-out infinite;
+}
+
+.enBurbuja .presentacion {
+  align-items: flex-start;
+  gap: 14px;
+}
+.enBurbuja .figura {
+  height: 104px;
+}
+.enBurbuja .saludo {
+  max-width: none;
+}
+.panel.enBurbuja .saludo {
+  font-size: .9rem;
+  line-height: 1.45;
+}
+
+/* Los ejemplos en una sola tarjeta, con una línea entre uno y otro, como
+   .lista, y una flechita que dice «esto se toca». */
+.chat.enBurbuja .ejemplos {
+  flex-direction: column;
+  gap: 0;
+  background: var(--panel);
+  border: 1px solid var(--linea);
+  border-radius: var(--r-chico);
+  overflow: hidden;
+}
+.chat.enBurbuja .ejemplos :global(.boton) {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  font-size: .9rem;
+  font-weight: 650;
+  color: var(--tinta);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.chat.enBurbuja .ejemplos :global(.boton) + :global(.boton) {
+  border-top: 1px solid var(--linea);
+}
+.chat.enBurbuja .ejemplos :global(.boton)::after {
+  content: '';
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  margin-right: 3px;
+  border-top: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+  transform: rotate(45deg);
+  opacity: .45;
+}
+.chat.enBurbuja .ejemplos :global(.boton):hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  background: var(--panel-2);
+  color: var(--azul);
+}
+.chat.enBurbuja .ejemplos :global(.boton):focus-visible {
+  outline-offset: -3px;
+}
+
+.panel.enBurbuja :global(.aviso) {
+  padding: 10px 12px;
+  font-size: .86rem;
+}
+.celular.enBurbuja :global(.aviso) {
+  font-size: .95rem;
+}
+
+.chat.enBurbuja .acciones {
+  justify-content: center;
+  gap: 4px 12px;
+}
+.chat.enBurbuja .acciones > :global(.aviso) {
+  flex: 1 1 100%;
+}
+
+/* El pie. En escritorio, si algún día no entra (Migue apagado con varios
+   motivos), se desplaza él y no se come el hilo; en el teléfono cede el hilo
+   (más abajo, «Pantalla entera»). position: relative por lo mismo que el
+   hilo: adentro hay rótulos que sólo lee el lector de pantalla. */
+.chat.enBurbuja .pie {
+  position: relative;
+  flex: 0 0 auto;
+  max-height: 60%;
+  overflow-y: auto;
+  gap: 6px;
+  padding: 8px 14px 10px;
+  background: var(--panel);
+  border-top: 1px solid var(--linea);
+}
+/* pretty: sin «días.» solo en el último renglón. */
+.enBurbuja .privacidad {
+  font-size: .8rem;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+.enBurbuja .enCola {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--tinta);
+  font-weight: 600;
+}
+.enBurbuja .enCola::before {
+  content: '';
+  flex: 0 0 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--salida);
+  transform: translateY(-1px);
+}
+
+.chat.enBurbuja .cuadro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 6px 8px;
+}
+/* Un renglón que crece con lo escrito hasta cinco (140 = 5 × 23,2 + 22 + 2) y
+   recién ahí se desplaza adentro. (0,3,0) le gana al min-height de 84 y al
+   resize de textarea.control, que valen (0,1,1). El radio va de nuevo: con
+   foco, el :focus-visible de globals lo bajaba a 4 al lado de un «Preguntar»
+   de 10. */
+.chat.enBurbuja .pregunta {
+  grid-row: 1;
+  grid-column: 1;
+  min-height: 48px;
+  max-height: 140px;
+  padding: 11px 14px;
+  line-height: 1.45;
+  border-radius: var(--r-chico);
+  resize: none;
+  field-sizing: content;
+  overflow-y: auto;
+}
+.chat.enBurbuja .cuadro > :global(.boton) {
+  grid-row: 1;
+  grid-column: 2;
+  align-self: end;
+  min-height: 48px;
+  padding-inline: 18px;
+}
+/* Sin nada escrito, gris, entero y hueco: el azul a media opacidad parecía
+   roto, y relleno como el cuadro se leía como un segundo campo. */
+.chat.enBurbuja .cuadro > :global(.boton):disabled {
+  opacity: 1;
+  background: transparent;
+  color: var(--gris);
+  border-color: var(--linea);
+  box-shadow: none;
+}
+.chat.enBurbuja .cuadro > :global(.ayuda) {
+  grid-row: 2;
+  grid-column: 1 / -1;
+  text-align: right;
+}
+
+@keyframes pensando {
+  50% {
+    opacity: .7;
+    transform: translateY(-2px);
+  }
+}
+
+/* Con movimiento reducido, la cara que late se queda quieta. La regla de
+   globals sólo acorta la duración, y una animación infinita de 0,01 ms
+   quedaba saltando entre fases al azar. */
+@media (prefers-reduced-motion: reduce) {
+  .enBurbuja .estado .retrato {
+    animation: none;
+  }
+}
+
+/* ── Escritorio ──────────────────────────────────────────────────────────
+   Todo lo que no es pantalla entera: la consulta de pantallaEntera.ts al
+   revés, escrita para los navegadores que no tienen `not (…)`. Los 720,02 y
+   500,02 son para que no quede un pixel sin ninguno de los dos bloques:
+   Firefox con zoom y Safari dan anchos con fracción, y entre 720 y 721 no
+   valía ni uno ni otro. */
+@media (min-width: 720.02px) and (min-height: 500.02px), (min-width: 720.02px) and (pointer: fine), (min-width: 720.02px) and (pointer: none) {
+  /* La barra propia de -webkit- ocupa 10 px cuando aparece: se reservan
+     siempre (4 + 10 = los 14 del pie), así el contenido llega al mismo borde
+     que el cuadro y no salta de costado entre la vacía y la conversación.
+     Sólo con mouse, que es donde va esa barra (arriba, «Barras finas»), y
+     sólo si el canal existe: Safari lo tiene recién desde 18.2, y sin él el
+     hilo quedaba a 4 del borde. */
+  @media (hover: hover) and (pointer: fine) {
+    @supports selector(::-webkit-scrollbar) and (scrollbar-gutter: stable) {
+      .chat.enBurbuja .hilo {
+        scrollbar-gutter: stable;
+        padding-right: 4px;
+      }
+    }
+  }
+
+  /* Ventana baja —una notebook de 768, donde queda en ~395—: la primera vez
+     entra entera sin barra. Pregunta por el alto de la ventana
+     (container-type en burbuja.module.css), no del hilo, así no cambia
+     mientras se escribe; y sólo en escritorio, así en el teléfono la figura
+     no salta al abrir el teclado. El umbral sale de la cabeza de 57 y el pie
+     de 91,6: con menos de 519 de ventana, el hilo no llega a los 346,8 que
+     pide la vista vacía. */
+  @container (max-height: 519px) {
+    .panel.enBurbuja .hilo {
+      padding-block: 10px;
+      gap: 10px;
+    }
+    .panel.enBurbuja .figura {
+      display: none;
+    }
+    .panel.enBurbuja .rotuloEjemplos {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+    .panel.enBurbuja .ejemplos :global(.boton) {
+      min-height: 40px;
+      padding-block: 8px;
+    }
+    /* Tres renglones. */
+    .panel.enBurbuja .pregunta {
+      max-height: 94px;
+    }
+  }
+}
+
+/* ── Pantalla entera ─────────────────────────────────────────────────────
+   Un teléfono parado o acostado: la consulta de pantallaEntera.ts, escrita a
+   mano. Más aire, la privacidad legible al sol, y todo lo que se toca de 48
+   o más, que se usa con guantes. Va antes del bloque de 720 del final, que es
+   de las pantallas enteras de /migue y /preguntar.
+
+   Los costados suman la muesca del iPhone acostado (0 parado): así los
+   fondos del hilo y del pie llegan al borde y sólo se corre lo de adentro. */
+@media (max-width: 720px), (pointer: coarse) and (max-height: 500px) {
+  .chat.enBurbuja .hilo {
+    padding: 16px calc(16px + env(safe-area-inset-right)) 16px calc(16px + env(safe-area-inset-left));
+  }
+  /* Acá cede el hilo y no el cuadro: con el teclado abierto en un teléfono
+     chico, el tope del 60 % dejaba «Preguntar» cortado por debajo. */
+  .chat.enBurbuja .pie {
+    max-height: none;
+    overflow: visible;
+    gap: 8px;
+    padding: 10px calc(16px + env(safe-area-inset-right)) 12px calc(16px + env(safe-area-inset-left));
+  }
+  .enBurbuja .privacidad {
+    font-size: .84rem;
+    color: var(--texto);
+  }
+  .chat.enBurbuja .cuadro {
+    gap: 6px 10px;
+  }
+  /* Cuatro renglones. */
+  .chat.enBurbuja .pregunta {
+    min-height: 56px;
+    max-height: 126px;
+    padding: 14px 15px;
+    font-size: 1.1rem;
+    line-height: 1.35;
+  }
+  /* Teclado abierto en un teléfono chico: dos renglones de cuadro, así queda
+     algo de hilo. El atributo lo pone BurbujaMigue desde visualViewport; no
+     va por @container porque Safari de iOS 15 no lo tiene. */
+  [data-baja] .chat.enBurbuja .pregunta {
+    max-height: 80px;
+  }
+  .chat.enBurbuja .cuadro > :global(.boton) {
+    min-height: 56px;
+    padding-inline: 20px;
+    font-size: 1rem;
+  }
+  /* balance: sin «nada?» ni «pasado?» solos en el segundo renglón. */
+  .chat.enBurbuja .ejemplos :global(.boton) {
+    min-height: var(--toque);
+    padding: 12px 16px;
+    font-size: 1rem;
+    text-wrap: balance;
+  }
+  /* Los enlaces de las respuestas, los botones de los avisos y el «Sí» y el
+     «No» de olvidar. */
+  .enBurbuja :global(.boton.chico) {
+    min-height: 48px;
+    padding: 10px 16px;
+    font-size: .92rem;
+  }
+  .enBurbuja .enlaces :global(.boton) {
+    align-self: stretch;
+    justify-content: flex-start;
+    text-align: left;
+  }
+  /* Las dos en un renglón de 358. */
+  .chat.enBurbuja .acciones {
+    gap: 4px 8px;
+  }
+  .chat.enBurbuja .acciones > :global(.boton) {
+    padding-inline: 8px;
+    font-size: .9rem;
+  }
+  /* La coordinación desde el teléfono, con la letra de siempre y no con la
+     compacta de la tarjeta de 420. */
+  .panel.enBurbuja .saludo {
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+  .panel.enBurbuja :global(.aviso) {
+    padding: 13px 15px;
+    font-size: .92rem;
+  }
+  /* Acostado, entre la cabeza y el pie quedan unos 140 px: la figura se
+     comía el hilo entero y no asomaba ningún ejemplo. */
+  @media (max-height: 500px) {
+    .enBurbuja .figura {
+      display: none;
+    }
+  }
+}
+
 @media (max-width: 720px) {
   .disposicion {
     grid-template-columns: minmax(0, 1fr);

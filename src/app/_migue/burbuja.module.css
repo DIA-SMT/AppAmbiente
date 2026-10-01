@@ -1,0 +1,275 @@
+/* La cara de Migue en la esquina y la ventana que abre. Lo de adentro —las
+   burbujas, el cuadro— es de conversacion.module.css; el color, siempre de
+   las variables, así que los dos temas salen solos. */
+
+/* La esquina de abajo a la derecha, en punta: una burbuja de diálogo que sale
+   del rincón de la pantalla, y no un botón redondo más. */
+.lanzador {
+  position: fixed;
+  right: calc(18px + env(safe-area-inset-right));
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  z-index: 30;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: 3px solid var(--panel);
+  border-radius: 50% 50% 8px 50%;
+  background: color-mix(in srgb, var(--ingreso) 22%, var(--panel));
+  box-shadow: var(--sombra-alta);
+  cursor: pointer;
+  transition: transform var(--transicion), border-color var(--transicion);
+}
+
+.lanzador img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.lanzador:hover {
+  transform: translateY(-2px);
+}
+
+.lanzador:focus-visible {
+  outline: 3px solid var(--azul);
+  outline-offset: 3px;
+}
+
+.lanzador[data-abierta='true'] {
+  border-color: var(--azul);
+}
+
+/* Llegó una respuesta con la ventana cerrada. */
+.punto {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--azul);
+  border: 3px solid var(--panel);
+}
+
+/* ── La ventana ───────────────────────────────────────────────────────── */
+
+.ventana {
+  position: fixed;
+  z-index: 40;
+  right: calc(18px + env(safe-area-inset-right));
+  bottom: calc(18px + 64px + 14px + env(safe-area-inset-bottom));
+  width: min(420px, calc(100vw - 36px));
+  /* Que no se meta debajo del encabezado del panel, que también está pegado. */
+  height: min(660px, calc(100dvh - var(--alto-cabecera) - 130px));
+  display: flex;
+  flex-direction: column;
+  background: var(--fondo);
+  border: 1px solid var(--linea);
+  border-radius: var(--r-grande);
+  box-shadow: var(--sombra-alta);
+  overflow: hidden;
+  transform-origin: bottom right;
+  animation: aparecer 160ms cubic-bezier(.2, .8, .2, 1);
+  /* Para que el chat pregunte por el alto de la ventana: en una notebook
+     baja se compacta (conversacion.module.css, «Ventana baja»). Tiene ancho
+     y alto propios, así que no cambia de medida. */
+  container-type: size;
+}
+
+/* El display de arriba le gana al del atributo, y cerrada se vería igual. */
+.ventana[hidden] {
+  display: none;
+}
+
+/* El foco llega por programa, al abrir; el recuadro no le dice nada a nadie. */
+.ventana:focus {
+  outline: none;
+}
+
+.cabeza {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* 6 + 44 de la X + 6 + la línea: 57, que es lo que descuenta el umbral de
+     la ventana baja en conversacion.module.css. */
+  padding: 6px 6px 6px 14px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--linea);
+}
+
+.nombre {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.2;
+}
+
+.nombre strong {
+  color: var(--tinta);
+  font-size: 1rem;
+}
+
+.nombre span {
+  overflow: hidden;
+  color: var(--gris);
+  font-size: .78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* En 390 px el nombre le cede el lugar: partido en dos renglones, «Ver
+   todo» se lee como dos botones. */
+.verTodo {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.cerrar {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-chico);
+  background: transparent;
+  color: var(--gris);
+  cursor: pointer;
+}
+
+.cerrar:hover {
+  background: var(--panel-2);
+  color: var(--tinta);
+}
+
+.cerrar:focus-visible {
+  outline: 3px solid var(--azul);
+  outline-offset: -3px;
+}
+
+.cerrar svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* El cuerpo ya no se desplaza: adentro, el chat lleva su hilo, que es lo
+   único que se mueve, y el pie con el cuadro, que queda quieto abajo. */
+.cuerpo {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Lo último de cada pantalla tiene que poder quedar arriba de la cara: sin
+   esto, el botón de más abajo de una carga queda con la punta tapada. */
+:global(body):has(.lanzador) :global(main.contenido) {
+  padding-bottom: calc(100px + env(safe-area-inset-bottom));
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(.98);
+  }
+}
+
+@keyframes subir {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+
+/* Con html delante vale (0,1,1): le gana al animation-name del celular, que
+   viene después en el archivo porque el bloque de 720 va último. */
+@media (prefers-reduced-motion: reduce) {
+  .lanzador { transition: none; }
+  .lanzador:hover { transform: none; }
+  :global(html) .ventana { animation: none; }
+}
+
+@media print {
+  .lanzador,
+  .ventana {
+    display: none;
+  }
+}
+
+/* En un teléfono, parado o acostado, la ventana es la pantalla entera
+   (pantallaEntera.ts: la misma consulta, a mano). Adentro se desplaza sólo el
+   hilo, y la página de abajo se queda quieta mientras tanto. El alto y el
+   arriba los pone BurbujaMigue desde visualViewport, para que con el teclado
+   abierto el cuadro quede justo arriba de él. */
+@media (max-width: 720px), (pointer: coarse) and (max-height: 500px) {
+  .lanzador {
+    right: calc(14px + env(safe-area-inset-right));
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    width: 58px;
+    height: 58px;
+  }
+
+  .ventana {
+    top: var(--arriba-visible, 0px);
+    right: 0;
+    bottom: auto;
+    left: 0;
+    width: auto;
+    height: var(--alto-visible, 100dvh);
+    padding-top: env(safe-area-inset-top);
+    border: 0;
+    border-radius: 0;
+    animation-name: subir;
+  }
+  /* El margen de la barra de estado del iPhone instalado: con
+     black-translucent la hora y la batería van en blanco, y sobre --fondo no
+     se veían. Azul, como el encabezado del resto de la app. Donde el margen
+     vale 0 no ocupa nada. */
+  .ventana::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto;
+    height: env(safe-area-inset-top);
+    background: var(--degrade);
+  }
+
+  /* Con guantes: 48 o más. «Ver todo» es .boton.chico, que vale (0,2,0). Los
+     costados suman la muesca del iPhone acostado (0 parado): el fondo blanco
+     de la cabeza llega al borde y sólo se corre lo de adentro, igual que el
+     hilo y el pie (conversacion.module.css). */
+  .cabeza {
+    padding: 8px calc(6px + env(safe-area-inset-right)) 8px calc(14px + env(safe-area-inset-left));
+  }
+  .cerrar {
+    width: 48px;
+    height: 48px;
+  }
+  .ventana .cabeza .verTodo {
+    min-height: 48px;
+  }
+  /* Al sol: el gris daba 4,37:1 en claro. Del mismo tamaño, que en 360 de
+     ancho entra justo. */
+  .nombre span {
+    color: var(--texto);
+  }
+
+  /* Abajo va el margen de la barrita del iPhone, del color del pie; con el
+     teclado abierto no hay barrita. */
+  .cuerpo {
+    padding-bottom: env(safe-area-inset-bottom);
+    background: var(--panel);
+  }
+  .ventana[data-teclado='abierto'] .cuerpo {
+    padding-bottom: 0;
+  }
+
+  :global(html):has(.ventana:not([hidden])) {
+    overflow: hidden;
+  }
+}

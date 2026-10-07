@@ -1,0 +1,47 @@
+# ═══════════════════════════════════════════════════════════════════════
+# Que la base de Supabase no se duerma.
+#
+# El plan gratuito de Supabase pausa el proyecto después de 7 días sin
+# actividad, y una base pausada no se despierta sola: alguien tiene que entrar
+# al panel y restaurarla. Si eso pasa en una semana sin carga —vacaciones, un
+# feriado largo—, el lunes los vigiladores abren la app y no pueden registrar
+# nada.
+#
+# Esto le pega a /api/salud, que hace una consulta de verdad a la base a
+# través de la app (la misma conexión del pooler que usa todo lo demás). Así
+# no hace falta guardar la cadena de conexión en GitHub, y de paso se prueba
+# que el despliegue entero anda: si la base no contesta, /api/salud da 503,
+# el job falla y GitHub le manda un mail a quien tenga el repo.
+#
+# Cada dos días: con uno que falle quedan cinco de margen antes de la pausa.
+# ═══════════════════════════════════════════════════════════════════════
+name: Mantener la base despierta
+
+on:
+  schedule:
+    # 12:00 UTC = 09:00 en Tucumán.
+    - cron: '0 12 */2 * *'
+  # Para probarlo a mano desde la pestaña Actions.
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  despertar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      # Si algún día cambia el dominio, cargar la variable URL_PRODUCCION en
+      # Settings → Secrets and variables → Actions → Variables.
+      URL: ${{ vars.URL_PRODUCCION || 'https://app-ambiente.vercel.app' }}
+    steps:
+      - name: Consultar /api/salud
+        run: |
+          # Los reintentos cubren el arranque en frío de la función y algún
+          # tropiezo de red; un 503 sostenido es un problema de verdad.
+          respuesta=$(curl --silent --show-error --fail-with-body \
+            --retry 3 --retry-delay 20 --retry-all-errors \
+            --max-time 60 \
+            "$URL/api/salud")
+          echo "$respuesta"
+          echo "$respuesta" | jq -e '.conecta == true' > /dev/null

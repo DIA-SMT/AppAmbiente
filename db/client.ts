@@ -10,6 +10,7 @@
  */
 import { mkdirSync } from 'node:fs'
 import path from 'node:path'
+import { esBaseNoDisponible, marcarBaseNoDisponible } from './disponibilidad'
 
 export interface Conexion {
   consultar<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]>
@@ -97,12 +98,26 @@ async function crearPostgres(url: string): Promise<Base> {
     },
   })
 
+  /*
+   * Si la base no contesta, el error sale marcado para que la pantalla lo
+   * pueda decir (ver db/disponibilidad.ts). Se marca afuera de la transacción,
+   * que es por donde pasa toda la app: así cubre también el error de conexión
+   * del BEGIN, que es el primero que salta con la base pausada.
+   */
+  const marcando = async <T>(trabajo: () => Promise<T>): Promise<T> => {
+    try {
+      return await trabajo()
+    } catch (e) {
+      throw esBaseNoDisponible(e) ? marcarBaseNoDisponible(e) : e
+    }
+  }
+
   const raiz = envolver(sql)
   return {
     ...raiz,
     motor: 'postgres',
     async transaccion<T>(fn: (tx: Conexion) => Promise<T>) {
-      return (await sql.begin(async (tx) => fn(envolver(tx as never)))) as T
+      return marcando(async () => (await sql.begin(async (tx) => fn(envolver(tx as never)))) as T)
     },
     async cerrar() {
       await sql.end()

@@ -30,6 +30,7 @@
  */
 import 'server-only'
 import type { Conexion } from '@db/client'
+import { esBaseNoDisponible } from '@db/disponibilidad'
 import { conSesion, consultarConSesion, type Sesion } from '@db/sesion'
 import type {
   Contenedor, ConteoDiario, ControlDePila, DestinoAFormalizar, Entidad,
@@ -296,6 +297,10 @@ export async function crearMovimiento(
       return { ok: true, id: mov.id, numero: mov.numero }
     })
   } catch (e) {
+    // Con la base caída no hay nada que corregir en el movimiento: que siga de
+    // largo. El formulario lo guarda en el celular y /api/sincronizar contesta
+    // 500, que la cola entiende como «se reintenta solo».
+    if (esBaseNoDisponible(e)) throw e
     return { ok: false, error: mensajeDeError(e) }
   }
 }

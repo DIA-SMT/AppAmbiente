@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { esquemaMovimiento } from '@/lib/cola'
+import { esBaseNoDisponible } from '@db/disponibilidad'
 import { crearMovimiento, mensajeDeError } from '@/lib/datos'
 import { sesionActual } from '@/lib/sesion'
 
@@ -36,6 +37,9 @@ export async function registrarMovimiento(
     if (!alta.ok) return { error: alta.error }
     numero = alta.numero
   } catch (e) {
+    // Tirado, no devuelto: el formulario toma cualquier error de la acción
+    // como falta de señal y guarda el movimiento en el celular.
+    if (esBaseNoDisponible(e)) throw e
     return { error: mensajeDeError(e) }
   }
 

@@ -66,6 +66,24 @@
   cursor: pointer;
 }
 
+/* El sol y la luna, como «Salir»: sobre el azul de la cabecera. El margen
+   automático lo pega a «Salir» y deja el nombre del punto a la izquierda. */
+.tema {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  margin-left: auto;
+  margin-right: -6px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, .3);
+  border-radius: 9px;
+  background: rgba(7, 25, 61, .2);
+  color: #fff;
+  cursor: pointer;
+}
+
 .regla { height: 3px; background: var(--regla); }
 
 .contenido {

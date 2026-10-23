@@ -45,6 +45,8 @@
   --gris-suave: #8aa1bf;
   --azul: var(--smt-blue);
   --celeste: var(--smt-cyan);
+  /* Clara siempre, también los controles nativos (la lista de puntos). */
+  color-scheme: light;
   width: 100%;
   max-width: 440px;
   padding: 32px var(--pad) 22px;

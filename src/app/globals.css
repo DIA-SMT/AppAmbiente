@@ -122,7 +122,11 @@
 
 * { box-sizing: border-box; }
 
-html { -webkit-text-size-adjust: 100%; background: var(--fondo); }
+/* Los controles nativos —el calendario de las fechas, las barras— siguen al
+   tema: el del dispositivo, o el que se eligió con el sol y la luna. */
+html { -webkit-text-size-adjust: 100%; background: var(--fondo); color-scheme: light dark; }
+:root[data-tema="claro"] { color-scheme: light; }
+:root[data-tema="oscuro"] { color-scheme: dark; }
 
 body {
   margin: 0;

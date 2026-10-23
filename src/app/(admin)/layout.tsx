@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import BurbujaMigue from '@/app/_migue/BurbujaMigue'
 import { apagadoDelPanel, EJEMPLOS_DEL_PANEL, PRIVACIDAD_DEL_PANEL } from '@/app/_migue/textos'
 import { salir } from '@/app/ingresar/acciones'
+import SelectorDeTema from '@/app/SelectorDeTema'
 import { migueSeMuestra } from '@/lib/migue/pantallas'
 import { ErrorSinPermiso, exigirAdmin, pendientesDeCuenta, type Sesion } from '@/lib/sesion'
 import PanelCuerpo from './PanelCuerpo'
@@ -107,6 +108,7 @@ export default async function LayoutPanel({ children }: { children: React.ReactN
             {falta && <span className={propios.puntoFalta} aria-hidden="true" />}
           </Link>
 
+          <SelectorDeTema className={estilos.tema} />
           <form action={salir}>
             <button type="submit" className={estilos.salir}>Salir</button>
           </form>

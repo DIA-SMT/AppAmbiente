@@ -9,6 +9,7 @@ import { conSesion } from '@db/sesion'
 import BurbujaMigue from '@/app/_migue/BurbujaMigue'
 import { apagadoDelPunto, ejemplosDelPunto, PRIVACIDAD_DEL_PUNTO, sitioDelPuntoEnTx } from '@/app/_migue/textos'
 import { salir } from '@/app/ingresar/acciones'
+import SelectorDeTema from '@/app/SelectorDeTema'
 import { migueSeMuestra } from '@/lib/migue/pantallas'
 import { sesionActual } from '@/lib/sesion'
 import estilos from './MarcoVigilador.module.css'
@@ -46,6 +47,7 @@ export default async function MarcoVigilador({ children }: { children: React.Rea
               <h2>{sesion.nombre}</h2>
             </div>
           </div>
+          <SelectorDeTema className={estilos.tema} />
           <form action={salir}>
             <button type="submit" className={estilos.salir}>Salir</button>
           </form>

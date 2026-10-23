@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import RegistrarSW from './RegistrarSW'
+import { SCRIPT_DEL_TEMA } from './tema'
 import './design-tokens.css'
 import './globals.css'
 
@@ -49,7 +50,12 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es-AR">
+    // suppressHydrationWarning: el script de abajo le pone data-tema a <html>
+    // antes de que React llegue, y el servidor no lo sabe.
+    <html lang="es-AR" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: SCRIPT_DEL_TEMA }} />
+      </head>
       <body>
         {children}
         <RegistrarSW />

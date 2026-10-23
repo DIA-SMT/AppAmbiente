@@ -48,6 +48,7 @@
 }
 
 .migue {
+  position: relative;
   align-self: flex-start;
   color: var(--texto);
   background: var(--panel);
@@ -116,14 +117,19 @@
   line-height: 1.5;
 }
 
+/* «Migue» sólo para el lector de pantalla: la cara al lado ya dice quién
+   habla, y el rótulo en versalitas se comía un renglón por respuesta. La
+   burbuja de Migue va con position: relative para ser su bloque contenedor:
+   si no, el rótulo no se movía con la lista cuando ésta se desplaza adentro,
+   y un lector que lo trae a la vista desplazaba otra cosa. */
 .quien {
-  display: block;
-  margin-bottom: 3px;
-  color: var(--gris);
-  font-size: .7rem;
-  font-weight: 800;
-  letter-spacing: .08em;
-  text-transform: uppercase;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 /* La pregunta que todavía no salió se ve distinta de las que ya tienen
@@ -433,17 +439,6 @@
   margin-top: 10px;
   padding-top: 8px;
   gap: 8px;
-}
-/* «Migue» sólo para el lector de pantalla: en la ventana la cara ya dice
-   quién habla, y el rótulo en versalitas se comía un renglón por respuesta. */
-.enBurbuja .quien {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
 }
 /* La cara de 24 centrada en la columna de las de 36, el texto a la altura de
    las burbujas, y la cara que late mientras busca. */

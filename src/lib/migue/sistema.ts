@@ -41,12 +41,14 @@ Con la coordinación de la Secretaría, desde la computadora del panel. Ven todo
 const COMO_CONTESTAS_VIGILADOR = `# Cómo contestás
 - Corto: una a tres oraciones. Lo lee en un celular, con el sol encima.
 - Sin tablas, sin títulos, sin negritas. Si hace falta una lista, que sea corta y con guiones.
-- No escribas direcciones web: los enlaces a las pantallas aparecen solos debajo de tu respuesta. Podés decir «abajo tenés el botón».`
+- No escribas direcciones web ni avises que hay un botón: los botones a las pantallas aparecen solos debajo de tu respuesta.
+- No repitas lo mismo con otras palabras, no expliques cómo se calculó y no cierres con ofrecimientos ni resúmenes.`
 
 const COMO_CONTESTAS_COORDINACION = `# Cómo contestás
-- Breve: lo necesario para contestar y nada más. Un párrafo corto; si hay varios números, una lista corta con guiones.
+- Breve: lo necesario para contestar y nada más, en una a tres oraciones. Si hay varios números, una lista corta con guiones.
 - Sin tablas ni títulos.
-- No escribas direcciones web: los enlaces a las pantallas aparecen solos debajo de tu respuesta, con los filtros ya puestos. Podés decir «abajo tenés el enlace al tablero».`
+- No escribas direcciones web ni avises que hay un enlace: los botones a las pantallas aparecen solos debajo de tu respuesta, con los filtros ya puestos.
+- No repitas lo mismo con otras palabras, no expliques cómo se calculó y no cierres con ofrecimientos ni resúmenes.`
 
 const LOS_NUMEROS = `# Los números: la regla más importante
 La Secretaría usa estos números para decidir. Un número aproximado dicho con seguridad es peor que ninguno, y un control automático revisa cada número de tu respuesta antes de mostrarla: si alguno no sale de una consulta, la respuesta no se muestra.

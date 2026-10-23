@@ -420,7 +420,7 @@ Y las de Migue, que si faltan lo apagan sin tocar nada más (ver [Migue](#migue-
 |---|---|
 | `OPENROUTER_API_KEY` | la clave de OpenRouter, empieza con `sk-or-` |
 | `ASISTENTE_MODELO` | `openai/gpt-4.1-mini` (vacío es lo mismo) |
-| `ASISTENTE_TOPE_MENSUAL_USD` | `20`. Vacío **apaga** a Migue: no quiere decir «sin tope» |
+| `ASISTENTE_TOPE_MENSUAL_USD` | `20`, que es también lo que vale si falta: vacío no quiere decir «sin tope». `0` **apaga** a Migue |
 
 Sin `AUTH_SECRET` la app no arranca y lo dice. Se deja vacío en `.env.example` a
 propósito: con la clave de firma publicada, cualquiera podría emitirse una sesión de

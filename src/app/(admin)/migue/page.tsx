@@ -11,7 +11,6 @@ import {
   conversacionGuardadaEnTx, estadoDeLaConversacionEnTx, type ConversacionAnterior, type DuenoDeLaConversacion,
   type MotivoDeCierre,
 } from '@/lib/migue/historial'
-import { DIAS_DE_CONVERSACION_DE_COORDINACION } from '@/lib/reglas'
 import { exigirPanel } from '@/lib/sesion'
 
 export const dynamic = 'force-dynamic'
@@ -87,11 +86,6 @@ export default async function PantallaMigue({
             )}
           </Link>
         </div>
-        <p className="gris" style={{ margin: 0, maxWidth: 'var(--ancho-lectura)' }}>
-          Migue contesta con los mismos datos y las mismas cuentas que las pantallas del panel. Cada
-          número viene con el botón a la pantalla que lo calcula, para que lo mires ahí antes de
-          usarlo. Sólo lee: no carga, no anula ni cambia nada.
-        </p>
       </header>
 
       {olvidada && !ver && (
@@ -151,7 +145,7 @@ export default async function PantallaMigue({
           <h2>Conversaciones anteriores</h2>
           {estado.anteriores.length === 0 ? (
             <p className="menor gris" style={{ margin: 0 }}>
-              Todavía no hay ninguna. Cuando empieces de nuevo, la de ahora queda acá.
+              Todavía no hay ninguna.
             </p>
           ) : (
             <ul className="lista">
@@ -172,11 +166,6 @@ export default async function PantallaMigue({
               })}
             </ul>
           )}
-          <p className="menor gris" style={{ margin: 0 }}>
-            Cada una se borra sola a los {numero(DIAS_DE_CONVERSACION_DE_COORDINACION)} días de su
-            última pregunta. No las lee nadie más, tampoco otra cuenta de coordinación; y las de los
-            puntos no se ven desde acá.
-          </p>
         </aside>
       </div>
     </div>

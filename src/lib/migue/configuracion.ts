@@ -37,6 +37,9 @@ import type { Conexion } from '@db/client'
  */
 export const MODELO_POR_DEFECTO = 'openai/gpt-4.1-mini'
 
+/** El tope del mes cuando ASISTENTE_TOPE_MENSUAL_USD no está: unas 13.000 preguntas. */
+export const TOPE_MENSUAL_POR_DEFECTO_USD = 20
+
 /** Qué parte del tope mensual puede gastar en un día un punto, y una coordinadora. */
 export const PARTE_DIARIA_DE_UN_PUNTO = 0.1
 export const PARTE_DIARIA_DE_COORDINACION = 0.25
@@ -81,16 +84,18 @@ export function leerConfiguracion(): ConfiguracionDeMigue {
     else problemas.push(`ASISTENTE_ESFUERZO dice «${esfuerzoBruto}»: va vacío, o minimal, low, medium o high.`)
   }
 
-  // Vacío NO es «sin tope». Al principio lo era, y para un organismo público
-  // una variable olvidada en Vercel no puede querer decir gastar sin límite:
-  // sin un tope que se pueda leer, Migue no contesta. Se acepta la coma
-  // decimal, que es como lo escribe cualquiera acá.
-  const topeBruto = process.env.ASISTENTE_TOPE_MENSUAL_USD?.trim() ?? ''
+  // Vacío NO es «sin tope»: para un organismo público una variable olvidada
+  // en Vercel no puede querer decir gastar sin límite. Tampoco es «apagado»,
+  // como fue hasta el 23/10/2026: producción estuvo semanas sin contestar por
+  // una variable que nadie cargó. Vacío es el tope de siempre, escrito acá a
+  // la vista; para apagar a Migue a propósito, ASISTENTE_TOPE_MENSUAL_USD=0.
+  // Se acepta la coma decimal, que es como lo escribe cualquiera acá.
+  const topeBruto = process.env.ASISTENTE_TOPE_MENSUAL_USD?.trim() || String(TOPE_MENSUAL_POR_DEFECTO_USD)
   const tope = Number(topeBruto.replace(',', '.'))
   let topeMensualUsd: number | null = null
-  if (!topeBruto) {
-    problemas.push('Falta el tope de gasto del mes (ASISTENTE_TOPE_MENSUAL_USD).')
-  } else if (!Number.isFinite(tope) || tope <= 0) {
+  if (tope === 0) {
+    problemas.push('Está apagado a propósito: ASISTENTE_TOPE_MENSUAL_USD vale 0.')
+  } else if (!Number.isFinite(tope) || tope < 0) {
     problemas.push(`ASISTENTE_TOPE_MENSUAL_USD dice «${topeBruto}»: tiene que ser un número de dólares mayor que cero.`)
   } else {
     topeMensualUsd = tope

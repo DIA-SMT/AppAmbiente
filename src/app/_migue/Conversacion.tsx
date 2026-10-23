@@ -244,13 +244,14 @@ const CIERRES: Record<CierreQueSeExplica, string> = {
 }
 
 /**
- * Qué va a encontrar la persona del otro lado del botón. No siempre es lo
- * mismo, y un número que la pantalla no dibuja igual es el que más confunde.
+ * El alcance que va debajo del botón: de qué y de cuándo es el número. Lo que
+ * viene después del primer «;» es la aclaración de cómo se cuenta («la última
+ * carga es la más nueva entre…»), que es para el modelo y en pantalla era un
+ * renglón más que nadie leía; el botón ya lleva a la pantalla que lo explica.
  */
-const QUE_MUESTRA: Record<EnlaceConAlcance['respalda'], string> = {
-  numero: 'ahí está este mismo número',
-  filas: 'ahí están las filas, una por una',
-  regla: 'ahí es donde se hace',
+function alcanceVisible(alcance: string): string {
+  const corte = alcance.indexOf(';')
+  return corte > 0 ? alcance.slice(0, corte) : alcance
 }
 
 /** Una dirección de adentro de la app. `//otro.sitio` y `/\otro.sitio` los navegadores los leen como de afuera. */
@@ -282,8 +283,7 @@ function Enlaces({ enlaces, creadoEn }: { enlaces: EnlaceConAlcance[]; creadoEn:
   return (
     <ul className={estilos.enlaces}>
       {deAdentro.map((enlace, i) => {
-        const queMuestra = QUE_MUESTRA[enlace.respalda]
-        const pie = queMuestra ? `${enlace.alcance} · ${queMuestra}` : enlace.alcance
+        const pie = alcanceVisible(enlace.alcance)
 
         // Pasadas las 48 horas el celular ya no ve ese movimiento: el botón
         // llevaría a una pantalla que dice que no existe. Queda el rótulo,

@@ -66,14 +66,16 @@
   cursor: pointer;
 }
 
-/* El sol y la luna, como «Salir»: sobre el azul de la cabecera. El margen
-   automático lo pega a «Salir» y deja el nombre del punto a la izquierda. */
+/* El recorrido («?») y el sol y la luna, como «Salir»: sobre el azul de la
+   cabecera. El margen automático del primero los pega a «Salir» y deja el
+   nombre del punto a la izquierda. */
+.ayuda { margin-left: auto; }
+.ayuda,
 .tema {
   width: 38px;
   height: 38px;
   flex: 0 0 auto;
-  margin-left: auto;
-  margin-right: -6px;
+  margin-right: -8px;
   display: grid;
   place-items: center;
   padding: 0;

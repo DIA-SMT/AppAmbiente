@@ -32,7 +32,7 @@ export default function PanelCuerpo({
 
   return (
     <div className={estilos.cuerpo} data-contraida={contraida ? 'true' : 'false'}>
-      <aside className={estilos.lateral}>
+      <aside className={estilos.lateral} data-recorrido="navegacion">
         <div className={estilos.rotuloMenu}>
           <span className={estilos.rotuloNavegacion}>Navegación</span>
           <span className={estilos.estado} aria-label="Sistema disponible" />
@@ -60,7 +60,7 @@ export default function PanelCuerpo({
         </div>
       </aside>
 
-      <main className={`contenido ${estilos.contenido}`}>{children}</main>
+      <main className={`contenido ${estilos.contenido}`} data-recorrido="contenido">{children}</main>
     </div>
   )
 }

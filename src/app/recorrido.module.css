@@ -1,0 +1,76 @@
+/* El recorrido guiado: la pantalla se vela y queda iluminado lo que se
+   explica, con la tarjeta al lado. Por encima de todo, también de la burbuja
+   de Migue (30 y 40). */
+
+.capa {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}
+
+/* El hueco iluminado: la sombra enorme hace de velo alrededor. */
+.foco {
+  position: fixed;
+  border-radius: var(--r);
+  box-shadow: 0 0 0 9999px rgba(8, 22, 54, .58);
+  outline: 3px solid var(--celeste);
+  outline-offset: 0;
+  pointer-events: none;
+  transition: top var(--transicion), left var(--transicion), width var(--transicion), height var(--transicion);
+}
+
+.velo {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 22, 54, .58);
+}
+
+.tarjeta {
+  position: fixed;
+  width: min(340px, calc(100vw - 32px));
+  padding: 18px 18px 14px;
+  color: var(--texto);
+  background: var(--panel);
+  border: 1px solid var(--linea);
+  border-radius: var(--r-grande);
+  box-shadow: var(--sombra-alta);
+}
+.tarjeta:focus { outline: none; }
+.tarjeta:focus-visible { outline: 3px solid var(--celeste); outline-offset: 2px; }
+
+.contador {
+  margin: 0 0 4px;
+  color: var(--azul);
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.titulo {
+  margin: 0 0 6px;
+  font-size: 1.08rem;
+}
+
+.texto {
+  margin: 0;
+  font-size: .92rem;
+  line-height: 1.5;
+}
+
+.botones {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.avanzar {
+  display: flex;
+  gap: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .foco { transition: none; }
+}

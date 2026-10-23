@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import BurbujaMigue from '@/app/_migue/BurbujaMigue'
 import { apagadoDelPanel, EJEMPLOS_DEL_PANEL, PRIVACIDAD_DEL_PANEL } from '@/app/_migue/textos'
 import { salir } from '@/app/ingresar/acciones'
+import RecorridoGuiado from '@/app/RecorridoGuiado'
 import SelectorDeTema from '@/app/SelectorDeTema'
 import { migueSeMuestra } from '@/lib/migue/pantallas'
 import { ErrorSinPermiso, exigirAdmin, pendientesDeCuenta, type Sesion } from '@/lib/sesion'
@@ -83,6 +84,7 @@ export default async function LayoutPanel({ children }: { children: React.ReactN
           <Link
             href="/cuenta"
             className={propios.enlaceCuenta}
+            data-recorrido="cuenta"
             title={falta ? 'Mi cuenta — te falta completarla' : 'Mi cuenta'}
           >
             <svg
@@ -108,8 +110,9 @@ export default async function LayoutPanel({ children }: { children: React.ReactN
             {falta && <span className={propios.puntoFalta} aria-hidden="true" />}
           </Link>
 
+          <RecorridoGuiado rol="admin" autoIniciar={!falta} className={estilos.tema} />
           <SelectorDeTema className={estilos.tema} />
-          <form action={salir}>
+          <form action={salir} data-recorrido="salir">
             <button type="submit" className={estilos.salir}>Salir</button>
           </form>
         </div>

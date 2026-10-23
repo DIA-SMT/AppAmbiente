@@ -293,6 +293,7 @@ export default function BurbujaMigue({ pantalla, ...conversacion }: Props) {
         ref={lanzador}
         type="button"
         className={estilos.lanzador}
+        data-recorrido="migue"
         data-abierta={abierta ? 'true' : 'false'}
         aria-expanded={abierta}
         aria-controls={armada ? idVentana : undefined}

@@ -38,7 +38,7 @@ export default function SelectorDeTema({ className }: { className?: string }) {
   const rotulo = tema === 'oscuro' ? 'Pasar a tema claro' : 'Pasar a tema oscuro'
 
   return (
-    <button type="button" className={className} onClick={cambiar} aria-label={rotulo} title={rotulo}>
+    <button type="button" className={className} onClick={cambiar} aria-label={rotulo} title={rotulo} data-recorrido="tema">
       <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.9"
         strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         {tema === 'oscuro' ? (

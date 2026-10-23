@@ -9,6 +9,7 @@ import { conSesion } from '@db/sesion'
 import BurbujaMigue from '@/app/_migue/BurbujaMigue'
 import { apagadoDelPunto, ejemplosDelPunto, PRIVACIDAD_DEL_PUNTO, sitioDelPuntoEnTx } from '@/app/_migue/textos'
 import { salir } from '@/app/ingresar/acciones'
+import RecorridoGuiado from '@/app/RecorridoGuiado'
 import SelectorDeTema from '@/app/SelectorDeTema'
 import { migueSeMuestra } from '@/lib/migue/pantallas'
 import { sesionActual } from '@/lib/sesion'
@@ -47,15 +48,16 @@ export default async function MarcoVigilador({ children }: { children: React.Rea
               <h2>{sesion.nombre}</h2>
             </div>
           </div>
+          <RecorridoGuiado rol="vigilador" autoIniciar className={estilos.ayuda} />
           <SelectorDeTema className={estilos.tema} />
-          <form action={salir}>
+          <form action={salir} data-recorrido="salir">
             <button type="submit" className={estilos.salir}>Salir</button>
           </form>
         </div>
       </header>
       <div className={estilos.regla} />
 
-      <main className={`contenido angosto ${estilos.contenido}`}>
+      <main className={`contenido angosto ${estilos.contenido}`} data-recorrido="contenido">
         {children}
       </main>
 

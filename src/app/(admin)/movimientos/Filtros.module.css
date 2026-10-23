@@ -1,8 +1,10 @@
-/* Los selectores caben de a uno en el celular y de a cuatro o cinco en
-   escritorio sin escribir un solo media query. */
+/* Una banda de filtros compacta: en escritorio los seis selectores van en un
+   renglón (150 px cada uno entran de a seis en la columna del panel), y el
+   período con sus atajos en el de abajo. En el celular, de a uno, sin escribir
+   un solo media query para eso. */
 .grilla {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 12px;
 }
 
@@ -26,4 +28,18 @@
   font-size: .84rem;
   font-weight: 700;
   white-space: nowrap;
+}
+
+/* Con lugar, desde y hasta a la izquierda y los atajos a la derecha, en el
+   mismo renglón: el rótulo «Período» arriba de los dos. */
+@media (min-width: 1180px) {
+  .periodo {
+    display: grid;
+    grid-template-columns: minmax(300px, 1fr) auto;
+    align-items: end;
+    column-gap: 16px;
+  }
+  .periodo > :first-child {
+    grid-column: 1 / -1;
+  }
 }

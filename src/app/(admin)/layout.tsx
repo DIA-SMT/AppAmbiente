@@ -61,13 +61,15 @@ export default async function LayoutPanel({ children }: { children: React.ReactN
       <header className={estilos.encabezado}>
         <div className={estilos.marca}>
           <div className={estilos.logo}>
+            {/* El isotipo oficial del kit, tal cual: no se redibuja. */}
             <Image
-              src="/marca/logo-smt-blanco.png"
+              src="/institucional/isotipo-smt-oficial-original.png"
               alt="Ciudad San Miguel de Tucumán"
-              width={512}
-              height={216}
+              width={235}
+              height={235}
               priority
             />
+            <span aria-hidden="true">Ciudad SMT</span>
           </div>
           <span className={estilos.separador} aria-hidden="true" />
           <div className={estilos.identidad}>

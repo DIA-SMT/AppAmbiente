@@ -458,10 +458,34 @@ src/
                      (correo y contraseña), auditoría, Migue y lo que recuerda
     (vigilador)/preguntar/  Migue en el celular y lo que recuerda del punto
     _migue/          el chat, compartido por las dos pantallas y la burbuja de la esquina
+    _ui/             piezas del sistema visual: MetricCard, EmptyState, íconos del kit
+    design-tokens.css la paleta del kit institucional; globals.css arma con ella el resto
     api/             exportar a Excel, sincronizar la cola offline, Migue
 docs/                documento de validación de fase 0
+public/institucional/ los recursos del kit (isotipo, fondos, ornamento, estado vacío)
 assets/marca/        identidad institucional (logos y plantilla de referencia)
 ```
+
+## Identidad visual
+
+El kit institucional de Ciudad SMT (octubre de 2026) manda en la paleta: el azul
+`#0866F9` domina, el azul profundo y el celeste lo acompañan, y el verde `#2DBE76`
+queda para lo ambiental y lo que está bien. Los colores salen de
+`src/app/design-tokens.css`; `globals.css` arma con ellos las variables que usa cada
+pantalla, así que un cambio de paleta se hace en un solo lugar.
+
+Los recursos van en `public/institucional/`. El isotipo, tal cual vino; los fondos,
+convertidos a WebP porque los vigiladores cargan con sus datos:
+
+| Recurso | Dónde se usa |
+|---|---|
+| `isotipo-smt-oficial-original.png` | ingreso y cabecera del panel |
+| `login-hero-institucional.webp` (y `-chico` para el celular) | fondo del ingreso |
+| `header-panorama-institucional.webp` | fondo de la cabecera del panel |
+| `ornamento-botanico-esquina.webp` | presentación de Migue en `/migue` |
+| `empty-state-registro-residuos.webp` | estado vacío (`src/app/_ui/EmptyState.tsx`) |
+
+Migue sigue siendo el de `public/migue/`: el kit no lo reemplaza.
 
 ## Comandos
 

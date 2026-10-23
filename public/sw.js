@@ -65,12 +65,15 @@ self.addEventListener('activate', (evento) => {
  * /migue/ es la cara de la burbuja, que está en todas las pantallas: sin
  * guardarla, sin señal la esquina quedaba con un círculo vacío. Como los de
  * /marca/, no lleva hash: para cambiarla hay que subirla con otro nombre.
+ * /institucional/ son los recursos del kit (el isotipo de la cabecera, el
+ * fondo del ingreso), con la misma regla.
  */
 function esArmazon(url) {
   return (
     url.pathname.startsWith('/_next/static/') ||
     url.pathname.startsWith('/marca/') ||
     url.pathname.startsWith('/migue/') ||
+    url.pathname.startsWith('/institucional/') ||
     url.pathname === '/manifest.webmanifest' ||
     url.pathname === '/favicon.ico'
   )

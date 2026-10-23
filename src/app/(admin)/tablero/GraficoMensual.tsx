@@ -118,10 +118,10 @@ export default function GraficoMensual({ meses }: { meses: MesGrafico[] }) {
 
       <div className={`${estilos.leyenda} menor`}>
         <span className={estilos.clave}>
-          <span className="punto" style={{ background: 'var(--ingreso)' }} /> Entró
+          <span className="punto" style={{ background: 'var(--azul)' }} /> Entró
         </span>
         <span className={estilos.clave}>
-          <span className="punto" style={{ background: 'var(--salida)' }} /> Salió
+          <span className="punto" style={{ background: 'var(--celeste)' }} /> Salió
         </span>
         <span className="gris">Volumen en m³ equivalentes</span>
       </div>

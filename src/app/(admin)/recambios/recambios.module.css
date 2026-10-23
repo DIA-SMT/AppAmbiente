@@ -47,7 +47,7 @@
 /* Se corre al final de la barra, y en el celular baja sola a su propio renglón. */
 .ayudaLote { flex: 1 1 260px; }
 
-.copiado { color: var(--ingreso); font-weight: 700; }
+.copiado { color: var(--ingreso-texto); font-weight: 700; }
 
 /* El texto para pegar a mano necesita el ancho entero de la barra. */
 .aMano { flex: 1 1 100%; }

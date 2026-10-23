@@ -28,7 +28,7 @@
 .paso[data-estado='hecho'] { color: var(--gris); }
 .paso[data-estado='hecho']::before {
   content: '✓';
-  background: var(--ingreso); border-color: var(--ingreso); color: #fff;
+  background: var(--ingreso-texto); border-color: var(--ingreso-texto); color: #fff;
 }
 
 /* ── El archivo ───────────────────────────────────────────────────────── */

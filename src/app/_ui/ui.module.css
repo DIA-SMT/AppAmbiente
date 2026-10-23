@@ -1,0 +1,90 @@
+/* Piezas del sistema visual institucional que comparten varias pantallas:
+   la tarjeta de un número y el estado vacío. Color siempre por variables. */
+
+/* ── MetricCard ───────────────────────────────────────────────────────── */
+
+.metrica {
+  --tono: var(--azul);
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  transition: box-shadow var(--transicion), border-color var(--transicion);
+}
+.metrica[data-tono='celeste'] { --tono: var(--celeste); }
+.metrica[data-tono='verde'] { --tono: var(--ingreso); }
+.metrica[data-tono='ambar'] { --tono: var(--salida); }
+
+.metrica:hover {
+  border-color: color-mix(in srgb, var(--tono) 30%, var(--linea));
+  box-shadow: var(--sombra-alta);
+}
+
+.icono {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-chico);
+  color: var(--tono);
+  background: color-mix(in srgb, var(--tono) 13%, var(--panel));
+}
+
+.metricaCuerpo {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cifra {
+  color: var(--tinta);
+  font-size: 1.9rem;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -.02em;
+}
+
+.metricaAlerta {
+  border-color: color-mix(in srgb, var(--salida) 45%, var(--linea));
+  background: color-mix(in srgb, var(--salida) 7%, var(--panel));
+}
+
+/* ── EmptyState ───────────────────────────────────────────────────────── */
+
+.vacio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 26px 18px 30px;
+  text-align: center;
+}
+
+.vacioImagen {
+  width: min(240px, 70%);
+  height: auto;
+  margin-bottom: 8px;
+}
+
+.vacioTitulo {
+  margin: 0;
+  color: var(--tinta);
+  font-size: 1.05rem;
+  font-weight: 750;
+}
+
+.vacioTexto {
+  max-width: 46ch;
+  color: var(--gris);
+  font-size: .92rem;
+}
+.vacioTexto > :last-child { margin-bottom: 0; }
+
+.vacioCompacto { padding: 16px 12px 18px; }
+.vacioCompacto .vacioImagen { width: min(150px, 50%); }
+
+@media (max-width: 720px) {
+  .cifra { font-size: 1.65rem; }
+  .icono { width: 40px; height: 40px; }
+}

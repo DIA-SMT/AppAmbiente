@@ -258,7 +258,7 @@ export default function Filtros({ valores, sitios, materiales }: Props) {
         </div>
       </div>
 
-      <div className="pila-chica">
+      <div className={`pila-chica ${estilos.periodo}`}>
         <span className="etiqueta">Período</span>
         <div className={estilos.rango}>
           <div className="campo">

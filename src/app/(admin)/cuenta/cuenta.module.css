@@ -18,13 +18,13 @@
   transition: background var(--transicion), border-color var(--transicion);
 }
 .enlaceCuenta:hover {
-  background: rgba(7, 25, 61, .22);
-  border-color: rgba(255, 255, 255, .27);
+  background: var(--panel-2);
+  border-color: var(--linea);
 }
 
 /* El avatar y el nombre los esconde el encabezado en pantallas chicas. Sin algo
    propio, el enlace se quedaría sin nada adentro y no habría dónde tocar. */
-.iconoCuenta { display: none; width: 22px; height: 22px; flex: 0 0 auto; color: #fff; }
+.iconoCuenta { display: none; width: 22px; height: 22px; flex: 0 0 auto; color: var(--azul); }
 
 /* Que falte completar la cuenta se avisa con un punto y no con una palabra: al
    lado de «Salir», en 375 px, una palabra más empuja el encabezado a dos
@@ -35,7 +35,7 @@
   flex: 0 0 auto;
   border-radius: 50%;
   background: var(--amarillo);
-  box-shadow: 0 0 0 3px rgba(242, 217, 28, .28);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--amarillo) 30%, transparent);
 }
 
 @media (max-width: 520px) {

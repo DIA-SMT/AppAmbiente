@@ -48,7 +48,7 @@
 }
 
 .mensajeError { font-size: .82rem; font-weight: 700; color: var(--peligro); }
-.mensajeOk { font-size: .82rem; font-weight: 700; color: var(--ingreso); }
+.mensajeOk { font-size: .82rem; font-weight: 700; color: var(--ingreso-texto); }
 
 /* ── Confirmación sin modal ───────────────────────────────────────────── */
 /* Se abre dentro de la propia fila, y funciona sin JavaScript. */

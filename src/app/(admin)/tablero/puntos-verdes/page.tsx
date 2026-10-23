@@ -1,6 +1,8 @@
 import { Fragment, type CSSProperties } from 'react'
 import Link from 'next/link'
 import { conSesion } from '@db/sesion'
+import type { NombreDeIcono } from '@/app/_ui/Icono'
+import { MetricCard, type TonoDeMetrica } from '@/app/_ui/MetricCard'
 import {
   contarMovimientosEnTx, entidadesPendientesEnTx, resumenValorizacionEnTx, resumenVecinosEnTx,
   sitiosVisiblesEnTx,
@@ -433,17 +435,23 @@ export default async function TableroPuntosVerdes({
             rotulo={`Visitas · ${rotulo(enCurso)}`}
             valor={numero(actual.visitas)}
             detalle="veces que alguien trajo material"
+            icono="reciclaje"
+            tono="verde"
             nota={anterior ? `${rotuloAnterior} (${rotulo(anterior)}): ${numero(previo.visitas)}` : undefined}
           />
           <Indicador
             rotulo={`Vecinos identificados · ${rotulo(enCurso)}`}
             valor={numero(actual.identificados)}
             detalle="personas distintas que dejaron su teléfono"
+            icono="conteo"
+            tono="azul"
             nota={anterior ? `${rotuloAnterior} (${rotulo(anterior)}): ${numero(previo.identificados)}` : undefined}
           />
           <Indicador
             rotulo={`Visitas sin datos · ${rotulo(enCurso)}`}
             valor={visitasConDetalle > 0 ? `${numero(porcentajeSinDatos)}%` : '—'}
+            icono="balanza"
+            tono="celeste"
             detalle={
               visitasConDetalle > 0
                 ? `${numero(actual.sinDatos)} de ${numero(visitasConDetalle)} visitas con detalle no dejaron datos`
@@ -459,6 +467,8 @@ export default async function TableroPuntosVerdes({
             rotulo="Puntos con ingresos"
             valor={`${numero(conActividad)} de ${numero(datosGrafico.length)}`}
             detalle={`en ${nombreDe(enCurso)}`}
+            icono="ubicacion"
+            tono="azul"
             nota={
               sinActividad.length > 0
                 ? `Sin ingresos: ${sinActividad.map((p) => p.codigo).join(', ')}`
@@ -766,20 +776,22 @@ function Indicador({
   detalle,
   nota,
   alerta,
+  icono,
+  tono,
 }: {
   rotulo: string
   valor: string
   detalle: string
   nota?: string
   alerta?: boolean
+  icono: NombreDeIcono
+  tono: TonoDeMetrica
 }) {
   return (
-    <div className={`tarjeta pila-chica ${alerta ? estilos.atencion : ''}`}>
-      <span className="etiqueta">{rotulo}</span>
-      <strong className={estilos.cifra}>{valor}</strong>
+    <MetricCard rotulo={rotulo} valor={valor} icono={icono} tono={alerta ? 'ambar' : tono} alerta={alerta}>
       <span className="menor gris">{detalle}</span>
       {nota && <span className={`menor ${alerta ? 'fuerte' : 'gris'}`}>{nota}</span>}
-    </div>
+    </MetricCard>
   )
 }
 

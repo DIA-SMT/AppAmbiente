@@ -9,6 +9,10 @@
   flex-direction: column;
 }
 
+/* La cabecera clara del kit institucional: el panel con el panorama de la
+   ciudad apenas asomando a la derecha (header-panorama-institucional.webp),
+   el isotipo oficial a color y la identidad en la tinta de la paleta. Con
+   tema oscuro el panorama queda tenue y el panel es el oscuro. */
 .encabezado {
   position: sticky;
   top: 0;
@@ -19,16 +23,20 @@
   justify-content: space-between;
   gap: 24px;
   padding: calc(12px + env(safe-area-inset-top)) 24px 12px;
-  color: #fff;
-  background: var(--degrade);
-  box-shadow: 0 8px 30px rgba(13, 63, 176, .14);
+  color: var(--tinta);
+  background:
+    linear-gradient(90deg, var(--panel) 0%, var(--panel) 38%, color-mix(in srgb, var(--panel) var(--velo-panorama), transparent) 72%, color-mix(in srgb, var(--panel) calc(var(--velo-panorama) - 25%), transparent) 100%),
+    url('/institucional/header-panorama-institucional.webp') right 38% / 760px auto no-repeat,
+    var(--panel);
+  border-bottom: 1px solid var(--linea);
+  box-shadow: 0 6px 24px rgba(8, 102, 249, .06);
 }
 
 .encabezado::after {
   content: '';
   position: absolute;
   right: 0;
-  bottom: 0;
+  bottom: -1px;
   left: 0;
   height: 3px;
   background: var(--regla);
@@ -45,21 +53,31 @@
 .logo {
   display: flex;
   align-items: center;
+  gap: 9px;
   flex: 0 0 auto;
+  color: var(--azul-marca);
+  text-decoration: none;
 }
 
-.logo img { height: 31px; width: auto; }
+.logo img { height: 38px; width: 38px; }
+
+.logo span {
+  font-size: 1.08rem;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  white-space: nowrap;
+}
 
 .separador {
   width: 1px;
   height: 32px;
-  background: rgba(255, 255, 255, .28);
+  background: var(--linea-fuerte);
 }
 
 .identidad { min-width: 0; }
 .identidad p {
   margin: 0 0 1px;
-  color: rgba(255, 255, 255, .7);
+  color: var(--gris);
   font-size: .66rem;
   font-weight: 750;
   letter-spacing: .14em;
@@ -67,7 +85,7 @@
 }
 .identidad strong {
   display: block;
-  color: #fff;
+  color: var(--tinta);
   font-size: .98rem;
   line-height: 1.25;
   white-space: nowrap;
@@ -79,28 +97,27 @@
   height: 34px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(255, 255, 255, .3);
   border-radius: 50%;
-  background: rgba(255, 255, 255, .14);
+  background: var(--azul);
   color: #fff;
   font-size: .82rem;
   font-weight: 800;
 }
-.nombre { font-size: .84rem; font-weight: 650; color: rgba(255, 255, 255, .88); }
+.nombre { font-size: .84rem; font-weight: 650; color: var(--tinta); }
 .salir {
   min-height: 36px;
-  padding: 0 13px;
-  border: 1px solid rgba(255, 255, 255, .27);
-  border-radius: 9px;
-  background: rgba(7, 25, 61, .22);
-  color: #fff;
+  padding: 0 14px;
+  border: 1px solid var(--linea-fuerte);
+  border-radius: var(--r-chico);
+  background: var(--panel);
+  color: var(--tinta);
   font: inherit;
   font-size: .82rem;
   font-weight: 750;
   cursor: pointer;
-  transition: background var(--transicion), border-color var(--transicion);
+  transition: background var(--transicion), border-color var(--transicion), color var(--transicion);
 }
-.salir:hover { background: rgba(7, 25, 61, .38); border-color: rgba(255, 255, 255, .45); }
+.salir:hover { color: var(--azul); border-color: var(--azul); background: var(--panel-2); }
 
 .regla { display: none; }
 
@@ -190,6 +207,14 @@
   padding: 28px 32px 40px;
 }
 
+/* La coordinación trabaja con mouse en una computadora: los 52 px que pide el
+   guante en la calle acá sólo estiran los formularios y los filtros. Con
+   puntero fino, lo que se toca baja a 44 (sigue arriba de los 24 que pide la
+   accesibilidad). En una tableta o un teléfono vuelve a 52. */
+@media (pointer: fine) and (min-width: 901px) {
+  .contenido { --toque: 44px; }
+}
+
 /* En notebooks de poca altura entran primero todas las opciones. El pie es
    informativo, así que se oculta antes de crear un segundo scroll lateral. */
 @media (max-height: 760px) and (min-width: 901px) {
@@ -222,7 +247,8 @@
 }
 
 @media (max-width: 520px) {
-  .logo img { height: 27px; }
+  .logo img { height: 32px; width: 32px; }
+  .logo span { display: none; }
   .separador { height: 27px; }
   .identidad strong { white-space: normal; font-size: .8rem; }
   .avatar { display: none; }

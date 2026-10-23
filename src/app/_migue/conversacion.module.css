@@ -90,10 +90,39 @@
    trae su fondo blanco —sacárselo dejaba restos grises junto a los talones que
    en el tema oscuro se notaban— y se redondea como una tarjeta, que en los dos
    temas se lee como ilustración y no como un recorte mal hecho. */
+/* Sobre celeste suave, con el ornamento botánico del kit apenas asomando en la
+   esquina (public/institucional/ornamento-botanico-esquina.webp): cercano,
+   pero del mismo sistema que el resto del panel. */
 .presentacion {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 16px;
+  padding: 14px 16px;
+  overflow: hidden;
+  background: var(--celeste-suave);
+  border: 1px solid color-mix(in srgb, var(--celeste) 30%, var(--linea));
+  border-radius: var(--r);
+}
+.presentacion::after {
+  content: '';
+  position: absolute;
+  right: -34px;
+  bottom: -46px;
+  width: 150px;
+  height: 150px;
+  background: url('/institucional/ornamento-botanico-esquina.webp') center / contain no-repeat;
+  opacity: .22;
+  pointer-events: none;
+}
+.presentacion > * {
+  position: relative;
+  z-index: 1;
+}
+/* En la burbuja y en el celular no hay lugar: el ornamento quedaba detrás del
+   texto del saludo. */
+.enBurbuja .presentacion::after {
+  display: none;
 }
 .figura {
   flex: 0 0 auto;
@@ -513,6 +542,14 @@
 .chat.enBurbuja .ejemplos :global(.boton):focus-visible {
   outline-offset: -3px;
 }
+/* «Preguntar otra cosa», la última fila: no es una pregunta hecha sino la
+   puerta al cuadro, así que va en azul y sin la flechita de «se manda». */
+.chat.enBurbuja .ejemplos :global(.boton).otraCosa {
+  color: var(--azul);
+}
+.chat.enBurbuja .ejemplos :global(.boton).otraCosa::after {
+  content: none;
+}
 
 .panel.enBurbuja :global(.aviso) {
   padding: 10px 12px;
@@ -542,14 +579,6 @@
   gap: 6px;
   padding: 8px 14px 10px;
   background: var(--panel);
-/* «Preguntar otra cosa», la última fila: no es una pregunta hecha sino la
-   puerta al cuadro, así que va en azul y sin la flechita de «se manda». */
-.chat.enBurbuja .ejemplos :global(.boton).otraCosa {
-  color: var(--azul);
-}
-.chat.enBurbuja .ejemplos :global(.boton).otraCosa::after {
-  content: none;
-}
   border-top: 1px solid var(--linea);
 }
 /* pretty: sin «días.» solo en el último renglón. */
@@ -785,6 +814,10 @@
 }
 
 @media (max-width: 720px) {
+  .presentacion::after {
+    display: none;
+  }
+
   .disposicion {
     grid-template-columns: minmax(0, 1fr);
   }

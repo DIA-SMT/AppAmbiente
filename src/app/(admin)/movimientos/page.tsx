@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { conSesion } from '@db/sesion'
+import { EmptyState } from '@/app/_ui/EmptyState'
 import {
   buscarMovimientosEnTx, materialesVisiblesEnTx, metrosCubicosPorTipo, sitiosVisiblesEnTx,
   totalesDeMovimientosEnTx, type TotalDeMovimientos,
@@ -300,25 +301,20 @@ export default async function PantallaMovimientos({
       )}
 
       {filas.length === 0 ? (
-        <div className="tarjeta centrado pila" style={{ padding: 36 }}>
-          <p className="fuerte" style={{ margin: 0 }}>No hay movimientos para mostrar.</p>
-          {puestos.length > 0 ? (
-            <>
-              <p className="menor gris" style={{ margin: 0 }}>
-                Están filtrando: {puestos.join(' · ')}.
-              </p>
-              <p className="menor gris" style={{ margin: 0 }}>
-                Aflojá primero el período o la patente: son los que más achican la lista.
-              </p>
-              <div>
+        <div className="tarjeta">
+          <EmptyState titulo="No hay movimientos para mostrar.">
+            {puestos.length > 0 ? (
+              <div className="pila-chica" style={{ alignItems: 'center' }}>
+                <p style={{ margin: 0 }}>Están filtrando: {puestos.join(' · ')}.</p>
+                <p style={{ margin: 0 }}>
+                  Aflojá primero el período o la patente: son los que más achican la lista.
+                </p>
                 <Link className="boton secundario" href="/movimientos">Quitar todos los filtros</Link>
               </div>
-            </>
-          ) : (
-            <p className="menor gris" style={{ margin: 0 }}>
-              Todavía no se cargó ningún movimiento.
-            </p>
-          )}
+            ) : (
+              <p>Todavía no se cargó ningún movimiento.</p>
+            )}
+          </EmptyState>
         </div>
       ) : (
         <div className="desplazable">

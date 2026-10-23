@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import RegistrarSW from './RegistrarSW'
+import './design-tokens.css'
 import './globals.css'
 
 /**
@@ -42,7 +43,7 @@ export const viewport: Viewport = {
   // Se carga con una mano en la calle: que no haga zoom solo al tocar un campo,
   // pero que el usuario sí pueda agrandar si necesita leer algo.
   maximumScale: 5,
-  themeColor: '#126ff5',
+  themeColor: '#0866F9',
   viewportFit: 'cover',
 }
 

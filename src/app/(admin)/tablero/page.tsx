@@ -1,5 +1,7 @@
 import { Fragment, type CSSProperties } from 'react'
 import Link from 'next/link'
+import type { NombreDeIcono } from '@/app/_ui/Icono'
+import { MetricCard, type TonoDeMetrica } from '@/app/_ui/MetricCard'
 import { resumenMensualEnTx, sitiosVisiblesEnTx } from '@/lib/datos'
 import { mesCorto, mesLargo, numero, paraInputFechaHora } from '@/lib/formato'
 import { conSesion } from '@db/sesion'
@@ -337,6 +339,8 @@ export default async function Tablero({
             rotulo={`Ingresos de ${mesCorto(instanteDeMes(mesActual))}`}
             valor={numero(ingresosMes)}
             detalle="movimientos registrados"
+            icono="camion"
+            tono="azul"
             actual={ingresosMes}
             anterior={ingresosPrevio}
             mesAnterior={rotuloPrevio}
@@ -345,6 +349,8 @@ export default async function Tablero({
             rotulo={`Salidas de ${mesCorto(instanteDeMes(mesActual))}`}
             valor={numero(salidasMes)}
             detalle="movimientos registrados"
+            icono="movimientos"
+            tono="azul"
             actual={salidasMes}
             anterior={salidasPrevio}
             mesAnterior={rotuloPrevio}
@@ -353,6 +359,8 @@ export default async function Tablero({
             rotulo="Volumen que entró"
             valor={`${numero(volumenMes.ingreso, 1)} m³`}
             detalle="equivalente de todos los materiales"
+            icono="entra"
+            tono="celeste"
             actual={volumenMes.ingreso}
             anterior={volumenPrevio.ingreso}
             mesAnterior={rotuloPrevio}
@@ -361,6 +369,8 @@ export default async function Tablero({
             rotulo="Volumen que salió"
             valor={`${numero(volumenMes.salida, 1)} m³`}
             detalle="equivalente de todos los materiales"
+            icono="sale"
+            tono="celeste"
             actual={volumenMes.salida}
             anterior={volumenPrevio.salida}
             mesAnterior={rotuloPrevio}
@@ -462,6 +472,8 @@ function Indicador({
   actual,
   anterior,
   mesAnterior,
+  icono,
+  tono,
 }: {
   rotulo: string
   valor: string
@@ -469,16 +481,14 @@ function Indicador({
   actual: number
   anterior: number
   mesAnterior: string
+  icono: NombreDeIcono
+  tono: TonoDeMetrica
 }) {
   return (
-    <div className="tarjeta pila-chica">
-      <span className="etiqueta">{rotulo}</span>
-      <strong className="cifras" style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--tinta)', lineHeight: 1.05 }}>
-        {valor}
-      </strong>
+    <MetricCard rotulo={rotulo} valor={valor} icono={icono} tono={tono}>
       <span className="menor gris">{detalle}</span>
       <Variacion actual={actual} anterior={anterior} mesAnterior={mesAnterior} />
-    </div>
+    </MetricCard>
   )
 }
 
@@ -499,7 +509,7 @@ function Variacion({ actual, anterior, mesAnterior }: { actual: number; anterior
   // texto la flecha es una palabra más y el renglón se parte donde tiene que
   // partirse.
   return (
-    <span className="menor" style={{ color: sube ? 'var(--ingreso)' : 'var(--gris)', fontWeight: 700 }}>
+    <span className="menor" style={{ color: sube ? 'var(--ingreso-texto)' : 'var(--gris)', fontWeight: 700 }}>
       <IconoFlecha sube={sube} />{' '}
       {sube ? '+' : '−'}
       {numero(Math.abs(porcentaje))}% vs {mesAnterior}

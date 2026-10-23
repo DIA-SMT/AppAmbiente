@@ -23,11 +23,6 @@
   line-height: 1.05;
 }
 
-/* Un punto sin movimiento no es un dato más: tiene que saltar a la vista. */
-.atencion {
-  border-left: 4px solid var(--salida);
-}
-
 /* ── Materiales principales de cada tipo de valorización ────────────────── */
 
 .materiales {

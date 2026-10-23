@@ -1,0 +1,46 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   Tokens del kit institucional de Ciudad SMT · Secretaría de Ambiente
+   (SMT_Ambiente_Kit_Institucional, octubre de 2026).
+
+   Son la fuente de la paleta: globals.css arma con ellos las variables que
+   usa el resto de la app (--azul, --tinta, --fondo…), así una pantalla no
+   tiene que saber de qué kit salió el color. El azul institucional domina; el
+   verde va sólo como apoyo, para lo ambiental y los estados positivos.
+
+   Los recursos del kit están en public/institucional/.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --smt-blue: #0866F9;
+  --smt-blue-deep: #0B2D86;
+  --smt-cyan: #31B4F5;
+  --smt-cyan-soft: #DDF3FF;
+  --smt-yellow: #F8DB00;
+  --smt-white: #FFFFFF;
+  --smt-bg: #F4F8FC;
+  --smt-surface: #FFFFFF;
+  --smt-surface-soft: #EEF5FB;
+  --smt-border: #D8E6F5;
+  --smt-text: #13315C;
+  --smt-text-soft: #4B6B92;
+  --smt-success: #2DBE76;
+  --smt-shadow: 0 10px 30px rgba(8, 102, 249, 0.10);
+  --radius-lg: 24px;
+  --radius-md: 16px;
+  --radius-sm: 12px;
+}
+
+/* El degradé institucional, de azul profundo a celeste. */
+.bg-smt-gradient {
+  background: linear-gradient(135deg, var(--smt-blue-deep) 0%, var(--smt-blue) 55%, var(--smt-cyan) 100%);
+}
+
+/* Tarjeta clara sobre vidrio suave: el ingreso y las tarjetas destacadas. */
+.card-smt {
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  border: 1px solid var(--linea);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--sombra);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}

@@ -99,7 +99,7 @@ export default async function PantallaMigue({
       )}
 
       <div className={estilos.disposicion}>
-        <section className="pila">
+        <section className="tarjeta pila">
           {guardada ? (
             <>
               <div className="fila-entre">
@@ -141,7 +141,7 @@ export default async function PantallaMigue({
           )}
         </section>
 
-        <aside className={`pila-chica ${estilos.lateral}`} aria-label="Conversaciones anteriores">
+        <aside className={`tarjeta pila-chica ${estilos.lateral}`} aria-label="Conversaciones anteriores">
           <h2>Conversaciones anteriores</h2>
           {estado.anteriores.length === 0 ? (
             <p className="menor gris" style={{ margin: 0 }}>

@@ -53,8 +53,10 @@
 .marcoAngosto .rotuloMes { font-size: 15px; }
 .marcoAngosto .rotuloValor { font-size: 14px; }
 
-.barraIngreso { fill: var(--ingreso); }
-.barraSalida  { fill: var(--salida); }
+/* Azul y celeste, la serie principal del kit; el verde y el ámbar quedan para
+   los estados (ingreso y salida en las tablas). */
+.barraIngreso { fill: var(--azul); }
+.barraSalida  { fill: var(--celeste); }
 
 .leyenda { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
 .clave { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; color: var(--texto); }

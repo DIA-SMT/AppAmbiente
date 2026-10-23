@@ -253,7 +253,7 @@ export default async function Tablero({
             ))}
           </div>
           {filas.length > 0 && (
-            <a className="boton chico secundario" href={enlaceExcel}>
+            <a className="boton chico secundario" href={enlaceExcel} data-recorrido="exportar">
               <IconoBajar />
               Exportar a Excel
             </a>

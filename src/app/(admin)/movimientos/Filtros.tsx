@@ -134,7 +134,7 @@ export default function Filtros({ valores, sitios, materiales }: Props) {
   }
 
   return (
-    <section className="tarjeta pila" aria-label="Filtros del listado">
+    <section className="tarjeta pila" aria-label="Filtros del listado" data-recorrido="filtros">
       <div className="fila-entre">
         <div className="fila" style={{ gap: 8 }}>
           <h2 style={{ fontSize: '1rem' }}>Filtros</h2>

@@ -4,41 +4,43 @@
  * qué es. Arranca solo la primera vez en cada navegador y se vuelve a ver con
  * el botón «?» de la cabecera.
  *
- * Las partes se marcan en el marcado con data-recorrido="…". Si una no está en
- * la pantalla —o está escondida, como el menú lateral en un teléfono—, ese paso
- * se saltea: el recorrido no depende de en qué pantalla se lo abra.
+ * Empieza por la pantalla donde se lo abre (recorridoDeLaPantalla.ts) y sigue
+ * con lo que está en todas: el menú, Migue, el tema, la cuenta. La bienvenida
+ * es sólo para la primera vez.
+ *
+ * Las partes se marcan en el marcado con data-recorrido="…". Lo que no está en
+ * la pantalla —o está escondido, como el menú lateral en un teléfono— no
+ * entra, y el contador cuenta sólo lo que se va a ver.
  *
  * Se recuerda en el navegador y no en la cuenta, como el tema: la cuenta del
  * punto la comparten los que rotan, y quien recién llega a ese celular
  * igual lo ve una vez.
  */
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { usePathname } from 'next/navigation'
+import { recorridoDeLaPantalla, type Paso } from './recorridoDeLaPantalla'
 import estilos from './recorrido.module.css'
 
 type Rol = 'admin' | 'vigilador'
 
-interface Paso {
-  /** El data-recorrido de lo que se ilumina. Sin destino, la tarjeta va al medio. */
-  destino?: string
-  titulo: string
-  texto: string
+const BIENVENIDA: Record<Rol, Paso> = {
+  admin: {
+    titulo: 'Te damos la bienvenida al panel',
+    texto: 'En un minuto te mostramos dónde está cada cosa. Podés saltearlo y volver a verlo cuando quieras.',
+  },
+  vigilador: {
+    titulo: 'Te damos la bienvenida',
+    texto: 'En un minuto te mostramos cómo se usa. Podés saltearlo y volver a verlo cuando quieras.',
+  },
 }
 
-const PASOS: Record<Rol, Paso[]> = {
+/** Lo que está en todas las pantallas; va después de lo de la pantalla. */
+const DE_SIEMPRE: Record<Rol, (Paso & { salvoEn?: string })[]> = {
   admin: [
-    {
-      titulo: 'Te damos la bienvenida al panel',
-      texto: 'En un minuto te mostramos dónde está cada cosa. Podés saltearlo y volver a verlo cuando quieras.',
-    },
     {
       destino: 'navegacion',
       titulo: 'El menú',
       texto: 'Tablero, Movimientos, Pilas, Conteos, Recambios y el resto de las secciones. El número al lado de Revisiones avisa cuántas cosas esperan tu confirmación.',
-    },
-    {
-      destino: 'contenido',
-      titulo: 'La pantalla de cada sección',
-      texto: 'Acá van los números, las tablas y los filtros. En Movimientos cada fila abre el detalle, y las tablas se pueden exportar a Excel.',
     },
     {
       destino: 'migue',
@@ -53,10 +55,12 @@ const PASOS: Record<Rol, Paso[]> = {
     {
       destino: 'ayuda',
       titulo: 'Este recorrido',
-      texto: 'Si lo querés ver de nuevo, está acá.',
+      texto: 'Si lo querés ver de nuevo, está acá. Empieza por la pantalla donde lo abras.',
     },
     {
       destino: 'cuenta',
+      // En Mi cuenta ya se explicó al principio.
+      salvoEn: '/cuenta',
       titulo: 'Tu cuenta',
       texto: 'Tu correo y tu contraseña.',
     },
@@ -67,15 +71,6 @@ const PASOS: Record<Rol, Paso[]> = {
     },
   ],
   vigilador: [
-    {
-      titulo: 'Te damos la bienvenida',
-      texto: 'En un minuto te mostramos cómo se usa. Podés saltearlo y volver a verlo cuando quieras.',
-    },
-    {
-      destino: 'contenido',
-      titulo: 'Lo que se hace en el turno',
-      texto: 'Cargar lo que trae un vecino, lo que se lleva alguien, el conteo del día y el pedido de recambio. Sin señal, lo cargado se guarda en el celular y sube cuando vuelve.',
-    },
     {
       destino: 'migue',
       titulo: 'Migue',
@@ -89,7 +84,7 @@ const PASOS: Record<Rol, Paso[]> = {
     {
       destino: 'ayuda',
       titulo: 'Este recorrido',
-      texto: 'Si lo querés ver de nuevo, está acá.',
+      texto: 'Si lo querés ver de nuevo, está acá. Empieza por la pantalla donde lo abras.',
     },
     {
       destino: 'salir',
@@ -103,10 +98,26 @@ const CLAVE = (rol: Rol) => `ambiente.recorrido.${rol}`
 const MARGEN = 8
 const ANCHO_TARJETA = 340
 
+/**
+ * La cabecera de la pantalla: el título con lo que dice abajo, si van juntos
+ * en un <header> —o en el bloque que lo envuelve— que no ocupa media
+ * pantalla; si no, el título solo.
+ */
+function cabecera(): HTMLElement | null {
+  const titulo = document.querySelector<HTMLElement>('[data-recorrido="contenido"] h1')
+  if (!titulo) return null
+  const bloque = titulo.closest<HTMLElement>('header') ?? titulo.parentElement
+  const adentro = bloque && bloque.dataset.recorrido !== 'contenido' && bloque.closest('[data-recorrido="contenido"]')
+  return bloque && adentro && bloque.getBoundingClientRect().height <= window.innerHeight * 0.4
+    ? bloque
+    : titulo
+}
+
 /** Lo iluminable de ese destino, o null si no está o no se ve. */
 function buscar(destino: string | undefined): HTMLElement | null {
   if (!destino) return null
   const el = document.querySelector<HTMLElement>(`[data-recorrido="${destino}"]`)
+    ?? (destino === 'pantalla' ? cabecera() : null)
   if (!el) return null
   const r = el.getBoundingClientRect()
   return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden' ? el : null
@@ -124,7 +135,7 @@ function ubicar(el: HTMLElement | null, alto: number): Ubicacion {
   if (!el) return { foco: null, tarjeta: { top: Math.max(16, (vh - alto) / 2), left: (vw - ancho) / 2 } }
 
   const r = el.getBoundingClientRect()
-  // Lo que es más grande que la pantalla (el contenido) se ilumina en lo que se ve.
+  // Lo que es más grande que la pantalla se ilumina en lo que se ve.
   const top = Math.max(r.top - MARGEN, MARGEN)
   const bottom = Math.min(r.bottom + MARGEN, vh - MARGEN)
   const left = Math.max(r.left - MARGEN, MARGEN)
@@ -154,8 +165,10 @@ export default function RecorridoGuiado({
   /** La del botón «?» de la cabecera, para que sea igual al del tema. */
   className?: string
 }) {
-  const pasos = PASOS[rol]
-  const [indice, setIndice] = useState<number | null>(null)
+  const ruta = usePathname()
+  // Los pasos se arman al abrirlo, con lo que hay en esa pantalla.
+  const [pasos, setPasos] = useState<Paso[] | null>(null)
+  const [indice, setIndice] = useState(0)
   const [ubicacion, setUbicacion] = useState<Ubicacion | null>(null)
   const tarjeta = useRef<HTMLDivElement>(null)
   const boton = useRef<HTMLButtonElement>(null)
@@ -164,20 +177,22 @@ export default function RecorridoGuiado({
 
   const terminar = useCallback(() => {
     try { localStorage.setItem(CLAVE(rol), 'visto') } catch { /* modo privado */ }
-    setIndice(null)
+    setPasos(null)
     setUbicacion(null)
     boton.current?.focus({ preventScroll: true })
   }, [rol])
 
-  /** El paso siguiente que se puede mostrar en esta pantalla, en esa dirección. */
-  const ir = useCallback((desde: number, paso: 1 | -1) => {
-    let i = desde
-    while (i >= 0 && i < pasos.length) {
-      if (!pasos[i].destino || buscar(pasos[i].destino)) return setIndice(i)
-      i += paso
-    }
-    if (paso === 1) terminar()
-  }, [pasos, terminar])
+  const abrir = useCallback((conBienvenida: boolean) => {
+    const todos = [
+      ...(conBienvenida ? [BIENVENIDA[rol]] : []),
+      ...recorridoDeLaPantalla(rol, ruta),
+      ...DE_SIEMPRE[rol].filter((p) => p.salvoEn !== ruta),
+    ]
+    const visibles = todos.filter((p) => !p.destino || buscar(p.destino))
+    if (visibles.length === 0) return
+    setPasos(visibles)
+    setIndice(0)
+  }, [rol, ruta])
 
   // La primera vez, solo, un rato después de que se dibuje la pantalla.
   useEffect(() => {
@@ -185,13 +200,25 @@ export default function RecorridoGuiado({
     let visto = false
     try { visto = localStorage.getItem(CLAVE(rol)) === 'visto' } catch { visto = true }
     if (visto) return
-    const t = window.setTimeout(() => ir(0, 1), 700)
+    // Si se pasa a otra pantalla antes de que arranque, arranca en esa.
+    const t = window.setTimeout(() => abrir(true), 700)
     return () => window.clearTimeout(t)
-  }, [autoIniciar, rol, ir])
+  }, [autoIniciar, rol, abrir])
+
+  // Si cambia la pantalla (el botón atrás del teléfono), lo que explicaba ya
+  // no está: se cierra.
+  const rutaAbierta = useRef(ruta)
+  useEffect(() => {
+    if (rutaAbierta.current !== ruta) {
+      rutaAbierta.current = ruta
+      setPasos(null)
+      setUbicacion(null)
+    }
+  }, [ruta])
 
   // Llevar a la vista lo que se ilumina y ubicar la tarjeta; de nuevo si
   // cambia el tamaño o se desplaza algo.
-  const paso = indice === null ? null : pasos[indice]
+  const paso = pasos?.[indice] ?? null
   useLayoutEffect(() => {
     if (!paso) return
     const el = buscar(paso.destino)
@@ -213,31 +240,32 @@ export default function RecorridoGuiado({
     if (paso) tarjeta.current?.focus({ preventScroll: true })
   }, [paso])
 
+  const total = pasos?.length ?? 0
+  const ultimo = indice === total - 1
+
   function alTeclear(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.key === 'Escape') {
       e.preventDefault()
       terminar()
-    } else if (e.key === 'ArrowRight' && indice !== null) {
-      ir(indice + 1, 1)
-    } else if (e.key === 'ArrowLeft' && indice !== null && indice > 0) {
-      ir(indice - 1, -1)
+    } else if (e.key === 'ArrowRight' && !ultimo) {
+      setIndice(indice + 1)
+    } else if (e.key === 'ArrowLeft' && indice > 0) {
+      setIndice(indice - 1)
     } else if (e.key === 'Tab') {
       // El foco no sale de la tarjeta mientras el recorrido está abierto.
       const botones = Array.from(tarjeta.current?.querySelectorAll<HTMLElement>('button') ?? [])
       if (botones.length === 0) return
       const primero = botones[0]
-      const ultimo = botones[botones.length - 1]
+      const final = botones[botones.length - 1]
       if (e.shiftKey && (document.activeElement === primero || document.activeElement === tarjeta.current)) {
         e.preventDefault()
-        ultimo.focus()
-      } else if (!e.shiftKey && document.activeElement === ultimo) {
+        final.focus()
+      } else if (!e.shiftKey && document.activeElement === final) {
         e.preventDefault()
         primero.focus()
       }
     }
   }
-
-  const ultimo = indice !== null && pasos.slice(indice + 1).every((p) => p.destino && !buscar(p.destino))
 
   return (
     <>
@@ -246,8 +274,8 @@ export default function RecorridoGuiado({
         type="button"
         className={className}
         data-recorrido="ayuda"
-        onClick={() => ir(0, 1)}
-        aria-label="Ver el recorrido guiado"
+        onClick={() => abrir(false)}
+        aria-label="Ver el recorrido guiado de esta pantalla"
         title="Recorrido guiado"
       >
         <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.9"
@@ -257,7 +285,7 @@ export default function RecorridoGuiado({
         </svg>
       </button>
 
-      {paso && indice !== null && (
+      {paso && (
         <div className={estilos.capa} onKeyDown={alTeclear}>
           {ubicacion?.foco ? (
             <div className={estilos.foco} style={ubicacion.foco} aria-hidden="true" />
@@ -275,7 +303,7 @@ export default function RecorridoGuiado({
             tabIndex={-1}
           >
             <p className={estilos.contador}>
-              {indice + 1} de {pasos.length}
+              {indice + 1} de {total}
             </p>
             <h2 id={titulo} className={estilos.titulo}>{paso.titulo}</h2>
             <p id={texto} className={estilos.texto}>{paso.texto}</p>
@@ -285,11 +313,11 @@ export default function RecorridoGuiado({
               </button>
               <div className={estilos.avanzar}>
                 {indice > 0 && (
-                  <button type="button" className="boton secundario chico" onClick={() => ir(indice - 1, -1)}>
+                  <button type="button" className="boton secundario chico" onClick={() => setIndice(indice - 1)}>
                     Anterior
                   </button>
                 )}
-                <button type="button" className="boton chico" onClick={() => (ultimo ? terminar() : ir(indice + 1, 1))}>
+                <button type="button" className="boton chico" onClick={() => (ultimo ? terminar() : setIndice(indice + 1))}>
                   {ultimo ? 'Listo' : 'Siguiente'}
                 </button>
               </div>

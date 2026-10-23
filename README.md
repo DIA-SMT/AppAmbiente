@@ -714,10 +714,13 @@ punto puede usar por día hasta el 10% del tope y cada coordinadora el 25%.
    ya está en el aire no la nota.
 2. **Las variables** de la tabla de arriba, en Vercel.
 3. **El código.** Sin la 0025, Migue no aparece en ningún lado; sin la clave o sin el
-   tope, aparece apagado y dice por qué.
+   tope, aparece apagado. En pantalla no dice qué variable falta: eso está en
+   `/api/salud`.
 
 `/api/salud` dice si Migue está encendido, apagado o en el tope, sin cambiar el estado
-general: Migue apagado es un estado normal del sistema.
+general: Migue apagado es un estado normal del sistema. Sin sesión contesta sólo el
+estado; el detalle (motor, migraciones, qué falta y cómo se arregla) es para una sesión
+de coordinación, y cuando algo falla va también a los logs de Vercel.
 
 ### Lo que Migue no toca, a propósito
 

@@ -53,14 +53,13 @@ function AvisoDeEstado({ estado }: { estado: EstadoDeMigue }) {
   }
   return (
     <div className="aviso atencion" role="status">
+      {/* Los motivos exactos nombran la configuración del servidor: no van en
+          pantalla. Están en /api/salud, con sesión de coordinación. */}
       <p style={{ margin: 0 }}>
         <span className="fuerte">Migue está apagado y no contesta preguntas.</span> Lo que recuerda
-        se sigue viendo y olvidando desde acá. Para prenderlo, quien administra el despliegue tiene
-        que arreglar esto:
+        se sigue viendo y olvidando desde acá. Si dura, avisale a la Dirección de Inteligencia
+        Artificial.
       </p>
-      <ul style={{ margin: '6px 0 0', paddingLeft: 20 }}>
-        {estado.motivos.map((m) => <li key={m}>{m}</li>)}
-      </ul>
     </div>
   )
 }
@@ -339,8 +338,7 @@ export default async function LoQueMigueRecuerda({
       <div className="pila">
         <h1>Lo que Migue recuerda</h1>
         <div className="aviso atencion">
-          Esta base todavía no tiene lo de Migue: falta aplicar la migración 0025. Hasta entonces
-          Migue no existe, y no recuerda nada de nadie.
+          Migue todavía no está disponible en este sistema, y no recuerda nada de nadie.
         </div>
       </div>
     )

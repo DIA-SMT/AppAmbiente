@@ -543,15 +543,13 @@ export function Cuenta({ datos }: { datos: DatosDeCuenta }) {
         </>
       )}
 
+      {/* Cómo se rescata la cuenta desde afuera (db:clave) está en el README:
+          acá lo lee cualquiera que entre, y no le sirve a nadie más que a
+          quien quiera entrar sin permiso. */}
       <p className="menor gris">
         Si olvidás tu contraseña, otra cuenta de coordinación te la cambia desde Usuarios y vos
-        elegís una nueva al entrar. Si no hay ninguna otra, se hace desde una máquina con acceso a
-        la base con{' '}
-        <code className="mono">
-          CONFIRMO_CLAVE=si DATABASE_URL=&quot;…&quot; npm run db:clave -- --usuario {datos.usuario}
-        </code>
-        . La cadena va escrita adelante, en la misma línea: los comandos de base que se corren
-        pelados van a la que esté configurada en esa máquina, que puede no ser ésta.
+        elegís una nueva al entrar. Si no hay ninguna otra, avisale a la Dirección de Inteligencia
+        Artificial.
       </p>
     </div>
   )

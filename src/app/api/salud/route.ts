@@ -13,11 +13,18 @@
  * host, ni el usuario, ni nada de la cadena de conexión, que es justo lo que un
  * endpoint así no tiene que filtrar. Y como se conecta igual que la app, un 200
  * acá significa que la app puede leer la base de verdad.
+ *
+ * El detalle —qué motor, qué variable falta, cómo se arregla— es sólo para una
+ * sesión de coordinación. Sin sesión, la respuesta dice si anda y nada más:
+ * contaba a cualquiera cómo estaba armado el servidor y qué le faltaba. Si algo
+ * falla, el detalle va además a los logs del proveedor, que es donde se mira
+ * un despliegue roto antes de poder entrar.
  */
 import { NextResponse } from 'next/server'
 import { comoServicio } from '@db/sesion'
 import { leerConfiguracion, migueEstaInstalado } from '@/lib/migue/configuracion'
 import { estadoDeMigue, gastoDelMesSinSesionEnTx } from '@/lib/migue/pantallas'
+import { sesionActual } from '@/lib/sesion'
 
 export const dynamic = 'force-dynamic'
 
@@ -84,7 +91,15 @@ export async function GET() {
   salud.asistente = migue.estado
   if (migue.que_hacer.length) salud.asistente_que_hacer = migue.que_hacer
 
-  return NextResponse.json(salud, { status: bien ? 200 : 503 })
+  if (!bien) console.error('[salud]', JSON.stringify(salud))
+
+  // Sin AUTH_SECRET leer la sesión revienta: entonces no hay sesión.
+  const coordinacion = await sesionActual().then((s) => s?.rol === 'admin', () => false)
+  const publico = { estado: salud.estado, asistente: salud.asistente }
+  return NextResponse.json(coordinacion ? salud : publico, {
+    status: bien ? 200 : 503,
+    headers: { 'Cache-Control': 'no-store' },
+  })
 }
 
 /**

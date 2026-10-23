@@ -35,13 +35,16 @@ export const PRIVACIDAD_DEL_PANEL =
 /**
  * Apagado no es escondido: sin clave o con el tope de gasto mal puesto,
  * Migue no contesta, pero lo que ya se habló se sigue viendo y se puede
- * olvidar. La coordinación es quien lo puede arreglar, así que acá sí se
- * dice qué falta con el nombre de la variable.
+ * olvidar. Qué variable falta NO va en pantalla: nombraba la configuración
+ * del servidor a cualquiera que entrara al panel. Lo exacto lo ve quien
+ * administra el sistema, en /api/salud con sesión de coordinación.
  */
 export function apagadoDelPanel(): Apagado {
-  const { problemas } = leerConfiguracion()
-  return problemas.length > 0
-    ? { titulo: 'Migue no está contestando. Falta arreglar esto en la configuración:', detalle: problemas }
+  return leerConfiguracion().problemas.length > 0
+    ? {
+        titulo: 'Migue no está contestando por ahora.',
+        detalle: ['Lo ya hablado se sigue viendo. Si dura, avisale a la Dirección de Inteligencia Artificial.'],
+      }
     : null
 }
 

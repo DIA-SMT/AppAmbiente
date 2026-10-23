@@ -59,5 +59,14 @@ export const DIAS_DE_CONVERSACION_DE_COORDINACION = 90
 /** 0025_migue.sql, `app.migue_vencer`: una conversación del punto quieta se cierra, para el turno siguiente. */
 export const HORAS_PARA_CERRAR_QUIETA = 2
 
+/**
+ * La burbuja de Migue: si al abrirla la última pregunta tiene más que esto, se
+ * arranca un chat nuevo solo, sin que haga falta tocar nada. La de antes queda
+ * en las anteriores de /migue. Es menos que HORAS_PARA_CERRAR_QUIETA a
+ * propósito: la burbuja se abre de pasada, y media hora después casi siempre
+ * es otra pregunta.
+ */
+export const MINUTOS_PARA_CHAT_NUEVO = 30
+
 /** 0025_migue.sql, `app.migue_recordar`. */
 export const RECUERDOS_MAXIMOS = 20

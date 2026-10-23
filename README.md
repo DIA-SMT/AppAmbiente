@@ -612,8 +612,11 @@ Migue contesta preguntas sobre lo cargado. La coordinación le pregunta desde el
 (*Migue*) y el vigilador desde el celular (*Preguntale a Migue*, abajo en *Turno*).
 Además, su cara está en la esquina de abajo de todas las pantallas: tocarla abre la
 misma conversación encima de lo que se está mirando, sin perder un formulario a medio
-llenar. La ventana se puede cerrar con una pregunta en viaje: cuando llega la
-respuesta, la cara lo avisa con un punto. En su propia pantalla la burbuja no está, y
+llenar. De entrada ofrece dos o tres preguntas de la pantalla donde se la abre
+(`src/app/_migue/preguntasDeLaPantalla.ts`) y «Preguntar otra cosa», que abre el cuadro
+para escribir. Si la última pregunta tiene más de media hora, al abrirla arranca un
+chat nuevo sola; también está «Nuevo chat» arriba. La ventana se puede cerrar con una
+pregunta en viaje: cuando llega la respuesta, la cara lo avisa con un punto. En su propia pantalla la burbuja no está, y
 en el panel tampoco mientras falte completar la cuenta.
 **Sólo lee**: no carga, no anula, no corrige nada. Si se lo piden, dice dónde se hace,
 porque así el cambio queda firmado por quien lo hizo y la auditoría sigue contestando

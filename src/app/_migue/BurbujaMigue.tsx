@@ -25,9 +25,13 @@ import { useEffect, useId, useRef, useState, type MouseEvent } from 'react'
 import estilos from './burbuja.module.css'
 import Conversacion, { type PropsDeConversacion } from './Conversacion'
 import { PANTALLA_ENTERA, TECLADO_EN_PANTALLA } from './pantallaEntera'
+import { preguntasDeLaPantalla } from './preguntasDeLaPantalla'
 import { Retrato } from './Retrato'
 
-type Props = Omit<PropsDeConversacion, 'inicial' | 'soloLectura' | 'enBurbuja' | 'aLaVista' | 'alContestar'> & {
+type Props = Omit<
+  PropsDeConversacion,
+  'inicial' | 'soloLectura' | 'enBurbuja' | 'aLaVista' | 'alContestar' | 'rotuloEjemplos' | 'cuadroAlPedido' | 'alHaberConversacion' | 'nuevoChat'
+> & {
   /** La pantalla entera del chat: ahí la burbuja no va, y a ella lleva «Ver todo». */
   pantalla: '/migue' | '/preguntar'
 }
@@ -37,6 +41,8 @@ export default function BurbujaMigue({ pantalla, ...conversacion }: Props) {
   const [abierta, setAbierta] = useState(false)
   const [armada, setArmada] = useState(false)
   const [sinLeer, setSinLeer] = useState(false)
+  const [hayConversacion, setHayConversacion] = useState(false)
+  const [nuevoChat, setNuevoChat] = useState(0)
   const abiertaRef = useRef(abierta)
   abiertaRef.current = abierta
   const lanzador = useRef<HTMLButtonElement>(null)
@@ -46,6 +52,8 @@ export default function BurbujaMigue({ pantalla, ...conversacion }: Props) {
   const idVentana = useId()
 
   const enLaPantallaDeMigue = ruta === pantalla || ruta.startsWith(`${pantalla}/`)
+  // Las preguntas de la pantalla donde se la abre; donde no hay, las de siempre.
+  const deLaPantalla = preguntasDeLaPantalla(conversacion.rol, ruta)
 
   // Otra pantalla —el botón de una respuesta, «Ver todo», el atrás del
   // teléfono—: la ventana se cierra para dejar ver adónde se fue. La
@@ -54,8 +62,8 @@ export default function BurbujaMigue({ pantalla, ...conversacion }: Props) {
 
   // Al abrir, el foco va a la ventana y no al cuadro si se toca con el dedo:
   // en el teléfono o la tableta eso levantaría el teclado encima de la
-  // conversación. Con mouse sí al cuadro, que es a lo que se viene. Al cerrar con la X, Escape o la cara,
-  // vuelve a la cara; recién acá y no en cerrar(), porque en el celular la
+  // conversación. Con mouse sí al cuadro, que es a lo que se viene. Al
+  // cerrar con la X, Escape o la cara, vuelve a la cara; recién acá y no en cerrar(), porque en el celular la
   // cara estuvo inert mientras la ventana tapaba todo, y React saca el inert
   // en la limpieza del efecto de abajo, que corre antes que éste.
   const devolverFoco = useRef(false)
@@ -236,6 +244,19 @@ export default function BurbujaMigue({ pantalla, ...conversacion }: Props) {
               <strong id={titulo}>Migue</strong>
               <span>Contesta con lo cargado</span>
             </div>
+            {hayConversacion && (
+              <button
+                type="button"
+                className={`boton fantasma chico ${estilos.verTodo}`}
+                onClick={() => {
+                  // El botón se va con la conversación: el foco queda en la ventana.
+                  ventana.current?.focus({ preventScroll: true })
+                  setNuevoChat((n) => n + 1)
+                }}
+              >
+                Nuevo chat
+              </button>
+            )}
             <Link href={pantalla} className={`boton fantasma chico ${estilos.verTodo}`}>Ver todo</Link>
             <button
               type="button"
@@ -258,6 +279,11 @@ export default function BurbujaMigue({ pantalla, ...conversacion }: Props) {
               enBurbuja
               aLaVista={abierta}
               alContestar={() => { if (!abiertaRef.current) setSinLeer(true) }}
+              ejemplos={deLaPantalla ?? conversacion.ejemplos}
+              rotuloEjemplos={deLaPantalla ? 'Sobre esta pantalla:' : 'Podés preguntarle, por ejemplo:'}
+              cuadroAlPedido
+              alHaberConversacion={setHayConversacion}
+              nuevoChat={nuevoChat}
             />
           </div>
         </div>

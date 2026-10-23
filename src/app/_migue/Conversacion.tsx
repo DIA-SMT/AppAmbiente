@@ -33,7 +33,7 @@ import { fechaHora, hora } from '@/lib/formato'
 import type { CierreQueSeExplica, ConversacionAnterior, EstadoDeLaConversacion } from '@/lib/migue/historial'
 import { LARGO_MAXIMO_PREGUNTA } from '@/lib/migue/limites'
 import type { EnlaceConAlcance, EventoDeMigue, MensajeVisible, PedidoAMigue, RolDeMigue } from '@/lib/migue/tipos'
-import { HORAS_VISIBLES_EN_EL_CELULAR } from '@/lib/reglas'
+import { HORAS_VISIBLES_EN_EL_CELULAR, MINUTOS_PARA_CHAT_NUEVO } from '@/lib/reglas'
 import estilos from './conversacion.module.css'
 import { TECLADO_EN_PANTALLA } from './pantallaEntera'
 import { Retrato } from './Retrato'
@@ -479,6 +479,17 @@ export interface PropsDeConversacion {
   aLaVista?: boolean
   /** Llegó una respuesta de Migue. La burbuja cerrada lo avisa con un punto. */
   alContestar?: () => void
+  /** Lo que va arriba de los ejemplos. En la burbuja son de la pantalla donde se la abrió. */
+  rotuloEjemplos?: string
+  /**
+   * En la burbuja, de entrada van las preguntas de la pantalla y «Preguntar
+   * otra cosa»; el cuadro aparece al tocar eso, o cuando ya hay conversación.
+   */
+  cuadroAlPedido?: boolean
+  /** Si hay una conversación en pantalla: la burbuja muestra «Nuevo chat» sólo entonces. */
+  alHaberConversacion?: (hay: boolean) => void
+  /** Cada vez que cambia, se empieza un chat nuevo (el «Nuevo chat» de la cabeza de la burbuja). */
+  nuevoChat?: number
 }
 
 export default function Conversacion({
@@ -492,6 +503,10 @@ export default function Conversacion({
   enBurbuja = false,
   aLaVista = true,
   alContestar,
+  rotuloEjemplos = 'Podés preguntarle, por ejemplo:',
+  cuadroAlPedido = false,
+  alHaberConversacion,
+  nuevoChat = 0,
 }: PropsDeConversacion) {
   const router = useRouter()
   const esCelular = rol === 'vigilador'
@@ -510,6 +525,8 @@ export default function Conversacion({
   const [envio, setEnvio] = useState<Envio>({ fase: 'quieto' })
   const [borrador, setBorrador] = useState('')
   const [olvido, setOlvido] = useState<{ id: string; trabajando: boolean } | null>(null)
+  /** En la burbuja: tocó «Preguntar otra cosa» y el cuadro está a la vista. */
+  const [pidioCuadro, setPidioCuadro] = useState(false)
   const [aviso, setAviso] = useState<{ clase: 'exito' | 'error'; texto: string } | null>(null)
   const [enCola, setEnCola] = useState(0)
   /** Lo mismo que `ocupado`, para dibujar: entre dos intentos no hay fase «mandando» y el olvido igual tiene que esperar. */
@@ -1026,6 +1043,8 @@ export default function Conversacion({
     setMensajes([])
     ponerEnvio({ fase: 'quieto' })
     setOlvido(null)
+    // En la burbuja vuelven las preguntas de la pantalla en lugar del cuadro.
+    setPidioCuadro(false)
   }
 
   async function empezarDeNuevo() {
@@ -1277,6 +1296,37 @@ export default function Conversacion({
     lista.current.focus({ preventScroll: true })
   }, [pendiente])
 
+  // «Preguntar otra cosa»: el cuadro aparece y toma el foco. Acá sí aunque sea
+  // con el dedo: se tocó justamente para escribir, y el teclado es lo que se
+  // pidió. También antes del efecto que devuelve el foco.
+  useEffect(() => {
+    if (pidioCuadro) cuadro.current?.focus({ preventScroll: true })
+  }, [pidioCuadro])
+
+  // «Nuevo chat», desde la cabeza de la burbuja.
+  const nuevoChatVisto = useRef(nuevoChat)
+  useEffect(() => {
+    if (nuevoChat === nuevoChatVisto.current) return
+    nuevoChatVisto.current = nuevoChat
+    void empezarDeNuevo()
+  }, [nuevoChat])
+
+  // La burbuja muestra «Nuevo chat» sólo si hay algo que dejar atrás.
+  const hayAlgoEnPantalla = conversacionId !== null && (mensajes.length > 0 || cerrada !== null)
+  useEffect(() => {
+    alHaberConversacion?.(hayAlgoEnPantalla)
+  }, [hayAlgoEnPantalla, alHaberConversacion])
+
+  // Al abrir la burbuja, si la última pregunta quedó quieta más de media hora,
+  // se arranca un chat nuevo solo: lo de antes queda en las anteriores de
+  // /migue, y no hace falta tocar «Nuevo chat» para preguntar otra cosa. No
+  // con una pregunta andando o sin mandar: ésa se termina primero.
+  useEffect(() => {
+    if (!enBurbuja || !aLaVista || !cargada || pendiente || mensajes.length === 0) return
+    const ultima = Date.parse(mensajes[mensajes.length - 1].creadoEn)
+    if (Number.isFinite(ultima) && Date.now() - ultima > MINUTOS_PARA_CHAT_NUEVO * 60_000) void empezarDeNuevo()
+  }, [enBurbuja, aLaVista, cargada])
+
   // Adentro de la burbuja el foco no se puede caer afuera. Cuando se desmonta
   // o se deshabilita el botón que lo tenía —«Olvidar» pasa a la confirmación,
   // «Preguntar» se apaga al mandar, llega «cerrada»—, cae al body, fuera de
@@ -1345,7 +1395,10 @@ export default function Conversacion({
   const vacia = mensajes.length === 0 && !pendiente
   const restan = LARGO_MAXIMO_PREGUNTA - borrador.length
   const puedeEscribir = !soloLectura && !apagado && !cerrada
-  const hayConversacion = conversacionId !== null && (mensajes.length > 0 || cerrada !== null)
+  const hayConversacion = hayAlgoEnPantalla
+  // En la burbuja, el cuadro va recién cuando se lo pide, salvo que ya haya
+  // conversación, algo escrito de antes o ninguna pregunta para ofrecer.
+  const cuadroVisible = !cuadroAlPedido || pidioCuadro || !vacia || borrador.length > 0 || ejemplos.length === 0
 
   const marcaDePendiente =
     envio.fase === 'sin_senal' || envio.fase === 'sin_mandar'
@@ -1481,7 +1534,7 @@ export default function Conversacion({
         {vacia && puedeEscribir && cargada && ejemplos.length > 0 && (
           <div className="pila-chica">
             <p className={enBurbuja ? `menor gris ${estilos.rotuloEjemplos}` : 'menor gris'} style={{ margin: 0 }}>
-              Podés preguntarle, por ejemplo:
+              {rotuloEjemplos}
             </p>
             <div className={estilos.ejemplos}>
               {ejemplos.map((ejemplo) => (
@@ -1498,6 +1551,11 @@ export default function Conversacion({
                   {ejemplo}
                 </button>
               ))}
+              {!cuadroVisible && (
+                <button type="button" className={`boton secundario ${estilos.otraCosa}`} onClick={() => setPidioCuadro(true)}>
+                  Preguntar otra cosa
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -1564,8 +1622,6 @@ export default function Conversacion({
           </div>
         )}
 
-        {/* En la burbuja, al final de lo hablado y lejos de «Preguntar». */}
-        {enBurbuja && acciones}
       </Hilo>
 
       {!soloLectura && (
@@ -1598,7 +1654,7 @@ export default function Conversacion({
                 </ul>
               )}
             </div>
-          ) : cerradaAbajo ? cerradaAbajo : puedeEscribir && (
+          ) : cerradaAbajo ? cerradaAbajo : puedeEscribir && cuadroVisible && (
             <form className={estilos.cuadro} onSubmit={alMandar}>
               <label htmlFor={`pregunta-${rol}`} className="sr-solo">Tu pregunta para Migue</label>
               <textarea

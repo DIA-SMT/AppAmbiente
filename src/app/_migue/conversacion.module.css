@@ -542,6 +542,14 @@
   gap: 6px;
   padding: 8px 14px 10px;
   background: var(--panel);
+/* «Preguntar otra cosa», la última fila: no es una pregunta hecha sino la
+   puerta al cuadro, así que va en azul y sin la flechita de «se manda». */
+.chat.enBurbuja .ejemplos :global(.boton).otraCosa {
+  color: var(--azul);
+}
+.chat.enBurbuja .ejemplos :global(.boton).otraCosa::after {
+  content: none;
+}
   border-top: 1px solid var(--linea);
 }
 /* pretty: sin «días.» solo en el último renglón. */

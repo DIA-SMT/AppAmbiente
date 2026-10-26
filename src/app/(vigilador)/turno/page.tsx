@@ -145,6 +145,7 @@ export default async function InicioDeTurno() {
     <Link
       href="/contenedores"
       className="boton-accion"
+      data-recorrido="recambio"
       style={{ borderColor: 'color-mix(in srgb, var(--celeste) 50%, transparent)' }}
     >
       <span className="icono" style={{ background: 'var(--celeste)' }}><Contenedor /></span>
@@ -170,6 +171,7 @@ export default async function InicioDeTurno() {
     <Link
       href="/conteo"
       className="boton-accion"
+      data-recorrido="conteo"
       style={{ borderColor: 'color-mix(in srgb, var(--azul) 40%, transparent)' }}
     >
       <span className="icono" style={{ background: 'var(--azul)' }}><Palitos /></span>
@@ -209,17 +211,17 @@ export default async function InicioDeTurno() {
             Si igual llegás a registrar algo en el momento:
           </p>
 
-          <Link href="/cargar/ingreso" className="boton secundario ancho-total">
+          <Link href="/cargar/ingreso" className="boton secundario ancho-total" data-recorrido="ingreso">
             {textos.ingreso.rotulo}
           </Link>
 
-          <Link href="/cargar/salida" className="boton secundario ancho-total">
+          <Link href="/cargar/salida" className="boton secundario ancho-total" data-recorrido="salida">
             {textos.salida.rotulo}
           </Link>
         </>
       ) : (
         <>
-          <Link href="/cargar/ingreso" className="boton-accion ingreso">
+          <Link href="/cargar/ingreso" className="boton-accion ingreso" data-recorrido="ingreso">
             <span className="icono"><FlechaAbajo /></span>
             <span>
               <span className="rotulo">{textos.ingreso.rotulo}</span>
@@ -227,7 +229,7 @@ export default async function InicioDeTurno() {
             </span>
           </Link>
 
-          <Link href="/cargar/salida" className="boton-accion salida">
+          <Link href="/cargar/salida" className="boton-accion salida" data-recorrido="salida">
             <span className="icono"><FlechaArriba /></span>
             <span>
               <span className="rotulo">{textos.salida.rotulo}</span>
@@ -246,6 +248,7 @@ export default async function InicioDeTurno() {
             <Link
               href="/pila"
               className="boton-accion"
+              data-recorrido="pila"
               style={{ borderColor: 'color-mix(in srgb, var(--azul) 40%, transparent)' }}
             >
               <span className="icono" style={{ background: 'var(--azul)' }}><Voltear /></span>
@@ -258,7 +261,7 @@ export default async function InicioDeTurno() {
         </>
       )}
 
-      <div className="tarjeta fila-entre">
+      <div className="tarjeta fila-entre" data-recorrido="hoy">
         <div>
           <p className="fuerte" style={{ margin: 0 }}>
             {vigentes.length === 0

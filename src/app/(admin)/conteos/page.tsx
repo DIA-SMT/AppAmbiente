@@ -202,7 +202,7 @@ export default async function PantallaConteos({
         </div>
 
         {callados.length > 0 ? (
-          <div className="aviso atencion">
+          <div className="aviso atencion" data-recorrido="callados">
             <p style={{ margin: 0 }}>
               <span className="fuerte">
                 {callados.length === 1
@@ -224,7 +224,7 @@ export default async function PantallaConteos({
           </div>
         )}
 
-        <ul className="lista">
+        <ul className="lista" data-recorrido="puntos">
           {silencios.length === 0 && (
             <li className="vacio">No hay puntos verdes activos para seguir.</li>
           )}
@@ -255,7 +255,7 @@ export default async function PantallaConteos({
 
       {/* ── Cargar o corregir ─────────────────────────────────────────── */}
 
-      <section className="tarjeta pila" id="cargar">
+      <section className="tarjeta pila" id="cargar" data-recorrido="cargar">
         <div className="pila-chica">
           <h2>Cargar o corregir un conteo</h2>
           <p className="menor gris" style={{ margin: 0, maxWidth: 'var(--ancho-lectura)' }}>
@@ -373,7 +373,7 @@ export default async function PantallaConteos({
              quedaban fuera de la pantalla y desde el celular parecía que un
              conteo no se podía corregir. Abajo de 720 px cada conteo pasa a ser
              una ficha apilada; arriba de 720 no cambia nada. */
-          <div className="desplazable tabla-ficha">
+          <div className="desplazable tabla-ficha" data-recorrido="cargados">
             <table className="datos">
               <caption className="sr-solo">
                 Conteos diarios cargados en los últimos {numero(DIAS)} días, agrupados por día.

@@ -117,6 +117,10 @@ export default async function Contenedores() {
     }
   }
 
+  // Para el recorrido guiado: el primero sin pedido y el primero con uno.
+  const primeroLibre = contenedores.find((c) => !porContenedor.has(c.id))?.id
+  const primeroPedido = contenedores.find((c) => porContenedor.has(c.id))?.id
+
   return (
     <div className="pila">
       <div className="fila-entre">
@@ -141,7 +145,12 @@ export default async function Contenedores() {
             const marca = { '--marca': c.material_color ?? 'var(--linea-fuerte)' } as CSSProperties
 
             return (
-              <li key={c.id} className={`tarjeta pila-chica ${estilos.contenedor}`} style={marca}>
+              <li
+                key={c.id}
+                className={`tarjeta pila-chica ${estilos.contenedor}`}
+                style={marca}
+                data-recorrido={c.id === primeroLibre ? 'pedir' : c.id === primeroPedido ? 'pedido' : undefined}
+              >
                 <div className="fila-entre">
                   <h2 className="crecer">{c.material ?? c.codigo}</h2>
                   {pedido?.urgente && <span className={`chip ${estilos.urgencia}`}>Urgente</span>}

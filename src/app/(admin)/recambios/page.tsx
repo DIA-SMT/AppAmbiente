@@ -255,7 +255,7 @@ export default async function PantallaRecambios({
                 celular es una tabla con huecos y un dato suelto por fila. Abajo
                 de 720 px cada punto pasa a ser una ficha; arriba de 720 sigue
                 siendo la tabla de siempre. */}
-            <div className="desplazable tabla-ficha">
+            <div className="desplazable tabla-ficha" data-recorrido="respuesta">
               <table className="datos">
                 <caption className="sr-solo">
                   Tiempo de respuesta de cada punto, con el tramo del municipio y el de la empresa
@@ -358,7 +358,7 @@ export default async function PantallaRecambios({
 
       {/* ── Sin avisar ───────────────────────────────────────────────── */}
 
-      <section className={estilos.seccion}>
+      <section className={estilos.seccion} data-recorrido="pendientes">
         <header className="pila-chica">
           <div className="fila-entre">
             <h2>Sin avisar a la empresa</h2>
@@ -383,7 +383,7 @@ export default async function PantallaRecambios({
           </div>
         ) : (
           <>
-            <form id={FORMULARIO_LOTE} action={avisar} className={estilos.lote}>
+            <form id={FORMULARIO_LOTE} action={avisar} className={estilos.lote} data-recorrido="lote">
               <CopiarParaWhatsApp
                 titulo={`Recambios pedidos — ${fecha(new Date())}`}
                 lineas={lineas}
@@ -425,7 +425,7 @@ export default async function PantallaRecambios({
 
       {/* ── Avisados ─────────────────────────────────────────────────── */}
 
-      <section className={estilos.seccion}>
+      <section className={estilos.seccion} data-recorrido="avisados">
         <header className="pila-chica">
           <div className="fila-entre">
             <h2>Avisados, esperando a la 9 de Julio</h2>

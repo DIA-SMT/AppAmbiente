@@ -179,7 +179,7 @@ export default async function FichaDePila({
       </header>
 
       <section className="tarjeta pila">
-        <dl className={estilos.datos}>
+        <dl className={estilos.datos} data-recorrido="datos">
           <Dato rotulo="Fecha de armado">{fechaDeCalendario(pila.fecha_armado)}</Dato>
           <Dato rotulo="Fecha de cierre">
             {pila.fecha_cierre
@@ -230,7 +230,7 @@ export default async function FichaDePila({
           </p>
         )}
 
-        <div className={estilos.acciones}>
+        <div className={estilos.acciones} data-recorrido="acciones">
           <Link href={`/pilas?editar=${pila.id}#formulario`} className="boton secundario">
             Editar la pila
           </Link>
@@ -275,7 +275,7 @@ export default async function FichaDePila({
 
       {/* ── 2. De qué está hecha ──────────────────────────────────────── */}
 
-      <section className="pila-chica">
+      <section className="pila-chica" data-recorrido="composicion">
         <h2>De qué está hecha</h2>
         <p className="menor gris" style={{ margin: 0, maxWidth: 'var(--ancho-lectura)' }}>
           No es una declaración: cada línea sale de un ingreso que se cargó con esta pila, con el
@@ -359,7 +359,7 @@ export default async function FichaDePila({
           </div>
         )}
 
-        <div className={`tarjeta-plana ${estilos.marcas}`} style={{ padding: 14 }}>
+        <div className={`tarjeta-plana ${estilos.marcas}`} style={{ padding: 14 }} data-recorrido="tratamiento">
           <span><b>{numero(volteos)}</b> volteos</span>
           <span><b>{numero(riegos)}</b> riegos</span>
           <span>
@@ -412,7 +412,7 @@ export default async function FichaDePila({
 
       {/* ── 4. Qué salió de ella ──────────────────────────────────────── */}
 
-      <section className="pila-chica">
+      <section className="pila-chica" data-recorrido="salidas">
         <h2>Qué salió de ella</h2>
         <p className="menor gris" style={{ margin: 0, maxWidth: 'var(--ancho-lectura)' }}>
           La otra punta de la trazabilidad: cada camión que se llevó material de esta pila, con su

@@ -1422,7 +1422,7 @@ export default function Conversacion({
   const cerradaAbajo = enBurbuja && !apagado ? avisoCerrada : null
 
   const acciones = hayConversacion && (
-    <div className={estilos.acciones}>
+    <div className={estilos.acciones} data-recorrido="chat-acciones">
       {/* Apagado no hay a quién preguntarle de nuevo; olvidar, sí. */}
       {!cerrada && !apagado && (
         <button
@@ -1532,7 +1532,7 @@ export default function Conversacion({
         )}
 
         {vacia && puedeEscribir && cargada && ejemplos.length > 0 && (
-          <div className="pila-chica">
+          <div className="pila-chica" data-recorrido="chat-ejemplos">
             <p className={enBurbuja ? `menor gris ${estilos.rotuloEjemplos}` : 'menor gris'} style={{ margin: 0 }}>
               {rotuloEjemplos}
             </p>
@@ -1655,7 +1655,7 @@ export default function Conversacion({
               )}
             </div>
           ) : cerradaAbajo ? cerradaAbajo : puedeEscribir && cuadroVisible && (
-            <form className={estilos.cuadro} onSubmit={alMandar}>
+            <form className={estilos.cuadro} onSubmit={alMandar} data-recorrido="chat-cuadro">
               <label htmlFor={`pregunta-${rol}`} className="sr-solo">Tu pregunta para Migue</label>
               <textarea
                 ref={cuadro}
@@ -1701,7 +1701,7 @@ export default function Conversacion({
       )}
 
       {soloLectura && conversacionId && (
-        <div className={estilos.acciones}>
+        <div className={estilos.acciones} data-recorrido="chat-acciones">
           <Olvidar
             confirmando={olvido?.id === conversacionId}
             trabajando={olvido?.id === conversacionId && olvido.trabajando}

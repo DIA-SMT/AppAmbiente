@@ -152,7 +152,7 @@ export default async function PantallaImportar({
       {/* Los pasos ya no se cuentan por escrito: los muestra el asistente a
           medida que se avanza, y un archivo a mitad de camino no se explica con
           una lista que dice siempre lo mismo. */}
-      <section className="tarjeta pila">
+      <section className="tarjeta pila" data-recorrido="archivo">
         <h2>Importar un archivo</h2>
         <p className="menor gris" style={{ margin: 0, maxWidth: 'var(--ancho-lectura)' }}>
           El Excel va tal cual lo manda la planta, sin tocarlo. Lo que se resuelva una vez —qué
@@ -163,7 +163,7 @@ export default async function PantallaImportar({
         <Importador catalogo={catalogo} mapeoActivo={mapeoActivo} />
       </section>
 
-      <section className="pila-chica">
+      <section className="pila-chica" data-recorrido="mapeos">
         <h2>Mapeos guardados</h2>
         {mapeos.length === 0 ? (
           <p className="menor gris" style={{ margin: 0 }}>
@@ -208,7 +208,7 @@ export default async function PantallaImportar({
         )}
       </section>
 
-      <section className="pila-chica">
+      <section className="pila-chica" data-recorrido="historial">
         <h2>Importaciones hechas</h2>
         <p className="menor gris" style={{ margin: 0, maxWidth: 'var(--ancho-lectura)' }}>
           Revertir no borra nada: la importación queda marcada y sus kilos dejan de contar en el
@@ -260,7 +260,14 @@ export default async function PantallaImportar({
                       <td data-rotulo="Quién">{i.importado_por ?? <span className="gris">—</span>}</td>
                       <td className={estilos.columnaAcciones}>
                         {i.estado === 'confirmada' ? (
-                          <details className={estilos.confirmar}>
+                          <details
+                            className={estilos.confirmar}
+                            data-recorrido={
+                              i.id === importaciones.find((x) => x.estado === 'confirmada')?.id
+                                ? 'revertir'
+                                : undefined
+                            }
+                          >
                             <summary>Revertir</summary>
                             <div className={estilos.confirmarCuerpo}>
                               <span>

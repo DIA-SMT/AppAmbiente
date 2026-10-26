@@ -517,7 +517,7 @@ export function Importador({
         )}
       </div>
 
-      <ol className={estilos.riel}>
+      <ol className={estilos.riel} data-recorrido="pasos">
         {PASOS.map((rotulo, i) => {
           const n = i + 1
           return (

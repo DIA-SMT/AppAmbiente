@@ -119,7 +119,7 @@ function Totales({
     .join(' · ')
 
   return (
-    <section className="tarjeta pila-chica" aria-label="Cuánto suman los movimientos del filtro">
+    <section className="tarjeta pila-chica" aria-label="Cuánto suman los movimientos del filtro" data-recorrido="suma">
       <div className="fila-entre">
         <h2 style={{ fontSize: '1rem' }}>Cuánto suman</h2>
         {resumen && <span className="menor gris cifras">{resumen}</span>}
@@ -317,7 +317,7 @@ export default async function PantallaMovimientos({
           </EmptyState>
         </div>
       ) : (
-        <div className="desplazable">
+        <div className="desplazable" data-recorrido="tabla">
           <table className="datos">
             <caption className="sr-solo">
               Movimientos registrados. Cada fila abre el detalle del movimiento.

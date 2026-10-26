@@ -104,7 +104,7 @@ export default async function PantallaMovimiento({
         </div>
       )}
 
-      <section className="tarjeta">
+      <section className="tarjeta" data-recorrido="datos">
         <dl
           style={{
             margin: 0,
@@ -161,7 +161,7 @@ export default async function PantallaMovimiento({
         </dl>
       </section>
 
-      <section className="pila-chica">
+      <section className="pila-chica" data-recorrido="materiales">
         <h2>Materiales</h2>
         {/* Cinco columnas no entran en 390 px y la ficha del movimiento está
             pensada justamente para leerse angosta: esconder «Equivale a» y
@@ -207,7 +207,7 @@ export default async function PantallaMovimiento({
 
       {esSalidaVigente && <Trazabilidad traza={traza} />}
 
-      <section className="tarjeta-plana pila-chica" style={{ padding: 16, background: 'var(--panel-2)' }}>
+      <section className="tarjeta-plana pila-chica" style={{ padding: 16, background: 'var(--panel-2)' }} data-recorrido="registro">
         <h2>Trazabilidad</h2>
         <ul className="lista">
           <li>

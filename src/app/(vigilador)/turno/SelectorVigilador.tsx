@@ -118,7 +118,7 @@ export function AvisoPendientes() {
   }
 
   return (
-    <div className="aviso atencion fila-entre">
+    <div className="aviso atencion fila-entre" data-recorrido="pendientes">
       <span className="crecer">
         {envios.length === 1
           ? 'Hay 1 movimiento guardado en el celular, sin subir.'
@@ -138,7 +138,7 @@ export function ListaPendientes() {
   if (envios.length === 0) return null
 
   return (
-    <section className="pila-chica">
+    <section className="pila-chica" data-recorrido="pendientes">
       <h3>Sin subir</h3>
       <ul className="lista">
         {envios.map((e) => (

@@ -126,7 +126,7 @@ export default async function PantallaTrazabilidad({
         </p>
       </header>
 
-      <section className="tarjeta pila" aria-label="Período del listado">
+      <section className="tarjeta pila" aria-label="Período del listado" data-recorrido="periodo">
         <form method="get" className={estilos.periodo}>
           <div className="campo">
             <label htmlFor="desde">Desde</label>
@@ -171,7 +171,7 @@ export default async function PantallaTrazabilidad({
       </section>
 
       <section className="pila-chica">
-        <div className={estilos.indicadores}>
+        <div className={estilos.indicadores} data-recorrido="numeros">
           <div className="tarjeta pila-chica">
             <span className="etiqueta">Salidas con pila declarada</span>
             <strong className={estilos.cifra}>{numero(conPila)}</strong>
@@ -189,7 +189,7 @@ export default async function PantallaTrazabilidad({
         </div>
 
         {mayoriaSinPila && (
-          <div className="aviso atencion">
+          <div className="aviso atencion" data-recorrido="sin-pila">
             <p style={{ margin: 0 }}>
               <span className="fuerte">
                 La mayoría de las salidas del período no dice de qué pila salió.
@@ -226,7 +226,7 @@ export default async function PantallaTrazabilidad({
           </div>
         </div>
       ) : (
-        <div className="desplazable">
+        <div className="desplazable" data-recorrido="tabla">
           <table className="datos">
             <caption className="sr-solo">
               Salidas de compost que declaran la pila de la que salieron. Cada fila abre el

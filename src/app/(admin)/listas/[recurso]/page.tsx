@@ -168,7 +168,7 @@ export default async function PantallaRecurso({
         <div className="fila-entre">
           <h1>{recurso.plural}</h1>
           {!mostrarFormulario && (
-            <Link href={conFiltro({ nuevo: '1' })} className="boton">
+            <Link href={conFiltro({ nuevo: '1' })} className="boton" data-recorrido="agregar">
               Agregar {recurso.singular.toLowerCase()}
             </Link>
           )}
@@ -191,7 +191,7 @@ export default async function PantallaRecurso({
       )}
 
       {mostrarFormulario && (
-        <section className="tarjeta pila" id="formulario">
+        <section className="tarjeta pila" id="formulario" data-recorrido="formulario">
           <h2>
             {filaEnEdicion
               ? `Editar ${recurso.singular.toLowerCase()}`
@@ -208,7 +208,7 @@ export default async function PantallaRecurso({
         </section>
       )}
 
-      <form method="get" className={`tarjeta ${estilos.barra}`}>
+      <form method="get" className={`tarjeta ${estilos.barra}`} data-recorrido="buscar">
         <div className={`campo ${estilos.buscador}`}>
           <label htmlFor="q">Buscar</label>
           <input

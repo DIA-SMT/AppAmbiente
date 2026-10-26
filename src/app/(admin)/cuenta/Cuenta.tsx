@@ -271,7 +271,7 @@ function Completar({
   const tieneCorreo = Boolean(datos.correo)
 
   return (
-    <section className="tarjeta pila">
+    <section className="tarjeta pila" data-recorrido="completar">
       <h2>{tieneCorreo ? 'Elegí tu contraseña' : 'Tu correo y tu contraseña'}</h2>
 
       {estado.error && (
@@ -334,7 +334,7 @@ function TarjetaCorreo({ datos, alGuardar }: { datos: DatosDeCuenta; alGuardar: 
   }, [datos.correo])
 
   return (
-    <section className="tarjeta pila">
+    <section className="tarjeta pila" data-recorrido="correo">
       <h2>Correo institucional</h2>
       <Mensajes estado={estado} />
 
@@ -408,7 +408,7 @@ function TarjetaClave({ datos, alGuardar }: { datos: DatosDeCuenta; alGuardar: (
   // actualización; mientras tanto se entra con la de siempre.
   if (!datos.puedeElegirClave) {
     return (
-      <section className="tarjeta pila">
+      <section className="tarjeta pila" data-recorrido="clave">
         <h2>Contraseña</h2>
         <p className="gris" style={{ margin: 0 }}>
           Elegir tu propia contraseña va a estar disponible en un rato, cuando la base termine de
@@ -420,7 +420,7 @@ function TarjetaClave({ datos, alGuardar }: { datos: DatosDeCuenta; alGuardar: (
   }
 
   return (
-    <section className="tarjeta pila">
+    <section className="tarjeta pila" data-recorrido="clave">
       <h2>Contraseña</h2>
       <Mensajes estado={estado} />
 
@@ -546,7 +546,7 @@ export function Cuenta({ datos }: { datos: DatosDeCuenta }) {
       {/* Cómo se rescata la cuenta desde afuera (db:clave) está en el README:
           acá lo lee cualquiera que entre, y no le sirve a nadie más que a
           quien quiera entrar sin permiso. */}
-      <p className="menor gris">
+      <p className="menor gris" data-recorrido="olvido">
         Si olvidás tu contraseña, otra cuenta de coordinación te la cambia desde Usuarios y vos
         elegís una nueva al entrar. Si no hay ninguna otra, avisale a la Dirección de Inteligencia
         Artificial.

@@ -48,7 +48,7 @@ export default async function Hoy() {
           </li>
         )}
 
-        {movimientos.map((m) => {
+        {movimientos.map((m, i) => {
           const anulado = m.estado === 'anulado'
           const cuanto = cantidadDeMovimiento(m)
           const lugar = m.tipo === 'ingreso'
@@ -56,7 +56,7 @@ export default async function Hoy() {
             : m.destino_clase === 'vecino' ? 'Se lo llevó un vecino' : `A ${m.destino_nombre ?? '—'}`
 
           return (
-            <li key={m.id} className={anulado ? 'anulado' : undefined}>
+            <li key={m.id} className={anulado ? 'anulado' : undefined} data-recorrido={i === 0 ? 'movimiento' : undefined}>
               <Link
                 href={`/listo/${m.numero}`}
                 className="pila-chica"
@@ -95,7 +95,7 @@ export default async function Hoy() {
         })}
       </ul>
 
-      <Link href="/cargar/ingreso" className="boton secundario ancho-total">
+      <Link href="/cargar/ingreso" className="boton secundario ancho-total" data-recorrido="cargar">
         {esPuntoVerde ? 'Registrar lo que trae un vecino' : 'Registrar otro ingreso'}
       </Link>
       <Link href="/cargar/salida" className="boton secundario ancho-total">

@@ -97,7 +97,7 @@ export default function FormularioConteo({ dias }: { dias: DiaDelConteo[] }) {
   return (
     <>
       <form action={accion} className="pila" noValidate>
-        <div className="tarjeta fila-entre">
+        <div className="tarjeta fila-entre" data-recorrido="dia">
           <p className={`${estilos.cuando} crecer`}>{elegido?.titulo ?? '—'}</p>
           <label className="sr-solo" htmlFor="fecha">Día del conteo</label>
           <select
@@ -114,13 +114,13 @@ export default function FormularioConteo({ dias }: { dias: DiaDelConteo[] }) {
         </div>
 
         {yaCargado !== null && (
-          <div className="aviso atencion">
+          <div className="aviso atencion" data-recorrido="corregir">
             {elegido?.mencion} ya cargaste {elegido?.resumen}. Si el número era otro, corregilo
             y guardá de nuevo.
           </div>
         )}
 
-        <div className="campo">
+        <div className="campo" data-recorrido="vecinos">
           <label htmlFor="vecinos">Vecinos que vinieron</label>
           <div className={estilos.contador}>
             <button
@@ -189,7 +189,7 @@ export default function FormularioConteo({ dias }: { dias: DiaDelConteo[] }) {
           />
         </div>
 
-        <button type="submit" className="boton exito grande ancho-total" disabled={pendiente}>
+        <button type="submit" className="boton exito grande ancho-total" disabled={pendiente} data-recorrido="guardar">
           {pendiente
             ? 'Guardando…'
             : yaCargado !== null
@@ -209,14 +209,14 @@ export default function FormularioConteo({ dias }: { dias: DiaDelConteo[] }) {
         <h2 style={{ fontSize: '1rem' }}>Los últimos días</h2>
 
         <ul className="lista">
-          {dias.map((d) => {
+          {dias.map((d, i) => {
             const marcas = [
               d.vecinos === null ? estilos.sinCargar : '',
               d.clave === fecha ? estilos.elegido : '',
             ].filter(Boolean).join(' ')
 
             return (
-              <li key={d.clave} className={marcas || undefined}>
+              <li key={d.clave} className={marcas || undefined} data-recorrido={i === 0 ? 'dias' : undefined}>
                 <button
                   type="button"
                   className={estilos.dia}

@@ -240,7 +240,7 @@ export default async function Tablero({
           </p>
         </div>
         <div className="fila">
-          <div className="fila" style={{ gap: 6 }} role="group" aria-label="Meses que se muestran">
+          <div className="fila" style={{ gap: 6 }} role="group" aria-label="Meses que se muestran" data-recorrido="periodo">
             {PERIODOS.map((n) => (
               <Link
                 key={n}
@@ -332,7 +332,7 @@ export default async function Tablero({
     <div className="pila" style={{ gap: 20 }}>
       {encabezado}
 
-      <section className="pila-chica">
+      <section className="pila-chica" data-recorrido="numeros">
         <h2 className="sr-solo">Resumen de {mesLargo(instanteDeMes(mesActual))}</h2>
         <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(196px, 1fr))' }}>
           <Indicador
@@ -382,7 +382,7 @@ export default async function Tablero({
         </p>
       </section>
 
-      <section className="tarjeta pila">
+      <section className="tarjeta pila" data-recorrido="grafico">
         <div className="fila-entre">
           <h2>Volumen por mes</h2>
           <span className="menor gris">{meses} meses</span>
@@ -390,7 +390,7 @@ export default async function Tablero({
         <GraficoMensual meses={datosGrafico} />
       </section>
 
-      <section className="pila-chica">
+      <section className="pila-chica" data-recorrido="materiales">
         <h2>Detalle por material</h2>
         <div className={`desplazable ${estilos.alFinal}`}>
           <table className="datos">

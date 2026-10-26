@@ -26,7 +26,7 @@ export default function AnularMovimiento({ id, numero }: { id: string; numero: n
 
   if (!abierto) {
     return (
-      <section className="tarjeta pila-chica">
+      <section className="tarjeta pila-chica" data-recorrido="anular">
         <h2>Anular movimiento</h2>
         <p className="menor gris" style={{ margin: 0 }}>
           Anular no borra: el movimiento Nº {numero} queda en el sistema con el motivo y
@@ -42,7 +42,7 @@ export default function AnularMovimiento({ id, numero }: { id: string; numero: n
   }
 
   return (
-    <section className="tarjeta pila">
+    <section className="tarjeta pila" data-recorrido="anular">
       <h2>Anular el movimiento Nº {numero}</h2>
 
       {estado.error && <div className="aviso error" role="alert">{estado.error}</div>}

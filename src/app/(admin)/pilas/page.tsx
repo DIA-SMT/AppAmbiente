@@ -211,13 +211,16 @@ export default async function PantallaPilas({
     { clave: 'atrasadas', cifra: atrasadas, rotulo: 'con el volteo atrasado', marcada: atrasadas > 0 },
   ]
 
+  // La primera que se ve, en el orden del ciclo: la que explica el recorrido guiado.
+  const primeraPila = CICLO.flatMap((g) => visibles.filter((p) => p.estado === g.estado))[0]?.id
+
   return (
     <div className="pila">
       <header className="pila-chica">
         <div className="fila-entre">
           <h1>Pilas de compost</h1>
           {!mostrarFormulario && (
-            <Link href={con({ nueva: '1' })} className="boton">Abrir una pila nueva</Link>
+            <Link href={con({ nueva: '1' })} className="boton" data-recorrido="nueva-pila">Abrir una pila nueva</Link>
           )}
         </div>
         <p className="gris" style={{ margin: 0, maxWidth: 'var(--ancho-lectura)' }}>
@@ -235,7 +238,7 @@ export default async function PantallaPilas({
         </div>
       )}
 
-      <section className={estilos.resumen}>
+      <section className={estilos.resumen} data-recorrido="resumen">
         {tarjetas.map((t) => {
           const clases = `tarjeta ${estilos.dato}${t.marcada ? ` ${estilos.marcada}` : ''}`
           const contenido = (
@@ -260,7 +263,7 @@ export default async function PantallaPilas({
       </section>
 
       {atrasadas > 0 && (
-        <div className="aviso atencion">
+        <div className="aviso atencion" data-recorrido="volteo">
           <span className="fuerte">
             Sin voltear hace más de tres semanas:{' '}
             <span className="mono">
@@ -273,7 +276,7 @@ export default async function PantallaPilas({
       )}
 
       {mostrarFormulario && (
-        <section className="tarjeta pila" id="formulario">
+        <section className="tarjeta pila" id="formulario" data-recorrido="formulario">
           <h2>{enEdicion ? `Editar la pila ${enEdicion.codigo}` : 'Abrir una pila nueva'}</h2>
           <FormularioPila
             key={enEdicion ? enEdicion.id : 'nueva'}
@@ -332,7 +335,7 @@ export default async function PantallaPilas({
                   ].filter(Boolean).join(' ')
 
                   return (
-                    <li key={p.id}>
+                    <li key={p.id} data-recorrido={p.id === primeraPila ? 'una-pila' : undefined}>
                       <Link href={`/pilas/${p.id}`} className={estilos.filaPila}>
                         <div className="fila" style={{ gap: 8 }}>
                           <span className={estilos.codigo}>{p.codigo}</span>

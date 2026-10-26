@@ -93,7 +93,7 @@ export default async function Pilas() {
       </div>
 
       {atrasadas > 0 && (
-        <div className="aviso atencion">
+        <div className="aviso atencion" data-recorrido="atrasadas">
           {atrasadas === 1
             ? 'Hay 1 pila que hace más de tres semanas que no se voltea.'
             : `Hay ${atrasadas} pilas que hace más de tres semanas que no se voltean.`}
@@ -106,7 +106,7 @@ export default async function Pilas() {
         </div>
       ) : (
         <ul className={estilos.tarjetas}>
-          {ordenadas.map((p) => {
+          {ordenadas.map((p, i) => {
             const volteos = Number(p.volteos) || 0
             const riegos = Number(p.riegos) || 0
             const dias = p.dias_desde_armado === null ? null : Number(p.dias_desde_armado)
@@ -115,6 +115,7 @@ export default async function Pilas() {
               <li
                 key={p.id}
                 className={`tarjeta pila-chica ${p.volteo_atrasado ? estilos.atrasada : ''}`}
+                data-recorrido={i === 0 ? 'pila' : undefined}
               >
                 <div className="fila-entre">
                   <h2>{p.codigo}</h2>
@@ -144,7 +145,7 @@ export default async function Pilas() {
                     : 'Todavía no se volteó'}
                 </p>
 
-                <ControlRapido pilaId={p.id} />
+                <ControlRapido pilaId={p.id} marcar={i === 0} />
               </li>
             )
           })}

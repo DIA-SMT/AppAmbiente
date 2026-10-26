@@ -174,7 +174,7 @@ function Gasto({ gasto }: { gasto: GastoDelMes }) {
   const filas = [...(gasto.coordinacion.preguntas ? [gasto.coordinacion] : []), ...gasto.puntos]
 
   return (
-    <section className="tarjeta pila">
+    <section className="tarjeta pila" data-recorrido="gasto">
       <div className="pila-chica">
         <h2>Lo que gastó Migue en {gasto.mes.toLowerCase()}</h2>
         <p className="menor gris" style={{ margin: 0, maxWidth: 'var(--ancho-lectura)' }}>
@@ -381,7 +381,7 @@ export default async function LoQueMigueRecuerda({
       {/* ── Palabras para revisar ─────────────────────────────────────── */}
 
       {propuestas.length > 0 && (
-        <section className="pila-chica" id="vocabulario">
+        <section className="pila-chica" id="vocabulario" data-recorrido="revisar">
           <div className="fila-entre">
             <h2>Palabras para revisar</h2>
             <span className="menor gris">
@@ -423,7 +423,7 @@ export default async function LoQueMigueRecuerda({
 
       {/* ── Lo que recuerda ───────────────────────────────────────────── */}
 
-      <section className="pila-chica">
+      <section className="pila-chica" data-recorrido="propios">
         <div className="fila-entre">
           <h2>De vos</h2>
           <span className="menor gris">
@@ -447,7 +447,7 @@ export default async function LoQueMigueRecuerda({
         )}
       </section>
 
-      <section className="pila-chica">
+      <section className="pila-chica" data-recorrido="puntos">
         <h2>De cada punto</h2>
         <p className="menor gris" style={{ margin: 0, maxWidth: 'var(--ancho-lectura)' }}>
           Lo que pidió recordar cada punto: cómo se nombran las cosas ahí, qué pasa qué día. Es del
@@ -479,7 +479,7 @@ export default async function LoQueMigueRecuerda({
 
       {/* ── Palabras aprobadas ────────────────────────────────────────── */}
 
-      <section className="pila-chica" id={propuestas.length ? undefined : 'vocabulario'}>
+      <section className="pila-chica" id={propuestas.length ? undefined : 'vocabulario'} data-recorrido="palabras">
         <div className="fila-entre">
           <h2>Palabras que ya usa</h2>
           <span className="menor gris">
@@ -534,7 +534,7 @@ export default async function LoQueMigueRecuerda({
 
       {/* ── Cortes por punto ──────────────────────────────────────────── */}
 
-      <section className="pila-chica">
+      <section className="pila-chica" data-recorrido="cortes">
         <h2>Conversaciones cortadas, por punto</h2>
         <p className="menor gris" style={{ margin: 0, maxWidth: 'var(--ancho-lectura)' }}>
           Si alguien trata mal a Migue, él pide una vez, con calma, que no lo traten así; si sigue,

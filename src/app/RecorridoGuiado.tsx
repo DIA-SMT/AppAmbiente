@@ -4,9 +4,11 @@
  * qué es. Arranca solo la primera vez en cada navegador y se vuelve a ver con
  * el botón «?» de la cabecera.
  *
- * Empieza por la pantalla donde se lo abre (recorridoDeLaPantalla.ts) y sigue
- * con lo que está en todas: el menú, Migue, el tema, la cuenta. La bienvenida
- * es sólo para la primera vez.
+ * Con el «?» explica la pantalla donde se lo abre, parte por parte
+ * (recorridoDeLaPantalla.ts), y nada más: quien lo toca quiere saber qué es lo
+ * que tiene adelante. La primera vez, en cambio, da la bienvenida, dice qué
+ * es la pantalla y muestra lo que está en todas: el menú, Migue, el tema, la
+ * cuenta, salir y, al final, el «?».
  *
  * Las partes se marcan en el marcado con data-recorrido="…". Lo que no está en
  * la pantalla —o está escondido, como el menú lateral en un teléfono— no
@@ -34,7 +36,10 @@ const BIENVENIDA: Record<Rol, Paso> = {
   },
 }
 
-/** Lo que está en todas las pantallas; va después de lo de la pantalla. */
+/**
+ * Lo que está en todas las pantallas; sólo la primera vez, después de lo de
+ * la pantalla. El «?» va al final: es lo que queda para después.
+ */
 const DE_SIEMPRE: Record<Rol, (Paso & { salvoEn?: string })[]> = {
   admin: [
     {
@@ -53,11 +58,6 @@ const DE_SIEMPRE: Record<Rol, (Paso & { salvoEn?: string })[]> = {
       texto: 'Cambiá el tema de la pantalla. Queda guardado en esta computadora.',
     },
     {
-      destino: 'ayuda',
-      titulo: 'Este recorrido',
-      texto: 'Si lo querés ver de nuevo, está acá. Empieza por la pantalla donde lo abras.',
-    },
-    {
       destino: 'cuenta',
       // En Mi cuenta ya se explicó al principio.
       salvoEn: '/cuenta',
@@ -68,6 +68,11 @@ const DE_SIEMPRE: Record<Rol, (Paso & { salvoEn?: string })[]> = {
       destino: 'salir',
       titulo: 'Salir',
       texto: 'Cerrá la sesión cuando termines, sobre todo en una computadora que usa más gente.',
+    },
+    {
+      destino: 'ayuda',
+      titulo: 'Ayuda en cada pantalla',
+      texto: 'En cualquier pantalla, tocá acá y te la explicamos parte por parte: para qué es cada cosa y qué podés hacer.',
     },
   ],
   vigilador: [
@@ -82,14 +87,14 @@ const DE_SIEMPRE: Record<Rol, (Paso & { salvoEn?: string })[]> = {
       texto: 'Cambiá el tema de la pantalla. Queda guardado en este celular.',
     },
     {
-      destino: 'ayuda',
-      titulo: 'Este recorrido',
-      texto: 'Si lo querés ver de nuevo, está acá. Empieza por la pantalla donde lo abras.',
-    },
-    {
       destino: 'salir',
       titulo: 'Salir',
       texto: 'Cerrá la sesión al terminar el turno.',
+    },
+    {
+      destino: 'ayuda',
+      titulo: 'Ayuda en cada pantalla',
+      texto: 'En cualquier pantalla, tocá acá y te la explicamos parte por parte: para qué es cada cosa y qué podés hacer.',
     },
   ],
 }
@@ -182,12 +187,15 @@ export default function RecorridoGuiado({
     boton.current?.focus({ preventScroll: true })
   }, [rol])
 
-  const abrir = useCallback((conBienvenida: boolean) => {
-    const todos = [
-      ...(conBienvenida ? [BIENVENIDA[rol]] : []),
-      ...recorridoDeLaPantalla(rol, ruta),
-      ...DE_SIEMPRE[rol].filter((p) => p.salvoEn !== ruta),
-    ]
+  const abrir = useCallback((primeraVez: boolean) => {
+    const deLaPantalla = recorridoDeLaPantalla(rol, ruta)
+    const deSiempre = DE_SIEMPRE[rol].filter((p) => p.salvoEn !== ruta)
+    // La primera vez, de la pantalla sólo qué es: el detalle queda para el
+    // «?», que es el último paso. Una pantalla sin pasos propios (no debería
+    // haber) muestra con el «?» lo de siempre.
+    const todos = primeraVez
+      ? [BIENVENIDA[rol], ...deLaPantalla.slice(0, 1), ...deSiempre]
+      : deLaPantalla.length > 0 ? deLaPantalla : deSiempre
     const visibles = todos.filter((p) => !p.destino || buscar(p.destino))
     if (visibles.length === 0) return
     setPasos(visibles)
@@ -275,8 +283,8 @@ export default function RecorridoGuiado({
         className={className}
         data-recorrido="ayuda"
         onClick={() => abrir(false)}
-        aria-label="Ver el recorrido guiado de esta pantalla"
-        title="Recorrido guiado"
+        aria-label="Explicar esta pantalla"
+        title="Explicar esta pantalla"
       >
         <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.9"
           strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

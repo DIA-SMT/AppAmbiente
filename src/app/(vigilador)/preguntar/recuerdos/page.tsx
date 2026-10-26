@@ -58,7 +58,7 @@ export default async function LoQueRecuerdaDelPunto({
 
       <p className="menor gris" style={{ margin: 0 }}>{punto.nombre}</p>
 
-      <div className="aviso">
+      <div className="aviso" data-recorrido="compartido">
         Es del punto, no de una persona: lo ve cualquiera que entre con la cuenta del punto, y la
         coordinación. Migue lo tiene presente en cada conversación nueva.
       </div>
@@ -71,7 +71,7 @@ export default async function LoQueRecuerdaDelPunto({
       )}
 
       {recuerdos.length === 0 ? (
-        <div className="tarjeta pila-chica">
+        <div className="tarjeta pila-chica" data-recorrido="recordar">
           <p className="fuerte" style={{ margin: 0 }}>No recuerda nada de este punto.</p>
           <p className="menor gris" style={{ margin: 0 }}>
             Si querés que tenga algo presente cada vez, pedíselo en la conversación: «acordate de
@@ -81,8 +81,8 @@ export default async function LoQueRecuerdaDelPunto({
       ) : (
         <>
           <ul className="lista">
-            {recuerdos.map((r) => (
-              <li key={r.id} className="pila-chica">
+            {recuerdos.map((r, i) => (
+              <li key={r.id} className="pila-chica" data-recorrido={i === 0 ? 'olvidar' : undefined}>
                 <span className="fuerte" style={{ overflowWrap: 'anywhere' }}>{r.texto}</span>
                 <span className="menor gris">Desde el {r.desde}</span>
                 <Olvidar recuerdoId={r.id} />

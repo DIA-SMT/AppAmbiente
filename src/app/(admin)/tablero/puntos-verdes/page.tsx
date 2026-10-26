@@ -430,7 +430,7 @@ export default async function TableroPuntosVerdes({
 
       <section className="pila-chica">
         <h2 className="sr-solo">Resumen de {nombreDe(enCurso)}</h2>
-        <div className={estilos.indicadores}>
+        <div className={estilos.indicadores} data-recorrido="numeros">
           <Indicador
             rotulo={`Visitas · ${rotulo(enCurso)}`}
             valor={numero(actual.visitas)}
@@ -503,7 +503,7 @@ export default async function TableroPuntosVerdes({
         </p>
       </section>
 
-      <section className="tarjeta pila">
+      <section className="tarjeta pila" data-recorrido="grafico">
         <div className="fila-entre">
           <h2>Visitas por punto</h2>
           <span className="menor gris">{nombreDe(enCurso)}</span>
@@ -513,7 +513,7 @@ export default async function TableroPuntosVerdes({
 
       <section className="pila-chica">
         <h2>Vecinos por punto</h2>
-        <div className={`desplazable ${estilos.alFinal}`}>
+        <div className={`desplazable ${estilos.alFinal}`} data-recorrido="vecinos">
           <table className="datos">
             <caption className="sr-solo">
               Visitas, visitas que vienen de un conteo diario, vecinos identificados y visitas sin
@@ -623,7 +623,7 @@ export default async function TableroPuntosVerdes({
         </p>
       </section>
 
-      <section className="pila-chica">
+      <section className="pila-chica" data-recorrido="recirculado">
         <div className="fila-entre">
           <h2>Material recirculado</h2>
           <span className="menor gris">

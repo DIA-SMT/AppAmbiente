@@ -114,7 +114,7 @@ export default async function PantallaRevisiones({
         </header>
 
         {pendientes.length === 0 ? (
-          <div className="tarjeta pila-chica centrado" style={{ padding: 32 }}>
+          <div className="tarjeta pila-chica centrado" style={{ padding: 32 }} data-recorrido="altas">
             <h3>No hay altas para revisar</h3>
             <p className="menor gris" style={{ margin: 0 }}>
               Es lo normal, no es un error. Mientras nadie dé de alta a nadie en la calle, esta
@@ -129,8 +129,8 @@ export default async function PantallaRevisiones({
               {pendientes.length === 1 ? 'alta esperando revisión' : 'altas esperando revisión'}
             </p>
 
-            <ul className={estilos.fichas}>
-              {pendientes.map((e) => {
+            <ul className={estilos.fichas} data-recorrido="altas">
+              {pendientes.map((e, i) => {
                 const flujos = flujosPorId.get(e.id) ?? []
                 const candidatas: Candidata[] = confirmadas
                   .filter((c) => mismoFlujo(flujos, c.flujos ?? []))
@@ -169,7 +169,7 @@ export default async function PantallaRevisiones({
                       </span>
                     </div>
 
-                    <div className={estilos.acciones}>
+                    <div className={estilos.acciones} data-recorrido={i === 0 ? 'decidir' : undefined}>
                       <form action={confirmar.bind(null, e.id)}>
                         <button type="submit" className="boton ancho-total">
                           Confirmar
@@ -234,7 +234,7 @@ export default async function PantallaRevisiones({
         </header>
 
         {destinos.length === 0 ? (
-          <div className="tarjeta pila-chica centrado" style={{ padding: 32 }}>
+          <div className="tarjeta pila-chica centrado" style={{ padding: 32 }} data-recorrido="destinos">
             <h3>Ningún destino escrito a mano</h3>
             <p className="menor gris" style={{ margin: 0 }}>
               Es lo normal, no es un error. Aparecen acá cuando un vigilador escribe un destino que
@@ -258,8 +258,8 @@ export default async function PantallaRevisiones({
               )}
             </p>
 
-            <ul className="lista">
-              {destinos.map((d) => {
+            <ul className="lista" data-recorrido="destinos">
+              {destinos.map((d, i) => {
                 const veces = Number(d.veces)
                 const seRepite = veces >= SE_REPITE
                 const flujos = d.flujos ?? []
@@ -291,7 +291,7 @@ export default async function PantallaRevisiones({
                       )}
                     </div>
 
-                    <div className={estilos.formalizar}>
+                    <div className={estilos.formalizar} data-recorrido={i === 0 ? 'formalizar' : undefined}>
                       <FormalizarDestino escrito={d.destino} veces={veces} flujos={flujos} />
                     </div>
                   </li>

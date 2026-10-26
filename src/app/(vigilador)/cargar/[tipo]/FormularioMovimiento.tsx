@@ -247,7 +247,7 @@ function DestinoLibre({
 function BotonRegistrar({ tipo }: { tipo: 'ingreso' | 'salida' }) {
   const { pending } = useFormStatus()
   return (
-    <button type="submit" className="boton exito grande ancho-total" disabled={pending}>
+    <button type="submit" className="boton exito grande ancho-total" disabled={pending} data-recorrido="guardar">
       {pending ? 'Guardando…' : `Registrar ${tipo}`}
     </button>
   )
@@ -679,7 +679,12 @@ export default function FormularioMovimiento({
         const equivalente = equivalenteEnM3(elegida, unidad, unidadM3)
 
         return (
-          <div key={i} className="tarjeta-plana pila" style={{ padding: 14 }}>
+          <div
+            key={i}
+            className="tarjeta-plana pila"
+            style={{ padding: 14 }}
+            data-recorrido={i === 0 ? 'material' : undefined}
+          >
             <div className="campo">
               <div className="fila-entre">
                 {/* La clase va a mano porque el rótulo está envuelto para poder
@@ -813,6 +818,7 @@ export default function FormularioMovimiento({
         <button
           type="button"
           className="boton secundario ancho-total"
+          data-recorrido="agregar"
           onClick={() => setFilas((p) => [...p, FILA_VACIA])}
         >
           + Agregar otro material
@@ -821,7 +827,7 @@ export default function FormularioMovimiento({
 
       {/* ── Quién lo trae / quién se lo lleva ──────────────────────────── */}
       {tipo === 'ingreso' && esPuntoVerde && (
-        <div className="campo">
+        <div className="campo" data-recorrido="vecino">
           <span className="etiqueta">Quién lo trae</span>
           <BloqueVecino valor={vecino} alCambiar={setVecino} />
         </div>
@@ -829,7 +835,7 @@ export default function FormularioMovimiento({
 
       {tipo === 'ingreso' && !esPuntoVerde && (
         <>
-          <div className="campo">
+          <div className="campo" data-recorrido="procedencia">
             <label htmlFor="origen">Procedencia</label>
             <select
               id="origen"
@@ -876,7 +882,7 @@ export default function FormularioMovimiento({
 
       {tipo === 'salida' && esPuntoVerde && (
         <>
-          <div className="campo">
+          <div className="campo" data-recorrido="quien">
             <label htmlFor="destino">Quién se lo lleva</label>
             <select
               id="destino"
@@ -956,7 +962,7 @@ export default function FormularioMovimiento({
             />
           )}
 
-          <div className="campo">
+          <div className="campo" data-recorrido="uso">
             <span className="etiqueta" id="rotulo-valorizacion">Para qué se lo lleva</span>
             <div
               className={`sugerencias ${estilos.valorizaciones}`}
@@ -981,7 +987,7 @@ export default function FormularioMovimiento({
 
       {tipo === 'salida' && !esPuntoVerde && (
         <>
-          <div className="campo">
+          <div className="campo" data-recorrido="destino">
             <label htmlFor="destino">Destino</label>
             <select
               id="destino"
@@ -1009,7 +1015,7 @@ export default function FormularioMovimiento({
             />
           )}
 
-          <div className="campo">
+          <div className="campo" data-recorrido="autoriza">
             <label htmlFor="autoriza">Quién autoriza</label>
             <select
               id="autoriza"
@@ -1038,7 +1044,7 @@ export default function FormularioMovimiento({
             entró esta poda.
           </div>
         ) : pilas.length === 1 && !cambiandoPila ? (
-          <div className="campo automatico">
+          <div className="campo automatico" data-recorrido="pila">
             <span className="etiqueta">¿A qué pila va?</span>
             <div className={`fila-entre ${estilos.valorAutomatico}`}>
               <span className="fuerte">{pilas[0].codigo}</span>
@@ -1052,7 +1058,7 @@ export default function FormularioMovimiento({
             </div>
           </div>
         ) : (
-          <div className="campo">
+          <div className="campo" data-recorrido="pila">
             <label htmlFor="pila">¿A qué pila va?</label>
             <select
               id="pila"
@@ -1073,7 +1079,7 @@ export default function FormularioMovimiento({
       )}
 
       {flujo === 'planta' && tipo === 'salida' && salePorPila && pilas.length > 0 && (
-        <div className="campo">
+        <div className="campo" data-recorrido="pila">
           <label htmlFor="pila">¿De qué pila sale?</label>
           <select
             id="pila"

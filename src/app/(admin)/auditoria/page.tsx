@@ -132,7 +132,7 @@ export default async function PantallaAuditoria({
         Nadie puede editar ni borrar una línea de acá: tampoco la coordinación.
       </div>
 
-      <form method="get" className={estilos.filtros}>
+      <form method="get" className={estilos.filtros} data-recorrido="filtros">
         <div className={`campo ${estilos.filtro}`}>
           <label htmlFor="accion">Acción</label>
           <select id="accion" name="accion" className="control" defaultValue={accion}>
@@ -174,7 +174,7 @@ export default async function PantallaAuditoria({
           pasa a ser una ficha apilada; arriba de 720 no cambia nada. Con la
           tabla vacía no se aplica: una ficha de una sola celda con el aviso de
           «no hay nada» se lee peor que la fila centrada de siempre. */}
-      <div className={`desplazable${filas.length > 0 ? ' tabla-ficha' : ''}`}>
+      <div className={`desplazable${filas.length > 0 ? ' tabla-ficha' : ''}`} data-recorrido="registro">
         <table className="datos">
           <thead>
             <tr>
@@ -232,7 +232,7 @@ export default async function PantallaAuditoria({
         </table>
       </div>
 
-      <div className={estilos.paginado}>
+      <div className={estilos.paginado} data-recorrido="paginas">
         <span className="menor gris">
           {total === 0
             ? 'Sin resultados'

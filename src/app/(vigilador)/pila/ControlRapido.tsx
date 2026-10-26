@@ -27,7 +27,14 @@ function esRedireccion(e: unknown): boolean {
   return typeof digest === 'string' && digest.startsWith('NEXT_REDIRECT')
 }
 
-export default function ControlRapido({ pilaId }: { pilaId: string }) {
+export default function ControlRapido({
+  pilaId,
+  marcar = false,
+}: {
+  pilaId: string
+  /** La primera pila: sus controles son los que muestra el recorrido guiado. */
+  marcar?: boolean
+}) {
   const [estado, setEstado] = useState<EstadoControl>({})
   const [pidiendoGrados, setPidiendoGrados] = useState(false)
   const [grados, setGrados] = useState('')
@@ -64,7 +71,7 @@ export default function ControlRapido({ pilaId }: { pilaId: string }) {
 
   return (
     <div className="pila-chica">
-      <div className={estilos.acciones}>
+      <div className={estilos.acciones} data-recorrido={marcar ? 'controles' : undefined}>
         <button
           type="button"
           className="boton grande"
@@ -106,6 +113,7 @@ export default function ControlRapido({ pilaId }: { pilaId: string }) {
         <button
           type="button"
           className={`boton fantasma chico ${estilos.revelar}`}
+          data-recorrido={marcar ? 'temperatura' : undefined}
           onClick={() => setPidiendoGrados(true)}
         >
           Temperatura

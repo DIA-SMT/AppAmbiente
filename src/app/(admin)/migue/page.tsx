@@ -77,7 +77,7 @@ export default async function PantallaMigue({
             <Retrato tamano="titulo" />
             <h1>Preguntale a Migue</h1>
           </div>
-          <Link href="/migue/recuerdos" className="boton secundario chico">
+          <Link href="/migue/recuerdos" className="boton secundario chico" data-recorrido="recuerdos">
             Lo que recuerda y el vocabulario
             {propuestas > 0 && (
               <span className="chip pendiente">
@@ -141,7 +141,11 @@ export default async function PantallaMigue({
           )}
         </section>
 
-        <aside className={`tarjeta pila-chica ${estilos.lateral}`} aria-label="Conversaciones anteriores">
+        <aside
+          className={`tarjeta pila-chica ${estilos.lateral}`}
+          aria-label="Conversaciones anteriores"
+          data-recorrido="anteriores"
+        >
           <h2>Conversaciones anteriores</h2>
           {estado.anteriores.length === 0 ? (
             <p className="menor gris" style={{ margin: 0 }}>

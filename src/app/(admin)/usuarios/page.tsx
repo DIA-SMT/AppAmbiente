@@ -160,7 +160,7 @@ export default async function PantallaUsuarios() {
         {/* Siete columnas no entran en 390 px: quedaban 689 px afuera y los
             botones de resetear el PIN, desactivar y eliminar parecían no
             existir. Abajo de 720 px cada usuario pasa a ser una ficha. */}
-        <div className="desplazable tabla-ficha">
+        <div className="desplazable tabla-ficha" data-recorrido="tabla">
           <table className="datos">
             <thead>
               <tr>
@@ -174,7 +174,7 @@ export default async function PantallaUsuarios() {
               </tr>
             </thead>
             <tbody>
-              {perfiles.map((p) => {
+              {perfiles.map((p, i) => {
                 const trabado = Boolean(p.bloqueado_hasta && new Date(p.bloqueado_hasta).getTime() > ahora)
                 // Lo mismo que mira el portón del panel antes de dejarla pasar
                 // a cualquier pantalla que no sea Mi cuenta.
@@ -253,7 +253,7 @@ export default async function PantallaUsuarios() {
                         )}
                       </div>
                     </td>
-                    <td className={estilos.columnaAcciones}>
+                    <td className={estilos.columnaAcciones} data-recorrido={i === 0 ? 'acciones' : undefined}>
                       <AccionesUsuario
                         perfil={{
                           id: p.id,
@@ -279,7 +279,7 @@ export default async function PantallaUsuarios() {
         </div>
       </ListaDeUsuarios>
 
-      <section className="tarjeta pila">
+      <section className="tarjeta pila" data-recorrido="crear">
         <h2>Crear un usuario</h2>
         <FormularioUsuario sitios={sitios} />
       </section>

@@ -73,8 +73,8 @@ export default async function Listo({
           </p>
         </div>
 
-        <Link href="/turno" className="boton grande ancho-total">Cargar otro</Link>
-        <Link href="/hoy" className="boton fantasma ancho-total">Ver lo de hoy</Link>
+        <Link href="/turno" className="boton grande ancho-total" data-recorrido="otro">Cargar otro</Link>
+        <Link href="/hoy" className="boton fantasma ancho-total" data-recorrido="hoy">Ver lo de hoy</Link>
       </div>
     )
   }
@@ -117,7 +117,7 @@ export default async function Listo({
         </div>
       )}
 
-      <div className="tarjeta pila centrado">
+      <div className="tarjeta pila centrado" data-recorrido="numero">
         <span style={{ display: 'block', color: anulado ? 'var(--peligro)' : 'var(--ingreso)' }}>
           <Tilde />
         </span>
@@ -135,23 +135,23 @@ export default async function Listo({
         </p>
       </div>
 
-      <div className="tarjeta-plana pila-chica" style={{ padding: 14 }}>
+      <div className="tarjeta-plana pila-chica" style={{ padding: 14 }} data-recorrido="resumen">
         <p className="fuerte" style={{ margin: 0 }}>{items.map(textoDelItem).join(' + ')}</p>
         <p className="menor gris" style={{ margin: 0 }}>
           {lugar} · {fechaHora(movimiento.ocurrido_en)}
         </p>
       </div>
 
-      <Link href={`/cargar/${movimiento.tipo}`} className="boton grande ancho-total">
+      <Link href={`/cargar/${movimiento.tipo}`} className="boton grande ancho-total" data-recorrido="otro">
         Cargar otro
       </Link>
-      <Link href="/hoy" className="boton fantasma ancho-total">Ver lo de hoy</Link>
+      <Link href="/hoy" className="boton fantasma ancho-total" data-recorrido="hoy">Ver lo de hoy</Link>
 
       {sePuedeDeshacer && (
         <form action={deshacer} className="centrado">
           <input type="hidden" name="id" value={movimiento.id} />
           <input type="hidden" name="numero" value={movimiento.numero} />
-          <button type="submit" className="boton fantasma chico" style={{ color: 'var(--peligro)' }}>
+          <button type="submit" className="boton fantasma chico" style={{ color: 'var(--peligro)' }} data-recorrido="deshacer">
             Deshacer
           </button>
         </form>

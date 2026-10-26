@@ -137,7 +137,7 @@ export default function Trazabilidad({ traza }: { traza: TrazaDeSalida | null })
   const salioAntes = madurez !== null && salida < madurez
 
   return (
-    <section className="tarjeta pila-chica">
+    <section className="tarjeta pila-chica" data-recorrido="origen">
       <h2>De dónde salió</h2>
 
       <p style={{ margin: 0, maxWidth: 'var(--ancho-lectura)' }}>

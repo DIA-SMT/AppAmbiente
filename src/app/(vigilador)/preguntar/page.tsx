@@ -51,7 +51,7 @@ export default async function Preguntar() {
       {/* Abajo y no arriba: arriba está lo que se viene a hacer, que es
           preguntar. Pero tiene que estar siempre, también con Migue apagado:
           lo que recuerda del punto se ve y se olvida desde ahí. */}
-      <Link href="/preguntar/recuerdos" className="boton fantasma ancho-total">
+      <Link href="/preguntar/recuerdos" className="boton fantasma ancho-total" data-recorrido="recuerdos">
         Lo que Migue recuerda de este punto
       </Link>
     </div>

@@ -39,7 +39,7 @@ export default async function IndiceDeListas() {
         </p>
       </header>
 
-      <div className="aviso">
+      <div className="aviso" data-recorrido="aviso">
         Nada se borra. Lo que se desactiva deja de ofrecerse en el celular, y los
         movimientos que ya lo usaron se siguen viendo igual.
       </div>
@@ -52,6 +52,7 @@ export default async function IndiceDeListas() {
               key={recurso.clave}
               href={`/listas/${recurso.clave}`}
               className={`tarjeta ${estilos.tarjetaLista}`}
+              data-recorrido={recurso.clave}
             >
               <h2 className={estilos.titulo}>
                 {recurso.plural}

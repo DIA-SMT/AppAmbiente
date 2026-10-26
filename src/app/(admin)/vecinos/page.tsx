@@ -117,7 +117,7 @@ export default async function PantallaVecinos({
         </p>
       </header>
 
-      <div className="aviso atencion">
+      <div className="aviso atencion" data-recorrido="privacidad">
         <p style={{ margin: 0 }}>
           <span className="fuerte">Es la única pantalla del sistema con datos personales a la vista.</span>{' '}
           Nombre, teléfono y barrio los ve solo la coordinación, y no salen en la exportación.
@@ -135,7 +135,7 @@ export default async function PantallaVecinos({
         </div>
       )}
 
-      <form method="get" className={estilos.filtros}>
+      <form method="get" className={estilos.filtros} data-recorrido="filtros">
         <div className={`campo ${estilos.filtroAncho}`}>
           <label htmlFor="q">Buscar</label>
           <input
@@ -187,7 +187,7 @@ export default async function PantallaVecinos({
               apilada, con la confirmación al pie y a lo ancho; arriba de 720 no
               cambia nada. Con la tabla vacía no se aplica: el aviso de «ningún
               vecino coincide» se lee mejor centrado en su fila de siempre. */}
-          <div className={`desplazable${filas.length > 0 ? ' tabla-ficha' : ''}`}>
+          <div className={`desplazable${filas.length > 0 ? ' tabla-ficha' : ''}`} data-recorrido="tabla">
             <table className="datos">
               <caption className="sr-solo">
                 Vecinos registrados. Las visitas son los ingresos que trajo cada uno.
@@ -204,7 +204,7 @@ export default async function PantallaVecinos({
                 </tr>
               </thead>
               <tbody>
-                {filas.map((v) => (
+                {filas.map((v, i) => (
                   <tr key={v.id}>
                     <td data-rotulo="Nombre" className="fuerte">
                       {v.nombre ?? <span className="gris">Sin nombre</span>}
@@ -222,7 +222,7 @@ export default async function PantallaVecinos({
                     </td>
                     <td data-rotulo="Fecha">{fecha(v.creado_en)}</td>
                     <td data-rotulo="Visitas" className="numero">{numero(v.visitas)}</td>
-                    <td className={estilos.columnaAcciones}>
+                    <td className={estilos.columnaAcciones} data-recorrido={i === 0 ? 'anonimizar' : undefined}>
                       {v.anonimizado ? (
                         <span className="chip anulado">
                           Anonimizado el {fecha(v.anonimizado_en)}

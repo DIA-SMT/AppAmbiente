@@ -87,7 +87,7 @@ export default function TablaRecurso({
   // los botones «Editar» y «Desactivar» no se veían nunca. Abajo de 720 px cada
   // fila pasa a ser una ficha; de 720 para arriba la tabla queda igual.
   return (
-    <div className="desplazable tabla-ficha">
+    <div className="desplazable tabla-ficha" data-recorrido="tabla">
       <table className="datos">
         <thead>
           <tr>
@@ -107,7 +107,7 @@ export default function TablaRecurso({
           </tr>
         </thead>
         <tbody>
-          {filas.map((fila) => {
+          {filas.map((fila, i) => {
             const parametros = new URLSearchParams(consulta)
             parametros.set('editar', fila.id)
 
@@ -144,7 +144,7 @@ export default function TablaRecurso({
                 {/* Sin data-rotulo a propósito: en la ficha esta celda sale al
                     pie y a todo el ancho, que es donde se buscan los botones. */}
                 <td className={estilos.celdaAcciones}>
-                  <div className={estilos.acciones}>
+                  <div className={estilos.acciones} data-recorrido={i === 0 ? 'botones' : undefined}>
                     <Link
                       className="boton chico secundario"
                       href={`/listas/${recurso.clave}?${parametros.toString()}#formulario`}

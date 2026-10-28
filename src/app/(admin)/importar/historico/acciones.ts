@@ -197,8 +197,8 @@ interface Catalogo {
  */
 async function catalogoEnTx(tx: Conexion): Promise<Catalogo> {
   const [predios, materiales, unidades] = await Promise.all([
-    tx.consultar<{ id: string; codigo: string; nombre: string; direccion: string | null }>(
-      `select id, codigo, nombre, direccion from sitios where tipo = 'planta' order by orden, codigo`,
+    tx.consultar<{ id: string; codigo: string; nombre: string; direccion: string | null; activo: boolean }>(
+      `select id, codigo, nombre, direccion, activo from sitios where tipo = 'planta' order by activo desc, orden, codigo`,
     ),
     tx.consultar<{ id: string; nombre: string }>(
       `select id, nombre from materiales
@@ -209,7 +209,7 @@ async function catalogoEnTx(tx: Conexion): Promise<Catalogo> {
   ])
   return {
     catalogo: {
-      predios: predios.map(({ codigo, nombre, direccion }) => ({ codigo, nombre, direccion })),
+      predios: predios.map(({ codigo, nombre, direccion, activo }) => ({ codigo, nombre, direccion, activo })),
       materiales: materiales.map(({ nombre }) => ({ nombre })),
     },
     predios: new Map(predios.map((p) => [p.codigo, p.id])),

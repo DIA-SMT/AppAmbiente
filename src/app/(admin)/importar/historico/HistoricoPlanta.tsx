@@ -477,7 +477,7 @@ export default function HistoricoPlanta() {
                   >
                     <option value="">— Dejar afuera —</option>
                     {catalogo.predios.map((p) => (
-                      <option key={p.codigo} value={p.codigo}>{p.nombre}</option>
+                      <option key={p.codigo} value={p.codigo}>{p.nombre}{p.activo ? '' : ' (dado de baja)'}</option>
                     ))}
                   </select>
                   <span className="ayuda">

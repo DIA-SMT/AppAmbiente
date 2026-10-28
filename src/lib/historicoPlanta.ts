@@ -54,7 +54,7 @@ export type Forma = 'normal' | 'hora agregada' | 'tipo corrido'
 
 export interface CatalogoPlanta {
   /** Los predios de la Planta: Vivero y Huerta. */
-  predios: Array<{ codigo: string; nombre: string; direccion: string | null }>
+  predios: Array<{ codigo: string; nombre: string; direccion: string | null; activo: boolean }>
   /** Las corrientes que pueden entrar a la Planta. */
   materiales: Array<{ nombre: string }>
 }
@@ -437,7 +437,13 @@ function predioSolo(crudo: string, c: CatalogoPlanta): string | null {
     const palabras = normalizar(`${p.nombre} ${p.direccion ?? ''}`).split(/[^a-z0-9]+/)
     return palabras.includes(v)
   })
-  return candidatos.length === 1 ? candidatos[0].codigo : null
+  if (candidatos.length === 1) return candidatos[0].codigo
+  // En una base que pasó por la actualización de listas sigue estando, dado de
+  // baja, el predio único de antes —«PVRV», «Huerta y Vivero Municipal»—, que
+  // nombra a los dos. Si el empate es con él, gana el que está activo: sin
+  // esto, en producción no se resolvía ni la Huerta ni el Vivero.
+  const activos = candidatos.filter((p) => p.activo)
+  return activos.length === 1 ? activos[0].codigo : null
 }
 
 /**

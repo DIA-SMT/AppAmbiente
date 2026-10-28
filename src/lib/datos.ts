@@ -542,23 +542,29 @@ export async function movimientosDelTurno(sesion: Sesion, limite = 30) {
 
 export async function resumenMensualEnTx(
   tx: Conexion,
-  opciones: { flujo?: Flujo; sitioId?: string; meses?: number } = {},
+  opciones: { flujo?: Flujo; sitioId?: string; meses?: number | 'todo' } = {},
 ): Promise<FilaResumen[]> {
-  const meses = Math.min(Math.max(opciones.meses ?? 6, 1), 36)
-  const cond = ["mes >= date_trunc('month', current_date) - make_interval(months => $1)"]
-  const par: unknown[] = [meses - 1]
+  // 'todo' es sin límite para atrás: el histórico de la Planta arranca en
+  // julio de 2024, antes que cualquier ventana de meses.
+  const cond: string[] = []
+  const par: unknown[] = []
+  if (opciones.meses !== 'todo') {
+    const meses = Math.min(Math.max(opciones.meses ?? 6, 1), 36)
+    par.push(meses - 1)
+    cond.push(`mes >= date_trunc('month', current_date) - make_interval(months => $${par.length})`)
+  }
   if (opciones.flujo)   { par.push(opciones.flujo);   cond.push(`flujo = $${par.length}`) }
   if (opciones.sitioId) { par.push(opciones.sitioId); cond.push(`sitio_id = $${par.length}`) }
 
   return tx.consultar<FilaResumen>(
-    `select * from v_resumen_mensual where ${cond.join(' and ')} order by mes, material_nombre`,
+    `select * from v_resumen_mensual ${cond.length ? `where ${cond.join(' and ')}` : ''} order by mes, material_nombre`,
     par,
   )
 }
 
 export async function resumenMensual(
   sesion: Sesion,
-  opciones: { flujo?: Flujo; sitioId?: string; meses?: number } = {},
+  opciones: { flujo?: Flujo; sitioId?: string; meses?: number | 'todo' } = {},
 ): Promise<FilaResumen[]> {
   return conSesion(sesion, (tx) => resumenMensualEnTx(tx, opciones))
 }

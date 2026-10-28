@@ -25,7 +25,7 @@ type Pantallas = Record<string, Paso[]>
 const DEL_PANEL: Pantallas = {
   '/tablero': [
     { destino: 'pantalla', titulo: 'Planta de Valorización', texto: 'Cuánto entró y cuánto salió de la Planta: el mes en curso, mes a mes y por material. Con las pestañas de arriba pasás a Puntos Verdes.' },
-    { destino: 'periodo', titulo: 'Cuántos meses ver', texto: 'Elegí 6, 12 o 24 meses. Cambia el gráfico, la tabla por material y lo que se exporta; las tarjetas siempre muestran el mes en curso.' },
+    { destino: 'periodo', titulo: 'Cuántos meses ver', texto: 'Elegí 6, 12 o 24 meses, o «Todo» para ver desde el primer mes con datos. Cambia el gráfico, la tabla por material y lo que se exporta; las tarjetas siempre muestran el mes en curso.' },
     { destino: 'exportar', titulo: 'Exportar a Excel', texto: 'Descarga el resumen de los meses que elegiste, para trabajarlo en una planilla.' },
     { destino: 'numeros', titulo: 'El mes en curso', texto: 'Ingresos y salidas cargados este mes, y los m³ que representan. La flecha compara con los mismos días del mes anterior; los m³ son una estimación para comparar, no para facturar.' },
     { destino: 'grafico', titulo: 'Volumen por mes', texto: 'Los m³ que entraron y salieron cada mes, en barras de dos colores. Pasá el mouse sobre una barra para ver el número exacto.' },

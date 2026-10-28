@@ -12,7 +12,12 @@ import estilos from './tablero.module.css'
 
 export const dynamic = 'force-dynamic'
 
-const PERIODOS = [6, 12, 24]
+/**
+ * Los largos que se ofrecen. «Todo» va desde el primer mes con movimientos:
+ * desde que se cargó el histórico del R-05, la Planta tiene datos desde julio
+ * de 2024, más atrás que cualquier ventana fija.
+ */
+const PERIODOS: Array<number | 'todo'> = [6, 12, 24, 'todo']
 
 interface Par { ingreso: number; salida: number }
 
@@ -150,7 +155,8 @@ export default async function Tablero({
   const sesion = await exigirPanel()
 
   const parametros = await searchParams
-  const pedido = Number(Array.isArray(parametros.meses) ? parametros.meses[0] : parametros.meses)
+  const crudo = Array.isArray(parametros.meses) ? parametros.meses[0] : parametros.meses
+  const pedido = crudo === 'todo' ? 'todo' : Number(crudo)
   const meses = PERIODOS.includes(pedido) ? pedido : 6
 
   // Las ventanas de tiempo son aritmética de fechas, no consultas, así que se
@@ -183,8 +189,17 @@ export default async function Tablero({
 
   const planta = sitios.find((s) => s.tipo === 'planta')
 
+  // Con «todo» la ventana arranca en el primer mes que tiene algo; sin datos,
+  // es sólo el mes en curso.
+  const largo = meses === 'todo'
+    ? Math.max(1, ...filas.slice(0, 1).map((f) => {
+        const [a, m] = claveDeMes(f.mes).split('-').map(Number)
+        const [aa, mm] = mesActual.split('-').map(Number)
+        return (aa - a) * 12 + (mm - m) + 1
+      }))
+    : meses
   const rango: string[] = []
-  for (let i = meses - 1; i >= 0; i--) rango.push(restarMeses(mesActual, i))
+  for (let i = largo - 1; i >= 0; i--) rango.push(restarMeses(mesActual, i))
   const claves = Array.from(new Set([...rango, ...filas.map((f) => claveDeMes(f.mes))])).sort()
 
   const volumenPorMes = new Map<string, Par>()
@@ -248,7 +263,7 @@ export default async function Tablero({
                 className={`boton chico ${n === meses ? '' : 'secundario'}`}
                 aria-current={n === meses ? 'page' : undefined}
               >
-                {n} meses
+                {n === 'todo' ? 'Todo' : `${n} meses`}
               </Link>
             ))}
           </div>
@@ -274,9 +289,9 @@ export default async function Tablero({
             detalle por material y el volumen equivalente en m³. Se arma solo con lo que se
             registra desde la calle: no hay que cargar nada dos veces.
           </p>
-          {meses < 24 && (
+          {meses !== 'todo' && (
             <p className="menor gris" style={{ margin: 0 }}>
-              Estás mirando los últimos {meses} meses. Si esperabas ver algo más viejo, probá con 24.
+              Estás mirando los últimos {meses} meses. Si esperabas ver algo más viejo, probá con «Todo».
             </p>
           )}
           <p style={{ margin: 0 }}>
@@ -385,7 +400,7 @@ export default async function Tablero({
       <section className="tarjeta pila" data-recorrido="grafico">
         <div className="fila-entre">
           <h2>Volumen por mes</h2>
-          <span className="menor gris">{meses} meses</span>
+          <span className="menor gris">{meses === 'todo' ? `Todo el histórico · ${largo} meses` : `${meses} meses`}</span>
         </div>
         <GraficoMensual meses={datosGrafico} />
       </section>

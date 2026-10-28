@@ -169,8 +169,11 @@ export async function GET(pedido: Request) {
       const sitioId = leerTexto(parametros.get('sitioId'))
       if (sitioId && !ES_UUID.test(sitioId)) return respuestaDeError('El punto pedido no es válido.', 400)
 
-      const mesesPedidos = Number(leerTexto(parametros.get('meses'), 4) ?? 6)
-      const meses = Number.isFinite(mesesPedidos) ? Math.min(Math.max(Math.trunc(mesesPedidos), 1), 36) : 6
+      const textoMeses = leerTexto(parametros.get('meses'), 4)
+      const mesesPedidos = Number(textoMeses ?? 6)
+      const meses: number | 'todo' = textoMeses === 'todo'
+        ? 'todo'
+        : Number.isFinite(mesesPedidos) ? Math.min(Math.max(Math.trunc(mesesPedidos), 1), 36) : 6
 
       const filas = await resumenMensual(sesion, { flujo: flujo as Flujo | undefined, sitioId, meses })
       const sitio = sitioId ? (await sitiosVisibles(sesion)).find((s) => s.id === sitioId) : undefined
@@ -182,7 +185,7 @@ export async function GET(pedido: Request) {
 
       const libro = hojaDeResumen(filas, {
         ...comun,
-        rango: `Últimos ${meses} ${meses === 1 ? 'mes' : 'meses'}`,
+        rango: meses === 'todo' ? 'Todo el histórico' : `Últimos ${meses} ${meses === 1 ? 'mes' : 'meses'}`,
         filtros: detalle,
       })
       return respuestaDeArchivo(await libro.xlsx.writeBuffer(), 'resumen')

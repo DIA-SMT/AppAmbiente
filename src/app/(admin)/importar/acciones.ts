@@ -702,7 +702,7 @@ export async function confirmar(_previo: unknown, fd: FormData): Promise<Resulta
         }>(
           `select archivo_nombre, periodo_desde, periodo_hasta, filas_ok
              from importaciones
-            where estado = 'confirmada'
+            where estado = 'confirmada' and tipo = 'pesos_contenedores'
               and periodo_desde is not null and periodo_hasta is not null
               and periodo_desde <= $2::date and periodo_hasta >= $1::date
             order by importado_en desc
@@ -832,9 +832,11 @@ export async function revertir(
   try {
     const filas = await consultarConSesion<{ id: string }>(
       sesion,
+      // Sólo pesos: revertir un histórico es anular sus movimientos, y eso lo
+      // hace su propia pantalla. Marcarlo acá dejaría los viajes vivos.
       `update importaciones
           set estado = 'revertida'
-        where id = $1 and estado = 'confirmada'
+        where id = $1 and estado = 'confirmada' and tipo = 'pesos_contenedores'
         returning id`,
       [id],
     )

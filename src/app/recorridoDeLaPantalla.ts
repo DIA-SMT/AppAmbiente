@@ -138,6 +138,17 @@ const DEL_PANEL: Pantallas = {
     { destino: 'historial', titulo: 'Importaciones hechas', texto: 'Las últimas importaciones, con el período, cuántas filas entraron, cuántas tuvieron error y quién las hizo.' },
     { destino: 'revertir', titulo: 'Revertir', texto: 'Si un archivo vino mal, revertilo: sus kilos dejan de contar en el cruce, pero no se borra nada. Después corregís el archivo y lo importás de nuevo.' },
   ],
+  '/importar/historico': [
+    { destino: 'pantalla', titulo: 'Histórico de la Planta', texto: 'Los ingresos a la Planta anotados en el R-05 antes del celular. Cada fila de la planilla entra como un viaje, igual que si lo hubiera cargado el vigilador.' },
+    { destino: 'archivo', titulo: 'El R-05', texto: 'Descargá la planilla de Google como Excel y subila sin tocarla. Se puede subir todos los meses: lo que ya entró no se vuelve a cargar.' },
+    { destino: 'pasos', titulo: 'Los tres pasos', texto: 'Archivo, revisar y confirmar. Hasta el último no se guarda nada.' },
+    { destino: 'periodo', titulo: 'El período', texto: 'Qué fechas cargar. Si el sistema ya tiene viajes del celular, cortá el día anterior para no contarlos dos veces: la pantalla te avisa y te propone la fecha.' },
+    { destino: 'sin-resolver', titulo: 'Lo que no se reconoce', texto: 'Predios o tipos de residuo escritos de otra manera. Sus filas quedan afuera hasta que digas qué son, y lo que elijas queda guardado para la próxima.' },
+    { destino: 'meses', titulo: 'Mes por mes', texto: 'Lo que entra al lado de lo que la planilla informa en sus indicadores y de lo que el sistema ya tiene. Si una celda se marca, ese mes no coincide: mirá el Excel antes de seguir.' },
+    { destino: 'afuera', titulo: 'Lo que queda afuera', texto: 'Cada fila que no entra, con el número de fila del Excel y el motivo, para ir a buscarla.' },
+    { destino: 'historial', titulo: 'Importaciones hechas', texto: 'Las cargas del histórico que se hicieron, con el período y cuántos viajes entraron.' },
+    { destino: 'revertir', titulo: 'Revertir', texto: 'Anula todos los viajes de esa importación, con el motivo y con tu nombre. No se borra nada, y las filas pueden volver a importarse.' },
+  ],
   '/auditoria': [
     { destino: 'pantalla', titulo: 'Auditoría', texto: 'Qué se cargó, cambió o anuló, qué usuario se eliminó, quién lo hizo y cuándo. Nadie puede editar ni borrar una línea de acá.' },
     { destino: 'filtros', titulo: 'Los filtros', texto: 'Elegí la acción, sobre qué fue y un rango de fechas, y tocá «Filtrar». «Limpiar» vuelve a mostrar todo.' },

@@ -9,6 +9,13 @@
       "autoPort": true
     },
     {
+      "name": "residuos-smt-pglite",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["-e", "process.env.DATABASE_URL='';require('child_process').spawn('npm',['run','dev'],{stdio:'inherit',shell:true,env:process.env}).on('exit',c=>process.exit(c??0))"],
+      "port": 3000,
+      "autoPort": true
+    },
+    {
       "name": "residuos-smt-produccion",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "start"],

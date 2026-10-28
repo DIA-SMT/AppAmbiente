@@ -72,6 +72,10 @@ const DEL_PANEL: Pantallas = {
     '¿Cómo se importan los pesos de la 9 de Julio?',
     '¿Cuánto entró a la Planta el mes pasado?',
   ],
+  '/importar/historico': [
+    '¿Cuánta poda entró a la Planta en 2025?',
+    '¿Qué orígenes quedaron escritos como texto?',
+  ],
 }
 
 const DEL_PUNTO: Pantallas = {

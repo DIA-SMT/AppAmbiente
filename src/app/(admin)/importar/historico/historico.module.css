@@ -1,0 +1,32 @@
+/* La tabla mes por mes del histórico. Cada celda lleva los m³ arriba y los
+   viajes abajo, más chicos: son los dos números que la Secretaría mira en sus
+   indicadores, y juntos se comparan de un vistazo. */
+
+.meses td { vertical-align: top; }
+
+.grupo {
+  text-align: center;
+  border-bottom: 1px solid var(--linea);
+}
+
+.viajes {
+  display: block;
+  color: var(--gris);
+  font-size: .82rem;
+  font-weight: 600;
+}
+
+/* Lo que no coincide con los indicadores de la propia planilla. No es un
+   error del sistema: es justo lo que hay que ir a mirar en el Excel. */
+.meses td[data-difiere] {
+  background: color-mix(in srgb, var(--salida) 12%, transparent);
+}
+
+.marca {
+  display: block;
+  color: var(--salida);
+  font-size: .78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}

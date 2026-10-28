@@ -18,7 +18,7 @@ const SECCIONES = [
   { destino: '/revisiones', rotulo: 'Revisiones', icono: 'revisiones' },
   { destino: '/vecinos', rotulo: 'Vecinos', icono: 'vecinos' },
   { destino: '/usuarios', rotulo: 'Usuarios', icono: 'usuarios' },
-  { destino: '/importar', rotulo: 'Importar pesos', icono: 'importar' },
+  { destino: '/importar', rotulo: 'Importar', icono: 'importar' },
   { destino: '/auditoria', rotulo: 'Auditoría', icono: 'auditoria' },
 ] as const
 

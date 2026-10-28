@@ -4,7 +4,9 @@ import { fechaDeCalendario, fechaHora, numero } from '@/lib/formato'
 import type { Catalogo, Mapeo } from '@/lib/importacion'
 import { exigirPanel } from '@/lib/sesion'
 import { revertir } from './acciones'
+import SubNavegacion from '../tablero/SubNavegacion'
 import Importador from './Importador'
+import { PESTANAS_IMPORTAR } from './pestanas'
 import estilos from '../gente.module.css'
 
 export const dynamic = 'force-dynamic'
@@ -81,6 +83,7 @@ export default async function PantallaImportar({
         `select id, nombre, tipo, hoja, fila_encabezado, activo, actualizado_en,
                 columnas, transformaciones
            from mapeos_importacion
+          where tipo = 'pesos_contenedores'
           order by nombre`,
       ),
       tx.consultar<FilaImportacion>(
@@ -90,6 +93,7 @@ export default async function PantallaImportar({
            from importaciones i
            left join mapeos_importacion m on m.id = i.mapeo_id
            left join perfiles p on p.id = i.importado_por_id
+          where i.tipo = 'pesos_contenedores'
           order by i.importado_en desc
           limit 20`,
       ),
@@ -128,6 +132,7 @@ export default async function PantallaImportar({
 
   return (
     <div className="pila">
+      <SubNavegacion pestanas={PESTANAS_IMPORTAR} rotulo="Importaciones" />
       <header className="pila-chica">
         <h1>Importar pesos</h1>
         <p className="menor gris">

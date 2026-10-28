@@ -22,7 +22,7 @@
  *     91 de las 100 filas de octubre se caían.
  *
  *   · tipo corrido: unas noventa filas en papel de 2024, todas del predio
- *     «SOÑADA», tienen el tipo de residuo una columna más allá, la cantidad en
+ *     «SOÑADA» (la Huerta), tienen el tipo de residuo una columna más allá, la cantidad en
  *     «pila» y el número de pila en la del vigilador.
  *
  * QUÉ NO HACE, también a propósito:
@@ -415,11 +415,22 @@ const MARCAS: Record<string, string> = {
 // ── Resolver predio y corriente ─────────────────────────────────────────
 
 /**
+ * Otros nombres con que la planilla llama a un predio. «La Soñada» es como
+ * algunos le dicen a la Huerta: lo confirmó la Secretaría el 28/10/2026, y son
+ * 124 viajes de julio a octubre de 2024.
+ */
+const APODOS: Record<string, string> = {
+  sonada: 'huerta',
+  'la sonada': 'huerta',
+}
+
+/**
  * El predio que el valor nombra sin dudas, o null. «Huerta» es el que tiene
  * Huerta en el nombre; si dos lo tuvieran, no es ninguno.
  */
 function predioSolo(crudo: string, c: CatalogoPlanta): string | null {
-  const v = normalizar(crudo)
+  const normal = normalizar(crudo)
+  const v = APODOS[normal] ?? normal
   if (!v) return null
   const candidatos = c.predios.filter((p) => {
     if (normalizar(p.codigo) === v) return true

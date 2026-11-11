@@ -260,9 +260,15 @@ export async function accionSobreUsuario(
   }
 
   try {
-    // Resetear el PIN de un punto: lo inventa el sistema y se muestra una vez.
+    // Cambiar el PIN de un punto. Coordinación puede escribir el que quiera
+    // —un punto suele tener uno fijo que ya conocen todos los del turno— y, si
+    // lo deja vacío, el sistema inventa uno. En los dos casos se muestra una vez.
     if (accion === 'reset') {
-      const pin = pinAlAzar()
+      const pinPedido = String(datos.get('pin') ?? '').trim()
+      if (pinPedido && !esPinValido(pinPedido)) {
+        return { error: 'El PIN son entre 4 y 8 dígitos, sin letras.' }
+      }
+      const pin = pinPedido || pinAlAzar()
       const filas = await consultarConSesion<{ usuario: string }>(
         sesion,
         `update perfiles

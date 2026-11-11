@@ -356,8 +356,10 @@ export function AccionesUsuario({ perfil }: { perfil: PerfilParaAcciones }) {
   const retenido = !perfil.esVos && perfil.rastro !== null
 
   useEffect(() => {
-    if (estado.aviso) setCambiando(false)
-  }, [estado.aviso])
+    // Depende del estado entero y no de estado.pin: guardar dos veces seguidas
+    // el mismo PIN no cambia el valor, y el campo quedaba abierto.
+    if (estado.aviso || estado.pin) setCambiando(false)
+  }, [estado])
 
   return (
     <div className="pila-chica">
@@ -369,7 +371,19 @@ export function AccionesUsuario({ perfil }: { perfil: PerfilParaAcciones }) {
           // dos dicen la credencial sobre la que se actúa y quedan parejos: a la
           // cuenta de un punto se le repone el PIN, a la de coordinación la
           // contraseña.
-          <AccionDeFila accion={accion} id={perfil.id} valor="reset" rotulo="PIN" />
+          //
+          // Abre un campo en vez de cambiarlo de una: antes un toque inventaba
+          // un PIN nuevo, y tocarlo sin querer dejaba al punto con uno que nadie
+          // conocía. Ahora se escribe el que se quiere (o se deja vacío).
+          !cambiando && (
+            <button
+              type="button"
+              className="boton chico secundario"
+              onClick={() => { setCambiando(true); borrado?.preguntar(null) }}
+            >
+              PIN
+            </button>
+          )
         )}
         {esCoordinacion && !cambiando && (
           <button
@@ -411,6 +425,44 @@ export function AccionesUsuario({ perfil }: { perfil: PerfilParaAcciones }) {
           angosta, en cada fila que ya cargó algo, que son casi todas. */}
       {retenido && (
         <span className="menor gris">No se puede eliminar: {perfil.rastro}.</span>
+      )}
+
+      {!esCoordinacion && cambiando && (
+        <form action={accion} className="pila-chica">
+          <input type="hidden" name="id" value={perfil.id} />
+          <input type="hidden" name="accion" value="reset" />
+          <div className="campo">
+            <label htmlFor={`pin-${perfil.id}`} className="menor">
+              PIN nuevo para {perfil.usuario}
+            </label>
+            <input
+              id={`pin-${perfil.id}`}
+              name="pin"
+              className="control"
+              inputMode="numeric"
+              pattern="[0-9]{4,8}"
+              title="Entre 4 y 8 dígitos, sin letras."
+              autoComplete="off"
+              maxLength={8}
+              placeholder="Se genera solo"
+              autoFocus
+            />
+            <span className="ayuda">
+              De 4 a 8 dígitos. Dejalo vacío y el sistema inventa uno. El anterior deja de
+              servir al guardar; los celulares que ya entraron siguen adentro.
+            </span>
+          </div>
+          <div className={estilos.acciones}>
+            <BotonFila rotulo="Guardar PIN" />
+            <button
+              type="button"
+              className="boton chico fantasma"
+              onClick={() => setCambiando(false)}
+            >
+              Cancelar
+            </button>
+          </div>
+        </form>
       )}
 
       {esCoordinacion && cambiando && (

@@ -167,6 +167,31 @@ export const ETIQUETA_TIPO: Record<string, string> = {
   contenedor: 'Contenedor',
 }
 
+/**
+ * Patente o interno como se lee en el camión, en mayúsculas.
+ *
+ * Una patente se guarda pegada —«AC 124 AZ» y «ac-124-az» quedan «AC124AZ»—,
+ * que es como está en la lista de vehículos y como viene en las planillas: con
+ * espacios no cruzaría con nada. Un interno («INTERNO 12») queda como se
+ * escribió.
+ */
+export function normalizarPatente(texto: string): string {
+  const limpio = texto.trim().replace(/\s+/g, ' ').toUpperCase()
+  const pegada = limpio.replace(/[\s-]/g, '')
+  return /^[A-Z]{2,3}\d{3}[A-Z]{0,3}$/.test(pegada) ? pegada : limpio
+}
+
+/**
+ * A dónde se lleva la 9 de Julio un contenedor del punto verde. El nodo es la
+ * Planta de Valorización; San Felipe, el relleno. El orden es el de la pantalla.
+ */
+export const ETIQUETA_DESTINO_CONTENEDOR: Record<string, string> = {
+  nodo: 'Nodo · Planta de Valorización',
+  san_felipe: 'San Felipe',
+  huerta: 'Planta de Valorización — Huerta',
+  otro: 'Otro',
+}
+
 export const ETIQUETA_FLUJO: Record<string, string> = {
   planta: 'Planta de Valorización',
   punto_verde: 'Punto Verde',

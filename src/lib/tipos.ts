@@ -477,3 +477,52 @@ export interface RespuestaRecambio {
   promedio_total: number | null
   pedido_mas_viejo: string | null
 }
+
+// ── Salidas de contenedores (0027) ──────────────────────────────────────
+
+/** A dónde se llevó el contenedor la 9 de Julio. */
+export type DestinoSalidaContenedor = 'nodo' | 'san_felipe' | 'huerta' | 'otro'
+
+/** Un material de lo que llevaba el contenedor, ya con nombres. */
+export interface ItemSalidaContenedor {
+  material: string
+  color: string | null
+  cantidad: number | string
+  unidad: string
+  unidad_plural: string
+  unidad_codigo: string
+  decimales: number
+}
+
+/** Fila de v_salidas_contenedor. */
+export interface SalidaContenedor {
+  id: string
+  sitio_id: string
+  sitio_codigo: string
+  sitio_nombre: string
+  salio_en: string
+  patente: string
+  chofer: string | null
+  destino: DestinoSalidaContenedor
+  destino_detalle: string | null
+  observaciones: string | null
+  cargado_por_id: string
+  cargado_por: string | null
+  creado_en: string
+  anulada_en: string | null
+  anulada_por: string | null
+  motivo_anulacion: string | null
+  items: ItemSalidaContenedor[]
+}
+
+/** Lo que manda el celular para anotar una salida. */
+export interface SalidaContenedorNueva {
+  salio_en: string
+  patente: string
+  chofer: string | null
+  destino: DestinoSalidaContenedor
+  destino_detalle: string | null
+  observaciones: string | null
+  items: Array<{ material_id: string; cantidad: number; unidad_id: string }>
+  client_uuid: string
+}

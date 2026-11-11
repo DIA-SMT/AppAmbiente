@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { pedidosDeRecambio, respuestaDeRecambio } from '@/lib/datos'
 import { fecha, fechaHora, numero, paraInputFechaHora } from '@/lib/formato'
 import { exigirPanel } from '@/lib/sesion'
@@ -182,6 +183,12 @@ export default async function PantallaRecambios({
           pendiente y desde cuándo, para pasarlo al grupo de choferes de la 9 de Julio. La app no le
           avisa a la empresa: ese canal sigue siendo el WhatsApp de ellos. Lo que sí hace es dejar
           registrado cuándo se pidió, cuándo se avisó y cuándo vinieron.
+        </p>
+        <p className="fila" style={{ margin: 0, gap: 8 }}>
+          <Link href="/recambios/salidas" className="boton secundario chico">
+            Ver las salidas anotadas en los puntos
+          </Link>
+          <span className="menor gris">Para cruzar con el Excel de la 9 de Julio.</span>
         </p>
       </header>
 

@@ -92,6 +92,9 @@ const DEL_PANEL: Pantallas = {
     { destino: 'lote', titulo: 'Pasarlo a los choferes', texto: 'Copiá el texto, pegalo en el grupo de WhatsApp de los choferes y tocá «Marcar como avisados». Vienen todos tildados: destildá los que no pasaste.' },
     { destino: 'avisados', titulo: 'Esperando a la empresa', texto: 'Lo ya avisado y cuánto hace que espera. Cuando vino el camión, abrí «Confirmar el retiro» y anotá el día y el remito. «Cancelar» es para el pedido que no correspondía.' },
   ],
+  '/recambios/salidas': [
+    { destino: 'pantalla', titulo: 'Salidas de contenedores', texto: 'Cada contenedor que se llevó la 9 de Julio, anotado por el punto en el momento. Filtrá por fechas y punto, y bajalo en Excel para cruzarlo con lo que informa y cobra la empresa. Si una se cargó mal, «Anular» con el motivo: no se borra.' },
+  ],
   '/revisiones': [
     { destino: 'pantalla', titulo: 'Revisiones', texto: 'Lo que los vigiladores resolvieron en la calle para no trabarse y acá se termina de ordenar: las altas que hicieron desde el celular y los destinos que escribieron a mano.' },
     { destino: 'altas', titulo: 'Altas hechas en la calle', texto: 'Lo que un vigilador dio de alta desde el celular: alguien nuevo, o uno que ya existía escrito distinto. Cada ficha dice quién lo cargó, cuándo y si ya se usó.' },
@@ -189,6 +192,7 @@ const DEL_PUNTO: Pantallas = {
     { destino: 'salida', titulo: 'Lo que sale', texto: 'Tocalo cuando alguien se lleva material: qué es, cuánto y quién se lo lleva o a dónde va.' },
     { destino: 'conteo', titulo: 'Conteo del día', texto: 'El total de vecinos que vinieron, en un solo número. Es para cuando se cuenta en papel o el día no se pudo cargar de a uno.' },
     { destino: 'recambio', titulo: 'Recambio de contenedor', texto: 'Pedí el cambio de un contenedor lleno. Si ya pediste alguno, el botón dice cuántos están esperando.' },
+    { destino: 'salida-contenedor', titulo: 'Se va un contenedor', texto: 'Cuando la 9 de Julio se lleva un contenedor lleno, anotalo en el momento: hora, patente o interno, chofer, qué tenía adentro de verdad y a dónde va.' },
     { destino: 'pila', titulo: 'Volteo o riego', texto: 'Anotá cuándo se volteó o se regó cada pila de compost.' },
     { destino: 'hoy', titulo: 'Lo de hoy', texto: 'Cuántos movimientos cargaste en el turno. «Ver lo de hoy» muestra la lista y desde ahí abrís cada uno.' },
   ],
@@ -225,6 +229,10 @@ const DEL_PUNTO: Pantallas = {
     { destino: 'pantalla', titulo: 'Contenedores', texto: 'Los contenedores del punto, con su último retiro. Lo que pedís acá lo ve la coordinación y lo pasa a la empresa.' },
     { destino: 'pedir', titulo: 'Pedir recambio', texto: 'Tocá «Pedir recambio» cuando esté lleno: con un toque alcanza. «Agregar un detalle» te deja marcarlo urgente o escribir una nota.' },
     { destino: 'pedido', titulo: 'Pedido en curso', texto: 'Muestra hace cuánto se pidió y si la coordinación ya avisó. Si lo pediste vos hace menos de 24 horas y todavía no avisaron, podés cancelarlo.' },
+  ],
+  '/contenedores/salida': [
+    { destino: 'pantalla', titulo: 'Se va un contenedor', texto: 'Anotá el contenedor lleno que se lleva la 9 de Julio. La hora viene puesta: tocá «Cambiar» sólo si lo anotás más tarde. La patente y el chofer se escriben, y el celular recuerda los que ya usaste.' },
+    { destino: 'contenido', titulo: 'Lo que tenía adentro', texto: 'Elegí lo que tiene de verdad, no lo que dice el rótulo, y cuánto: lo seco en kilos y la poda en m³. Si estaba mezclado, «Agregar otro material».' },
   ],
   '/hoy': [
     { destino: 'pantalla', titulo: 'Lo de hoy', texto: 'Lo que se cargó hoy en este punto, y lo que todavía espera señal para subir.' },

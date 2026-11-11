@@ -6,6 +6,7 @@ import {
   contenedoresDelSitioEnTx, listasDelFormularioEnTx, movimientosDelTurnoEnTx,
 } from '@/lib/datos'
 import { diaSemana } from '@/lib/formato'
+import { haySalidasDeContenedorEnTx } from '@/lib/salidasContenedor'
 import { migueEstaInstalado } from '@/lib/migue/configuracion'
 import { sesionActual } from '@/lib/sesion'
 import SelectorVigilador, { AvisoPendientes } from './SelectorVigilador'
@@ -59,6 +60,19 @@ function Contenedor() {
   )
 }
 
+/** El camión de la empresa que se lleva el contenedor. */
+function Camion() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2 6h11v10H2z" />
+      <path d="M13 9h4l3 3.5V16h-7" />
+      <circle cx="6" cy="18" r="2" />
+      <circle cx="17" cy="18" r="2" />
+    </svg>
+  )
+}
+
 /** Dar vuelta la pila: dos flechas que giran. */
 function Voltear() {
   return (
@@ -88,7 +102,7 @@ export default async function InicioDeTurno() {
   // sola consulta trae todo lo del sitio. El flujo que se pasa acá solo cambia
   // qué materiales y qué entidades vuelven, y esta pantalla no usa ninguno de
   // los dos: el tipo de sitio sale de la misma respuesta.
-  const [listas, movimientos, sitios, contenedores, conMigue] = await conSesion(sesion, (tx) =>
+  const [listas, movimientos, sitios, contenedores, conMigue, conSalidas] = await conSesion(sesion, (tx) =>
     Promise.all([
       listasDelFormularioEnTx(tx, sesion, 'planta', 'ingreso'),
       movimientosDelTurnoEnTx(tx, 100),
@@ -111,6 +125,8 @@ export default async function InicioDeTurno() {
       // la función reventara, se caería el turno entero y el vigilador no
       // podría cargar. Si Migue está apagado o en el tope, lo dice /preguntar.
       migueEstaInstalado(tx),
+      // Sólo si la base tiene la 0027: sin la tabla, el botón no aparece.
+      haySalidasDeContenedorEnTx(tx),
     ]),
   )
 
@@ -166,6 +182,23 @@ export default async function InicioDeTurno() {
     </Link>
   )
 
+  // El contenedor lleno que se lleva la 9 de Julio, anotado en el momento: es
+  // lo que la coordinación cruza con el Excel de la empresa.
+  const accesoSalidaContenedor = esPuntoVerde && conSalidas && (
+    <Link
+      href="/contenedores/salida"
+      className="boton-accion"
+      data-recorrido="salida-contenedor"
+      style={{ borderColor: 'color-mix(in srgb, var(--celeste) 50%, transparent)' }}
+    >
+      <span className="icono" style={{ background: 'var(--celeste)' }}><Camion /></span>
+      <span>
+        <span className="rotulo">Se va un contenedor</span>
+        <span className="detalle">Anotar el que se lleva la 9 de Julio</span>
+      </span>
+    </Link>
+  )
+
   // En la Planta no hay vecinos que contar: el conteo no existe.
   const accesoConteo = esPuntoVerde && (
     <Link
@@ -207,6 +240,8 @@ export default async function InicioDeTurno() {
               lo otro que se hace con el sistema: va arriba, no abajo. */}
           {accesoRecambio}
 
+          {accesoSalidaContenedor}
+
           <p className="menor gris" style={{ margin: '4px 0 0' }}>
             Si igual llegás a registrar algo en el momento:
           </p>
@@ -242,6 +277,8 @@ export default async function InicioDeTurno() {
           {accesoConteo}
 
           {accesoRecambio}
+
+          {accesoSalidaContenedor}
 
           {/* Las pilas son de la Planta: un punto verde no tiene ninguna. */}
           {!esPuntoVerde && (

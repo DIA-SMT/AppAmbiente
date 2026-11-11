@@ -143,12 +143,13 @@ export const MATERIALES: ReadonlyArray<
   ['Rodajas',                    'verdes',      ['planta'],      ['salida'],            'm3', [4.5, 6, 10, 20], '#b45309', 14],
   ['Triturado',                  'verdes',      ['planta'],      ['salida'],            'm3', [4.5, 6, 10, 20], '#2589ea', 15],
   // ── Punto verde: entra y sale (R-05-07 y R-05-08) ─────────────────────
-  ['Plástico',                   'reciclables', ['punto_verde'], ['ingreso', 'salida'], 'm3', [0.2, 6],         '#28469f', 16],
-  ['Cartón',                     'reciclables', ['punto_verde'], ['ingreso', 'salida'], 'm3', [0.2, 6],         '#f5b81c', 17],
-  ['Vidrio y metal',             'reciclables', ['punto_verde'], ['ingreso', 'salida'], 'm3', [0.2, 6],         '#6b7885', 18],
+  // Lo seco va en kilos y la poda en m³: ver RECIPIENTES_SOLO.
+  ['Plástico',                   'reciclables', ['punto_verde'], ['ingreso', 'salida'], 'kg', [5, 10, 20, 50],  '#28469f', 16],
+  ['Cartón',                     'reciclables', ['punto_verde'], ['ingreso', 'salida'], 'kg', [5, 10, 20, 50],  '#f5b81c', 17],
+  ['Vidrio y metal',             'reciclables', ['punto_verde'], ['ingreso', 'salida'], 'kg', [5, 10, 20, 50],  '#6b7885', 18],
   ['Poda y orgánico',            'verdes',      ['punto_verde'], ['ingreso', 'salida'], 'm3', [0.2, 6],         '#25d366', 19],
   ['RSU',                        'especiales',  ['punto_verde'], ['ingreso', 'salida'], 'm3', [6],              '#4b5563', 20],
-  ['Neumáticos',                 'especiales',  ['punto_verde'], ['ingreso', 'salida'], 'm3', [6],              '#1f2937', 21],
+  ['Neumáticos',                 'especiales',  ['punto_verde'], ['ingreso', 'salida'], 'kg', [5, 10, 20, 50],  '#1f2937', 21],
 ]
 
 /**
@@ -180,6 +181,37 @@ const RECIPIENTES_EXTRA: Record<string, string[]> = {
   Chipeo: ['bolsa'],
   Compost: ['bolsa'],
   'Leña social': ['bolsa'],
+}
+
+/**
+ * Materiales que se estiman de una sola forma, y nada más. Reemplaza a los
+ * recipientes del flujo y a los extra.
+ *
+ * En el punto no hay balanza para la poda: va en m³ y el kilo no se usa nunca.
+ * Lo seco se estima en kilos, que es como lo pide CIRCULA y como llega el Excel
+ * de la 9 de Julio. Ofrecer las dos cosas sólo servía para que alguien eligiera
+ * la equivocada. Lo mismo hace la migración 0027 sobre una base existente.
+ */
+const RECIPIENTES_SOLO: Record<string, string[]> = {
+  'Poda y orgánico': ['m3'],
+  Plástico: ['kg'],
+  Cartón: ['kg'],
+  'Vidrio y metal': ['kg'],
+  Neumáticos: ['kg'],
+}
+
+/**
+ * Los recipientes que se ofrecen para un material: la unión de los de cada
+ * flujo donde aparece, más los que habilita por su cuenta (la bolsa de
+ * R-05-06), salvo que se estime de una sola forma.
+ */
+function recipientesDe(nombre: string, flujos: string[]): string[] {
+  return RECIPIENTES_SOLO[nombre] ?? [
+    ...new Set([
+      ...flujos.flatMap((f) => RECIPIENTES_POR_FLUJO[f] ?? ['m3']),
+      ...(RECIPIENTES_EXTRA[nombre] ?? []),
+    ]),
+  ]
 }
 
 /**
@@ -282,14 +314,7 @@ export function sentenciasBase(): Sentencia[] {
   })
 
   for (const [nombre, categoria, flujos, tipos, unidad, sugerencias, color, orden] of MATERIALES) {
-    // La unión de los recipientes de cada flujo donde aparece el material, más
-    // los que ese material habilita por su cuenta (la bolsa de R-05-06).
-    const codigos = [
-      ...new Set([
-        ...flujos.flatMap((f) => RECIPIENTES_POR_FLUJO[f] ?? ['m3']),
-        ...(RECIPIENTES_EXTRA[nombre] ?? []),
-      ]),
-    ]
+    const codigos = recipientesDe(nombre, flujos)
     s.push({
       sql: `insert into materiales
               (nombre, categoria, flujos, tipos, unidad_default_id, unidades_permitidas, sugerencias, color, orden)
@@ -394,12 +419,7 @@ export function sentenciasPonerAlDia(): Sentencia[] {
   // no sabemos si «Residuos de poda» y «Poda y orgánico» son lo mismo, eso lo
   // dice la Secretaría.
   for (const [nombre, categoria, flujos, tipos, unidad, sugerencias, color, orden] of MATERIALES) {
-    const codigos = [
-      ...new Set([
-        ...flujos.flatMap((f) => RECIPIENTES_POR_FLUJO[f] ?? ['m3']),
-        ...(RECIPIENTES_EXTRA[nombre] ?? []),
-      ]),
-    ]
+    const codigos = recipientesDe(nombre, flujos)
     s.push({
       sql: `insert into materiales
               (nombre, categoria, flujos, tipos, unidad_default_id, unidades_permitidas, sugerencias, color, orden)

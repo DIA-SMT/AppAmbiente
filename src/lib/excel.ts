@@ -11,8 +11,10 @@ import 'server-only'
 // nombre no se ven desde ESM. El import por defecto funciona en los dos lados.
 import ExcelJS from 'exceljs'
 import type { Workbook, Worksheet } from 'exceljs'
-import type { FilaResumen, ItemListado, MovimientoListado } from './tipos'
-import { ETIQUETA_FLUJO, ETIQUETA_TIPO, fecha, fechaHora, hora, mesCorto, numero } from './formato'
+import type { FilaResumen, ItemListado, MovimientoListado, SalidaContenedor } from './tipos'
+import {
+  ETIQUETA_DESTINO_CONTENEDOR, ETIQUETA_FLUJO, ETIQUETA_TIPO, fecha, fechaHora, hora, mesCorto, numero,
+} from './formato'
 
 const MUNICIPIO = 'Municipalidad de San Miguel de Tucumán'
 const ORGANISMO = 'Secretaría de Ambiente y Desarrollo Sustentable'
@@ -420,6 +422,89 @@ export function hojaDeResumen(filas: FilaResumen[], datos: DatosDeExportacion = 
     )
   }
   escribirPie(hoja, filaTotales + 2, columnas.length, datos, notas)
+
+  return libro
+}
+
+// ── Hoja de salidas de contenedores (0027) ──────────────────────────────
+
+const COLUMNAS_SALIDAS: Columna[] = [
+  { titulo: 'Fecha', ancho: 12, alinear: 'center' },
+  { titulo: 'Hora', ancho: 8, alinear: 'center' },
+  { titulo: 'Punto', ancho: 28 },
+  { titulo: 'Patente / interno', ancho: 16, alinear: 'center' },
+  { titulo: 'Chofer', ancho: 22 },
+  { titulo: 'Material', ancho: 20 },
+  { titulo: 'Cantidad', ancho: 12, formato: DECIMALES, alinear: 'right' },
+  { titulo: 'Unidad', ancho: 10 },
+  { titulo: 'Destino', ancho: 30 },
+  { titulo: 'Observaciones', ancho: 30 },
+  { titulo: 'Cargó', ancho: 22 },
+  { titulo: 'Estado', ancho: 22 },
+]
+
+/**
+ * Lo que anotaron los puntos que se llevó la 9 de Julio, para cruzar con el
+ * Excel de la empresa. Una fila por material: un contenedor con cartón y
+ * plástico ocupa dos, y cada cantidad queda con su unidad para poder sumarla.
+ */
+export function hojaDeSalidasContenedor(
+  salidas: SalidaContenedor[],
+  datos: DatosDeExportacion = {},
+): Workbook {
+  const libro = nuevoLibro(datos)
+  const hoja = libro.addWorksheet('Salidas de contenedores', {
+    views: [{ state: 'frozen', ySplit: FILA_TITULOS, topLeftCell: `A${FILA_TITULOS + 1}` }],
+    pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+  })
+
+  hoja.columns = COLUMNAS_SALIDAS.map((c) => ({ width: c.ancho }))
+  escribirEncabezado(hoja, 'Salidas de contenedores anotadas en los puntos', COLUMNAS_SALIDAS.length, datos)
+  escribirTitulos(hoja, FILA_TITULOS, COLUMNAS_SALIDAS.map((c) => c.titulo))
+
+  let numeroFila = FILA_TITULOS
+  let anuladas = 0
+  // De la más vieja a la más nueva, que es como viene el Excel de la empresa.
+  for (const s of [...salidas].reverse()) {
+    const destino = s.destino === 'otro' && s.destino_detalle
+      ? s.destino_detalle
+      : ETIQUETA_DESTINO_CONTENEDOR[s.destino] ?? s.destino
+    const estado = s.anulada_en ? `Anulada: ${s.motivo_anulacion ?? ''}` : 'Vigente'
+    if (s.anulada_en) anuladas += 1
+    const items = s.items.length ? s.items : [null]
+    for (const it of items) {
+      numeroFila += 1
+      hoja.getRow(numeroFila).values = [
+        fecha(s.salio_en),
+        hora(s.salio_en),
+        `${s.sitio_codigo} · ${s.sitio_nombre}`,
+        s.patente,
+        s.chofer ?? null,
+        it?.material ?? null,
+        it ? aNumero(it.cantidad) : null,
+        it ? it.unidad_plural || it.unidad : null,
+        destino,
+        s.observaciones ?? null,
+        s.cargado_por ?? null,
+        estado,
+      ]
+      pintarFilaDeDatos(hoja, numeroFila, COLUMNAS_SALIDAS, Boolean(s.anulada_en))
+    }
+  }
+
+  if (salidas.length) {
+    hoja.autoFilter = {
+      from: { row: FILA_TITULOS, column: 1 },
+      to: { row: numeroFila, column: COLUMNAS_SALIDAS.length },
+    }
+  }
+
+  const notas = [
+    `${numero(salidas.length, 0)} salida${salidas.length === 1 ? '' : 's'}, una fila por cada material.` +
+      (anuladas ? ` ${numero(anuladas, 0)} en gris: anuladas.` : ''),
+  ]
+  if (!salidas.length) notas.push('No hubo salidas anotadas con los filtros pedidos.')
+  escribirPie(hoja, numeroFila + 2, COLUMNAS_SALIDAS.length, datos, notas)
 
   return libro
 }

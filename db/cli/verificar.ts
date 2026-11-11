@@ -287,6 +287,18 @@ async function limpiarRastros() {
     await tx.consultar('delete from pila_controles where observacion = $1', [MARCA])
     await tx.consultar('delete from conteos_diarios where observaciones = $1', [MARCA])
     await tx.consultar('delete from pedidos_recambio where observaciones = $1', [MARCA])
+    // Sólo si la 0027 está: esto tiene que poder correr contra una base vieja.
+    const [salidas] = await tx.consultar<{ hay: boolean }>(
+      `select to_regclass('public.salidas_contenedor') is not null as hay`,
+    )
+    if (salidas?.hay) {
+      await tx.consultar(
+        `delete from salidas_contenedor_items
+          where salida_id in (select id from salidas_contenedor where observaciones = $1)`,
+        [MARCA],
+      )
+      await tx.consultar('delete from salidas_contenedor where observaciones = $1', [MARCA])
+    }
     await tx.consultar(
       'delete from vecinos where app.normalizar_telefono(telefono) = any($1::text[])',
       [TELEFONOS_PRUEBA],
@@ -2137,6 +2149,124 @@ async function main() {
     Number(respuesta?.retirados ?? 0) > 0,
     `${respuesta?.retirados ?? 0} retirados en ese punto`,
   )
+
+  // ═══ Salidas de contenedores (0027) ═══════════════════════════════════
+  console.log('\n  Salidas de contenedores')
+
+  const [hayTablaSalidas] = await comoServicio((tx) =>
+    tx.consultar<{ hay: boolean }>(`select to_regclass('public.salidas_contenedor') is not null as hay`),
+  )
+  if (!hayTablaSalidas?.hay) {
+    omitir('salidas de contenedores', 'la base no tiene la 0027')
+  } else {
+    const [seco] = await conSesion(pv, (tx) =>
+      tx.consultar<{ id: string; unidad: string }>(
+        `select m.id, u.codigo as unidad from materiales m join unidades u on u.id = m.unidad_default_id
+          where lower(m.nombre) = 'cartón'`,
+      ),
+    )
+    const [poda] = await conSesion(pv, (tx) =>
+      tx.consultar<{ id: string; unidad: string; permitidas: string }>(
+        `select m.id, u.codigo as unidad,
+                (select string_agg(x.codigo, ',') from unidades x where x.id = any(m.unidades_permitidas)) as permitidas
+           from materiales m join unidades u on u.id = m.unidad_default_id
+          where lower(m.nombre) = 'poda y orgánico'`,
+      ),
+    )
+    revisar('lo seco del punto se carga en kilos', seco?.unidad === 'kg', seco?.unidad ?? 'no está')
+    revisar('la poda del punto, sólo en m³', poda?.unidad === 'm3' && poda?.permitidas === 'm3', poda?.permitidas ?? 'no está')
+
+    const insertarSalida = (s: Sesion, sitioId: string | null) =>
+      conSesion(s, (tx) =>
+        tx.consultar<{ id: string }>(
+          `insert into salidas_contenedor
+             (sitio_id, salio_en, patente, chofer, destino, observaciones, cargado_por_id, client_uuid)
+           values ($1, now(), 'AB123CD', 'Chofer de prueba', 'nodo', $2, $3, $4)
+           returning id`,
+          [sitioId, MARCA, s.perfilId, randomUUID()],
+        ),
+      )
+
+    const [salida] = await insertarSalida(pv, pv.sitioId)
+    revisar('el punto puede anotar un contenedor que se va', Boolean(salida?.id))
+
+    await conSesion(pv, (tx) =>
+      tx.consultar(
+        `insert into salidas_contenedor_items (salida_id, material_id, cantidad, unidad_id)
+         select $1, m.id, 120, m.unidad_default_id from materiales m where m.id = $2`,
+        [salida.id, seco.id],
+      ),
+    )
+    const [vista] = await conSesion(admin, (tx) =>
+      tx.consultar<{ items: Array<{ material: string; unidad_codigo: string }> }>(
+        'select items from v_salidas_contenedor where id = $1',
+        [salida.id],
+      ),
+    )
+    revisar(
+      'y la coordinación la ve con lo que llevaba',
+      vista?.items?.[0]?.material === 'Cartón' && vista.items[0].unidad_codigo === 'kg',
+      JSON.stringify(vista?.items ?? null),
+    )
+
+    const deOtroPuntoSalidas = await contar(
+      andes,
+      'select count(*) c from salidas_contenedor where id = $1',
+      [salida.id],
+    )
+    revisar('otro punto no la ve', deOtroPuntoSalidas === 0, `ve ${deOtroPuntoSalidas}`)
+
+    await debeFallar(
+      'no puede anotar a nombre de otro punto',
+      andes,
+      `insert into salidas_contenedor
+         (sitio_id, salio_en, patente, destino, observaciones, cargado_por_id, client_uuid)
+       values ($1, now(), 'AB123CD', 'nodo', $2, $3, $4)`,
+      [pv.sitioId, MARCA, andes.perfilId, randomUUID()],
+    )
+
+    await debeFallar(
+      'la Planta no anota salidas de contenedores',
+      planta,
+      `insert into salidas_contenedor
+         (sitio_id, salio_en, patente, destino, observaciones, cargado_por_id, client_uuid)
+       values ($1, now(), 'AB123CD', 'nodo', $2, $3, $4)`,
+      [planta.sitioId, MARCA, planta.perfilId, randomUUID()],
+    )
+
+    await debeFallar(
+      'no puede agregarle materiales a una salida ajena',
+      andes,
+      `insert into salidas_contenedor_items (salida_id, material_id, cantidad, unidad_id)
+       select $1, m.id, 1, m.unidad_default_id from materiales m where m.id = $2`,
+      [salida.id, seco.id],
+    )
+
+    const anuladasPorElPunto = await conSesion(pv, (tx) =>
+      tx.consultar(
+        `update salidas_contenedor set anulada_en = now(), anulada_por_id = $2, motivo_anulacion = 'prueba'
+          where id = $1 returning id`,
+        [salida.id, pv.perfilId],
+      ),
+    ).catch(() => [])
+    revisar('el punto no puede anularla', anuladasPorElPunto.length === 0)
+
+    await debeFallar(
+      'nadie puede borrarla',
+      admin,
+      'delete from salidas_contenedor where id = $1',
+      [salida.id],
+    )
+
+    const anulada = await conSesion(admin, (tx) =>
+      tx.consultar(
+        `update salidas_contenedor set anulada_en = now(), anulada_por_id = $2, motivo_anulacion = 'prueba'
+          where id = $1 returning id`,
+        [salida.id, admin.perfilId],
+      ),
+    )
+    revisar('la coordinación sí puede anularla', anulada.length === 1)
+  }
 
   // ═══ Eliminar usuarios ════════════════════════════════════════════════
   //

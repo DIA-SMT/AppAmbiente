@@ -396,7 +396,7 @@ export const RECURSOS: Recurso[] = [
       {
         nombre: 'habilitada_origen', etiqueta: 'Como origen', tipo: 'booleano',
         grupo: '¿Dónde se la puede elegir?',
-        ayuda: 'Origen es de dónde viene lo que entra; destino, a dónde va lo que sale. Marcá al menos una: sin ninguna no se la puede elegir en ningún lado.',
+        ayuda: 'Origen es de dónde viene lo que entra; destino, a dónde va lo que sale. Sin ninguna de las dos no aparece en los formularios de carga: sirve sólo para «Pertenece a» en Vehículos y Personas (por ejemplo, Transporte 9 de Julio).',
       },
       {
         nombre: 'habilitada_destino', etiqueta: 'Como destino', tipo: 'booleano',

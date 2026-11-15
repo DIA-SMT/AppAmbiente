@@ -165,8 +165,9 @@ function mensajeDeErrorDeLista(e: unknown, recurso: Recurso): string {
   if (m.includes('codigo_key') || m.includes('codigo_idx')) {
     return 'Ese código ya está usado. Los códigos no se repiten.'
   }
+  // Sólo en una base sin la 0028, que todavía exige origen o destino.
   if (m.includes('entidad_sirve_para_algo')) {
-    return 'Marcá al menos una casilla: la entidad tiene que servir como origen, como destino, o como las dos.'
+    return 'Esta base todavía exige marcar origen o destino: falta aplicar la migración 0028.'
   }
   if (m.includes('material_tipos_validos')) {
     return 'Elegí si el material entra, sale o las dos cosas.'

@@ -1,0 +1,17 @@
+.olas {
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  width: 100%;
+  height: 78px;
+  pointer-events: none;
+}
+.celeste { fill: #2db0ff; }
+.amarilla { fill: #f4dc00; }
+.fondo { fill: var(--ola-fondo, var(--fondo)); }
+
+@media (max-width: 760px) {
+  .olas { height: 56px; }
+}

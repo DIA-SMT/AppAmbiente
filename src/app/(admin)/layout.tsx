@@ -1,5 +1,5 @@
-import Image from 'next/image'
 import Link from 'next/link'
+import { Marca } from '@/app/_ui/Marca'
 import { redirect } from 'next/navigation'
 import BurbujaMigue from '@/app/_migue/BurbujaMigue'
 import { apagadoDelPanel, EJEMPLOS_DEL_PANEL, PRIVACIDAD_DEL_PANEL } from '@/app/_migue/textos'
@@ -61,24 +61,9 @@ export default async function LayoutPanel({ children }: { children: React.ReactN
   return (
     <div className={estilos.marco}>
       <header className={estilos.encabezado}>
-        <div className={estilos.marca}>
-          <div className={estilos.logo}>
-            {/* El isotipo oficial del kit, tal cual: no se redibuja. */}
-            <Image
-              src="/institucional/isotipo-smt-oficial-original.png"
-              alt="Ciudad San Miguel de Tucumán"
-              width={235}
-              height={235}
-              priority
-            />
-            <span aria-hidden="true">Ciudad SMT</span>
-          </div>
-          <span className={estilos.separador} aria-hidden="true" />
-          <div className={estilos.identidad}>
-            <p>Panel de coordinación</p>
-            <strong>Secretaría de Ambiente</strong>
-          </div>
-        </div>
+        <Link href="/tablero" className={estilos.marca} aria-label="Residuos SMT — ir al tablero">
+          <Marca prioridad bajada="Panel de coordinación" />
+        </Link>
 
         <div className={estilos.usuario}>
           <Link
@@ -103,7 +88,10 @@ export default async function LayoutPanel({ children }: { children: React.ReactN
             <span className={estilos.avatar} aria-hidden="true">
               {sesion.nombre.trim().charAt(0).toUpperCase()}
             </span>
-            <span className={estilos.nombre}>{sesion.nombre}</span>
+            <span className={estilos.nombre}>
+              <strong>{sesion.nombre}</strong>
+              <small>Coordinación</small>
+            </span>
             <span className="sr-solo">
               Mi cuenta{falta ? ' — te falta completarla' : ''}
             </span>
@@ -113,7 +101,15 @@ export default async function LayoutPanel({ children }: { children: React.ReactN
           <RecorridoGuiado rol="admin" autoIniciar={!falta} className={estilos.tema} />
           <SelectorDeTema className={estilos.tema} />
           <form action={salir} data-recorrido="salir">
-            <button type="submit" className={estilos.salir}>Salir</button>
+            <button type="submit" className={estilos.salir} title="Salir">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                   strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <path d="m16 17 5-5-5-5" />
+                <path d="M21 12H9" />
+              </svg>
+              <span>Salir</span>
+            </button>
           </form>
         </div>
       </header>

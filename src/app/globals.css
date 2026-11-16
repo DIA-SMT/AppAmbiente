@@ -8,31 +8,40 @@
    ═══════════════════════════════════════════════════════════════════════ */
 
 :root {
-  /* Paleta institucional: sale de design-tokens.css (el kit de octubre de
-     2026). El azul domina; el verde queda para lo ambiental y lo positivo. */
-  --azul:        var(--smt-blue);
+  /* Paleta institucional con la estética de Applaza (DIA): los colores del
+     logo —azul #0166ff, celeste, amarillo— y el azul noche de los títulos. El
+     azul domina; el verde queda para lo ambiental y lo positivo. */
+  --azul:        #0166ff;
   --azul-med:    #2a86f7;
-  --azul-hondo:  #1f4aa8;
-  --azul-deep:   var(--smt-blue-deep);
-  --celeste:     var(--smt-cyan);
+  --azul-hondo:  #0047c2;
+  --azul-deep:   #09234c;
+  --celeste:     #2db0ff;
   --celeste-suave: var(--smt-cyan-soft);
-  --amarillo:    var(--smt-yellow);
-  /* «Ciudad SMT» escrito al lado del isotipo, y cuánto se vela el panorama de
-     la cabecera: en oscuro, claro y bien velado. */
-  --azul-marca:  var(--smt-blue-deep);
+  --amarillo:    #f4dc00;
+  /* El nombre al lado del isotipo. */
+  --azul-marca:  #09234c;
   --velo-panorama: 55%;
+  /* El azul noche de la bienvenida y los rótulos: no cambia con el tema,
+     porque siempre va sobre algo claro o es el fondo de algo con letra blanca. */
+  --azul-noche:  #09234c;
 
-  /* Tinta y neutros, en la gama azul del kit. --gris es el texto secundario
-     (#4B6B92 sobre el fondo da 5,3:1). */
-  --tinta:       var(--smt-text);
-  --texto:       #24426d;
-  --gris:        var(--smt-text-soft);
-  --gris-suave:  #8aa1bf;
-  --linea:       var(--smt-border);
-  --linea-fuerte:#c3d6ec;
-  --panel:       var(--smt-surface);
-  --panel-2:     var(--smt-surface-soft);
-  --fondo:       var(--smt-bg);
+  /* Tinta y neutros de Applaza. --gris es el texto secundario (#51647c sobre
+     el fondo da 5,8:1). */
+  --tinta:       #09234c;
+  --texto:       #10284d;
+  --gris:        #51647c;
+  --gris-suave:  #8a9bb3;
+  --linea:       #d8e4f5;
+  --linea-fuerte:#c9d8ec;
+  --panel:       #ffffff;
+  --panel-2:     #f3f8ff;
+  --fondo:       #f5f8fe;
+
+  /* Los fondos pastel de las tarjetas de acceso y de los íconos. */
+  --tinte-azul:     #eaf3ff;
+  --tinte-celeste:  #e4f5ff;
+  --tinte-amarillo: #fff7d1;
+  --tinte-verde:    #e6f7ec;
 
   /* Semánticos: ingreso entra (verde de apoyo), salida sale (ámbar) */
   --ingreso:     var(--smt-success);
@@ -45,20 +54,24 @@
   --peligro-bg:  #fdeded;
   --exito:       var(--smt-success);
 
-  --degrade: radial-gradient(120% 150% at 88% 8%, rgba(49, 180, 245, .40), transparent 58%),
-             linear-gradient(135deg, var(--smt-blue-deep) 0%, var(--smt-blue) 55%, var(--smt-cyan) 100%);
+  /* El degradé de la bienvenida de Applaza: azul noche a azul, con un brillo
+     celeste arriba a la derecha. */
+  --degrade: radial-gradient(ellipse at 85% 20%, rgb(45 176 255 / 50%), transparent 50%),
+             linear-gradient(115deg, #09234c 0%, #073a8f 42%, #0166ff 100%);
   --regla: linear-gradient(90deg, var(--amarillo) 0%, var(--amarillo) 22%,
                             var(--celeste) 22%, var(--celeste) 100%);
 
-  --sombra:      0 1px 2px rgba(19, 49, 92, .04), 0 10px 30px rgba(8, 102, 249, .07);
-  --sombra-alta: 0 8px 18px rgba(19, 49, 92, .08), 0 24px 54px rgba(8, 102, 249, .12);
+  --sombra:      0 2px 12px rgba(9, 35, 76, .045);
+  --sombra-alta: 0 12px 28px rgba(9, 35, 76, .10);
 
-  --sans: "Segoe UI", "Helvetica Neue", system-ui, Arial, sans-serif;
+  --sans: "DM Sans Variable", "DM Sans", system-ui, "Segoe UI", Arial, sans-serif;
+  /* Títulos, cifras grandes y marca, como en Applaza. */
+  --display: "Outfit Variable", "DM Sans Variable", system-ui, sans-serif;
   --mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, monospace;
 
-  --r-chico: var(--radius-sm);
-  --r: var(--radius-md);
-  --r-grande: var(--radius-lg);
+  --r-chico: 12px;
+  --r: 18px;
+  --r-grande: 22px;
   --transicion: 160ms cubic-bezier(.2, .8, .2, 1);
 
   --toque: 52px;          /* alto mínimo de cualquier cosa que se toca */
@@ -104,6 +117,7 @@
     --sombra:      0 1px 2px rgba(0, 0, 0, .35), 0 10px 28px rgba(0, 0, 0, .22);
     --sombra-alta: 0 8px 18px rgba(0, 0, 0, .4), 0 24px 54px rgba(0, 0, 0, .34);
     --sombra-lateral: rgba(0, 0, 0, .55);
+    --tinte-azul: #12233d; --tinte-celeste: #0f2a3d; --tinte-amarillo: #2a2610; --tinte-verde: #0f2a1d;
   }
 }
 
@@ -118,6 +132,7 @@
   --sombra: 0 1px 2px rgba(0,0,0,.35), 0 10px 28px rgba(0,0,0,.22);
   --sombra-alta: 0 8px 18px rgba(0,0,0,.4), 0 24px 54px rgba(0,0,0,.34);
   --sombra-lateral: rgba(0,0,0,.55);
+  --tinte-azul: #12233d; --tinte-celeste: #0f2a3d; --tinte-amarillo: #2a2610; --tinte-verde: #0f2a1d;
 }
 
 * { box-sizing: border-box; }
@@ -131,9 +146,7 @@ html { -webkit-text-size-adjust: 100%; background: var(--fondo); color-scheme: l
 body {
   margin: 0;
   min-height: 100dvh;
-  background:
-    radial-gradient(circle at 80% -10%, color-mix(in srgb, var(--azul) 7%, transparent), transparent 28rem),
-    var(--fondo);
+  background: var(--fondo);
   color: var(--texto);
   font-family: var(--sans);
   font-size: 16px;
@@ -144,10 +157,38 @@ body {
   overscroll-behavior-y: none;
 }
 
-h1, h2, h3, h4 { color: var(--tinta); margin: 0; line-height: 1.18; text-wrap: balance; }
-h1 { font-size: clamp(1.65rem, 2.6vw, 2rem); font-weight: 780; letter-spacing: -.035em; }
-h2 { font-size: 1.25rem; font-weight: 760; letter-spacing: -.025em; }
-h3 { font-size: 1rem; font-weight: 750; }
+/* Los títulos van en Outfit, como en Applaza; el texto corrido, en DM Sans. */
+h1, h2, h3, h4 {
+  color: var(--tinta); margin: 0; line-height: 1.18; text-wrap: balance;
+  font-family: var(--display); letter-spacing: -.015em;
+}
+h1 { font-size: clamp(1.7rem, 2.6vw, 1.95rem); font-weight: 700; }
+h2 { font-size: 1.2rem; font-weight: 700; }
+h3 { font-size: 1.02rem; font-weight: 650; }
+
+/* ── Piezas de Applaza ───────────────────────────────────────────────────
+   El sobretítulo en mayúsculas con la hojita amarilla, y el título de una
+   sección con la misma hoja adelante. */
+.sobretitulo-hoja {
+  display: flex; align-items: center; gap: 10px; margin: 0;
+  font-size: .8rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+}
+.sobretitulo-hoja::before,
+.titulo-seccion::before {
+  content: ''; width: 26px; height: 14px; flex: 0 0 auto;
+  border-radius: 14px 2px; background: var(--amarillo); transform: rotate(-8deg);
+}
+.titulo-seccion {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 1.35rem; color: var(--tinta); margin: 0;
+}
+/* El sobretítulo azul chico de arriba del título de una pantalla. */
+.antetitulo {
+  margin: 0 0 6px; color: var(--azul);
+  font-size: .7rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase;
+}
+:root[data-tema="oscuro"] .antetitulo { color: var(--celeste); }
+@media (prefers-color-scheme: dark) { :root:not([data-tema="claro"]) .antetitulo { color: var(--celeste); } }
 p  { margin: 0 0 .8rem; }
 a  { color: var(--azul); }
 :focus-visible { outline: 3px solid var(--celeste); outline-offset: 2px; border-radius: 4px; }
@@ -228,9 +269,9 @@ a  { color: var(--azul); }
   padding: 12px 15px;
   font-family: inherit;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--tinta);
-  background: var(--panel-2);
+  background: var(--panel);
   border: 1px solid var(--linea-fuerte);
   border-radius: var(--r-chico);
   appearance: none;
@@ -259,23 +300,25 @@ select.control {
 
 .boton {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  min-height: 48px; padding: 11px 18px;
-  font-family: inherit; font-size: .95rem; font-weight: 750;
-  border: 1px solid transparent; border-radius: var(--r-chico);
+  min-height: 48px; padding: 11px 22px;
+  font-family: inherit; font-size: .95rem; font-weight: 700;
+  /* Pastilla, como los botones de Applaza. */
+  border: 1px solid transparent; border-radius: 999px;
   background: var(--azul); color: #fff;
   cursor: pointer; text-decoration: none; text-align: center;
-  box-shadow: 0 6px 16px color-mix(in srgb, var(--azul) 18%, transparent);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--azul) 20%, transparent);
   transition: transform var(--transicion), box-shadow var(--transicion), border-color var(--transicion), background var(--transicion), color var(--transicion);
 }
-.boton:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 9px 22px color-mix(in srgb, var(--azul) 23%, transparent); }
+.boton:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 24px color-mix(in srgb, var(--azul) 26%, transparent); }
 .boton:active:not(:disabled) { transform: translateY(0); }
 .boton:disabled { opacity: .5; cursor: not-allowed; }
 .boton.ancho-total { width: 100%; }
-.boton.secundario { background: var(--panel); color: var(--tinta); border-color: var(--linea-fuerte); box-shadow: none; }
+.boton.secundario { background: var(--panel); color: var(--tinta); border-color: var(--linea-fuerte); box-shadow: 0 2px 8px rgba(9, 35, 76, .04); }
+.boton.secundario:hover:not(:disabled) { border-color: var(--azul); color: var(--azul); box-shadow: 0 6px 16px rgba(9, 35, 76, .07); }
 .boton.fantasma { background: transparent; color: var(--azul); border-color: transparent; padding: 12px 10px; box-shadow: none; }
 .boton.exito { background: var(--exito); color: #04231a; }
 .boton.peligro { background: var(--peligro); color: #fff; }
-.boton.chico { min-height: 40px; padding: 7px 13px; font-size: .84rem; }
+.boton.chico { min-height: 40px; padding: 7px 16px; font-size: .84rem; }
 .boton.grande { min-height: 56px; font-size: 1rem; }
 
 /* Los dos botones del inicio de turno. */
@@ -285,20 +328,37 @@ select.control {
   border: 1px solid var(--linea); border-radius: var(--r);
   background: var(--panel); color: var(--tinta);
   font-family: inherit; text-align: left; cursor: pointer; text-decoration: none;
-  box-shadow: var(--sombra);
+  box-shadow: 0 4px 16px rgba(9, 35, 76, .05);
   transition: transform var(--transicion), box-shadow var(--transicion), border-color var(--transicion);
 }
-.boton-accion:hover { transform: translateY(-2px); box-shadow: var(--sombra-alta); }
+.boton-accion:hover { transform: translateY(-3px); box-shadow: var(--sombra-alta); }
 .boton-accion .icono {
   flex: 0 0 48px; height: 48px; border-radius: 50%;
   display: grid; place-items: center; font-size: 1.5rem; font-weight: 800; color: #fff;
 }
-.boton-accion .rotulo { font-size: 1.15rem; font-weight: 800; display: block; }
+.boton-accion .rotulo { font-family: var(--display); font-size: 1.2rem; font-weight: 700; letter-spacing: -.015em; display: block; }
 .boton-accion .detalle { font-size: .86rem; color: var(--gris); }
-.boton-accion.ingreso { border-color: color-mix(in srgb, var(--ingreso) 40%, transparent); }
+.boton-accion.ingreso { background: var(--tinte-verde); border-color: color-mix(in srgb, var(--ingreso) 32%, transparent); }
 .boton-accion.ingreso .icono { background: var(--ingreso); }
-.boton-accion.salida { border-color: color-mix(in srgb, var(--salida) 45%, transparent); }
+.boton-accion.salida { background: var(--tinte-amarillo); border-color: color-mix(in srgb, var(--salida) 38%, transparent); }
 .boton-accion.salida .icono { background: var(--salida); color: #3a2600; }
+/* Los otros accesos del turno, con los pastel de Applaza. */
+.boton-accion.tono-azul { background: var(--tinte-azul); border-color: color-mix(in srgb, var(--azul) 16%, transparent); }
+.boton-accion.tono-celeste { background: var(--tinte-celeste); border-color: color-mix(in srgb, var(--celeste) 30%, transparent); }
+
+/* ── Portada chica ────────────────────────────────────────────────────────
+   La franja azul de bienvenida de Applaza, en tamaño de celular: el nombre
+   del punto, el día y las olas celeste y amarilla. */
+.portada {
+  position: relative; overflow: hidden; isolation: isolate;
+  padding: 20px 20px 52px; border-radius: var(--r);
+  color: #fff; background: var(--degrade);
+  box-shadow: 0 10px 26px rgba(9, 35, 76, .16);
+}
+.portada .sobretitulo-hoja { color: #fff; font-size: .7rem; }
+.portada h1 { color: #fff; margin: 10px 0 2px; font-size: 1.75rem; font-weight: 800; }
+.portada p:not(.sobretitulo-hoja) { margin: 0; color: #e4efff; }
+.portada .portada-olas { height: 40px; }
 
 /* ── Botones de cantidad sugerida ─────────────────────────────────────── */
 

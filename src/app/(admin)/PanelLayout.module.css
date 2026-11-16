@@ -1,5 +1,5 @@
 .marco {
-  --alto-cabecera: 70px;
+  --alto-cabecera: 72px;
   /* En escritorio la navegación va al costado y no tapa nada de arriba. El
      valor lo lee el scroll-margin-top de globals.css, para que saltar a
      #formulario no deje el título abajo de lo que está pegado a la pantalla. */
@@ -9,10 +9,8 @@
   flex-direction: column;
 }
 
-/* La cabecera clara del kit institucional: el panel con el panorama de la
-   ciudad apenas asomando a la derecha (header-panorama-institucional.webp),
-   el isotipo oficial a color y la identidad en la tinta de la paleta. Con
-   tema oscuro el panorama queda tenue y el panel es el oscuro. */
+/* La barra de arriba de Applaza: blanca, de 72 px, con la marca combinada a
+   la izquierda y la persona a la derecha. */
 .encabezado {
   position: sticky;
   top: 0;
@@ -21,120 +19,75 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  padding: calc(12px + env(safe-area-inset-top)) 24px 12px;
+  gap: 18px;
+  padding: env(safe-area-inset-top) clamp(16px, 3vw, 40px) 0;
   color: var(--tinta);
-  background:
-    linear-gradient(90deg, var(--panel) 0%, var(--panel) 38%, color-mix(in srgb, var(--panel) var(--velo-panorama), transparent) 72%, color-mix(in srgb, var(--panel) calc(var(--velo-panorama) - 25%), transparent) 100%),
-    url('/institucional/header-panorama-institucional.webp') right 38% / 760px auto no-repeat,
-    var(--panel);
+  background: var(--panel);
   border-bottom: 1px solid var(--linea);
-  box-shadow: 0 6px 24px rgba(8, 102, 249, .06);
+  box-shadow: 0 1px 0 rgba(9, 35, 76, .03);
 }
 
-.encabezado::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  bottom: -1px;
-  left: 0;
-  height: 3px;
-  background: var(--regla);
-}
-
-.marca,
-.usuario {
+.marca {
   display: flex;
   align-items: center;
-}
-
-.marca { gap: 15px; min-width: 0; }
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  flex: 0 0 auto;
-  color: var(--azul-marca);
+  min-width: 0;
+  margin-left: -4px;
+  padding: 4px;
+  border-radius: 12px;
+  color: inherit;
   text-decoration: none;
 }
 
-.logo img { height: 38px; width: 38px; }
-
-.logo span {
-  font-size: 1.08rem;
-  font-weight: 800;
-  letter-spacing: -.02em;
-  white-space: nowrap;
+.usuario {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
 }
 
-.separador {
-  width: 1px;
-  height: 32px;
-  background: var(--linea-fuerte);
-}
-
-.identidad { min-width: 0; }
-.identidad p {
-  margin: 0 0 1px;
-  color: var(--gris);
-  font-size: .66rem;
-  font-weight: 750;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-}
-.identidad strong {
-  display: block;
-  color: var(--tinta);
-  font-size: .98rem;
-  line-height: 1.25;
-  white-space: nowrap;
-}
-
-.usuario { gap: 10px; flex: 0 0 auto; }
+/* La inicial, en el círculo celeste pálido de Applaza. */
 .avatar {
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: var(--azul);
-  color: #fff;
+  background: var(--tinte-azul);
+  color: var(--azul);
   font-size: .82rem;
   font-weight: 800;
 }
-.nombre { font-size: .84rem; font-weight: 650; color: var(--tinta); }
-.salir {
-  min-height: 36px;
-  padding: 0 14px;
-  border: 1px solid var(--linea-fuerte);
-  border-radius: var(--r-chico);
-  background: var(--panel);
-  color: var(--tinta);
+
+.nombre { display: flex; flex-direction: column; line-height: 1.2; }
+.nombre strong { font-size: .8rem; font-weight: 700; color: var(--tinta); }
+.nombre small { margin-top: 2px; font-size: .68rem; color: var(--gris); }
+
+/* «Salir», el recorrido y el sol y la luna: botones redondos y sin borde,
+   como el de salir de Applaza. */
+.salir,
+.tema {
+  min-width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--gris);
   font: inherit;
   font-size: .82rem;
-  font-weight: 750;
+  font-weight: 700;
   cursor: pointer;
-  transition: background var(--transicion), border-color var(--transicion), color var(--transicion);
+  transition: background var(--transicion), color var(--transicion);
 }
-.salir:hover { color: var(--azul); border-color: var(--azul); background: var(--panel-2); }
-
-/* El sol y la luna, del mismo tamaño y borde que «Salir». */
-.tema {
-  width: 36px;
-  height: 36px;
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 1px solid var(--linea-fuerte);
-  border-radius: var(--r-chico);
-  background: var(--panel);
-  color: var(--tinta);
-  cursor: pointer;
-  transition: background var(--transicion), border-color var(--transicion), color var(--transicion);
-}
-.tema:hover { color: var(--azul); border-color: var(--azul); background: var(--panel-2); }
+.tema { width: 40px; padding: 0; }
+.salir svg { width: 18px; height: 18px; }
+.tema:hover { color: var(--azul); background: var(--tinte-azul); }
+.salir:hover { color: var(--peligro); background: var(--peligro-bg); }
 
 .regla { display: none; }
 
@@ -142,11 +95,11 @@
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: 230px minmax(0, 1fr);
+  grid-template-columns: 240px minmax(0, 1fr);
   transition: grid-template-columns 180ms cubic-bezier(.2, .8, .2, 1);
 }
 
-.cuerpo[data-contraida='true'] { grid-template-columns: 76px minmax(0, 1fr); }
+.cuerpo[data-contraida='true'] { grid-template-columns: 78px minmax(0, 1fr); }
 
 .lateral {
   position: sticky;
@@ -155,50 +108,49 @@
   height: calc(100dvh - var(--alto-cabecera));
   display: flex;
   flex-direction: column;
-  padding: 12px 12px 10px;
-  background: color-mix(in srgb, var(--panel) 94%, transparent);
+  padding: 18px 14px 12px;
+  background: var(--panel);
   border-right: 1px solid var(--linea);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
 }
 
 .rotuloMenu {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 10px 7px;
-  color: var(--gris-suave);
+  padding: 0 8px 10px 10px;
+  color: var(--gris);
   font-size: .66rem;
   font-weight: 800;
-  letter-spacing: .12em;
+  letter-spacing: .14em;
   text-transform: uppercase;
 }
 .rotuloNavegacion { min-width: 0; }
 .estado {
   width: 7px;
   height: 7px;
+  margin-left: auto;
   border-radius: 50%;
   background: var(--ingreso);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--ingreso) 13%, transparent);
 }
 
 .botonMenu {
-  width: 30px;
-  height: 30px;
-  flex: 0 0 30px;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
   display: grid;
   place-items: center;
-  margin-left: 3px;
+  margin-left: 8px;
   padding: 0;
-  border: 1px solid var(--linea);
-  border-radius: 9px;
-  background: var(--panel-2);
-  color: var(--gris);
+  border: 0;
+  border-radius: 999px;
+  background: var(--tinte-azul);
+  color: var(--azul);
   cursor: pointer;
-  transition: color var(--transicion), background var(--transicion), border-color var(--transicion);
+  transition: color var(--transicion), background var(--transicion);
 }
 .botonMenu svg { width: 17px; height: 17px; }
-.botonMenu:hover { color: var(--azul); border-color: var(--linea-fuerte); background: var(--panel); }
+.botonMenu:hover { background: color-mix(in srgb, var(--azul) 16%, var(--panel)); }
 
 .cuerpo[data-contraida='true'] .lateral { padding-inline: 10px; }
 .cuerpo[data-contraida='true'] .rotuloMenu { justify-content: center; padding-inline: 0; }
@@ -207,21 +159,37 @@
 .cuerpo[data-contraida='true'] .pieLateral { display: none; }
 .cuerpo[data-contraida='true'] .botonMenu { margin-left: 0; }
 
+/* El pie del costado: la franja amarilla y celeste de la identidad, y quién
+   hizo el sistema. */
 .pieLateral {
-  margin: auto 8px 0;
-  padding: 14px 12px 4px;
-  border-top: 1px solid var(--linea);
+  position: relative;
+  margin: auto 4px 0;
+  padding: 16px 10px 4px;
   display: flex;
   flex-direction: column;
   gap: 1px;
 }
-.pieLateral strong { color: var(--tinta); font-size: .78rem; }
+.pieLateral::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10px;
+  right: 10px;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--regla);
+}
+.pieLateral strong { color: var(--tinta); font-family: var(--display); font-size: .86rem; }
 .pieLateral span { color: var(--gris); font-size: .72rem; }
 
 .contenido {
-  width: min(100%, 1440px);
+  /* La bienvenida del tablero sale de borde a borde: necesita saber cuánto
+     relleno tiene que comerse. */
+  --relleno-arriba: 36px;
+  --relleno-lado: 36px;
+  width: min(100%, 1500px);
   margin: 0 auto;
-  padding: 28px 32px 40px;
+  padding: var(--relleno-arriba) var(--relleno-lado) 48px;
 }
 
 /* La coordinación trabaja con mouse en una computadora: los 52 px que pide el
@@ -235,18 +203,21 @@
 /* En notebooks de poca altura entran primero todas las opciones. El pie es
    informativo, así que se oculta antes de crear un segundo scroll lateral. */
 @media (max-height: 760px) and (min-width: 901px) {
-  .lateral { padding-top: 10px; padding-bottom: 8px; }
+  .lateral { padding-top: 12px; padding-bottom: 8px; }
   .pieLateral { display: none; }
+}
+
+@media (max-width: 1100px) {
+  .nombre { display: none; }
 }
 
 @media (max-width: 900px) {
   /* Acá la navegación baja y se queda pegada abajo del encabezado: son los
      7 px de arriba, los 40 de la pestaña, los 7 de abajo y la línea. */
   .marco { --alto-cabecera: 64px; --alto-navegacion: 55px; }
-  .encabezado { padding-inline: 16px; }
-  .identidad p { display: none; }
-  .identidad strong { font-size: .9rem; }
-  .nombre { display: none; }
+  .encabezado { gap: 10px; padding-inline: 14px; }
+  .salir span { display: none; }
+  .salir { width: 40px; padding: 0; }
   .cuerpo { display: block; }
   .lateral {
     position: sticky;
@@ -260,13 +231,10 @@
   }
   .rotuloMenu,
   .pieLateral { display: none; }
-  .contenido { padding: 22px 16px 32px; }
+  .contenido { --relleno-arriba: 22px; --relleno-lado: 14px; padding-bottom: 32px; }
 }
 
 @media (max-width: 520px) {
-  .logo img { height: 32px; width: 32px; }
-  .logo span { display: none; }
-  .separador { height: 27px; }
-  .identidad strong { white-space: normal; font-size: .8rem; }
   .avatar { display: none; }
+  .usuario { gap: 2px; }
 }

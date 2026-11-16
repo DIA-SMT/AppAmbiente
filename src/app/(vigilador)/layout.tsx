@@ -3,8 +3,8 @@
  * Todo el resto del alto de pantalla es para lo que el vigilador tiene que
  * tocar.
  */
-import Image from 'next/image'
 import { redirect } from 'next/navigation'
+import { Marca } from '@/app/_ui/Marca'
 import { conSesion } from '@db/sesion'
 import BurbujaMigue from '@/app/_migue/BurbujaMigue'
 import { apagadoDelPunto, ejemplosDelPunto, PRIVACIDAD_DEL_PUNTO, sitioDelPuntoEnTx } from '@/app/_migue/textos'
@@ -35,23 +35,23 @@ export default async function MarcoVigilador({ children }: { children: React.Rea
     <div className={estilos.marco}>
       <header className={estilos.encabezado}>
         <div className={estilos.interior}>
+          {/* La barra blanca de Applaza: la marca y, debajo de «Residuos SMT»,
+              el punto donde se está cargando. */}
           <div className={estilos.identidad}>
-            <Image
-              src="/marca/logo-muni-iso.png"
-              alt="Municipalidad de San Miguel de Tucumán"
-              width={256}
-              height={256}
-              priority
-            />
-            <div className="crecer">
-              <p>Registro de residuos</p>
-              <h2>{sesion.nombre}</h2>
-            </div>
+            <Marca compacta prioridad bajada={sesion.nombre} />
           </div>
           <RecorridoGuiado rol="vigilador" autoIniciar className={estilos.ayuda} />
           <SelectorDeTema className={estilos.tema} />
           <form action={salir} data-recorrido="salir">
-            <button type="submit" className={estilos.salir}>Salir</button>
+            <button type="submit" className={estilos.salir} title="Salir">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                   strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <path d="m16 17 5-5-5-5" />
+                <path d="M21 12H9" />
+              </svg>
+              <span>Salir</span>
+            </button>
           </form>
         </div>
       </header>

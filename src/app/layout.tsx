@@ -1,6 +1,10 @@
 import type { Metadata, Viewport } from 'next'
 import RegistrarSW from './RegistrarSW'
 import { SCRIPT_DEL_TEMA } from './tema'
+// Las dos letras de Applaza, autoalojadas: DM Sans para leer y Outfit para los
+// títulos. Nada de Google Fonts, que en el servidor municipal no hay salida.
+import '@fontsource-variable/dm-sans'
+import '@fontsource-variable/outfit'
 import './design-tokens.css'
 import './globals.css'
 

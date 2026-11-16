@@ -4,11 +4,14 @@
   flex-direction: column;
 }
 
+/* La barra blanca de Applaza: marca a la izquierda, botones redondos a la
+   derecha. No se pega arriba: en el celular todo el alto es para cargar. */
 .encabezado {
-  color: #fff;
-  background: var(--degrade);
-  padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
-  box-shadow: 0 10px 30px rgba(13, 63, 176, .14);
+  color: var(--tinta);
+  background: var(--panel);
+  border-bottom: 1px solid var(--linea);
+  box-shadow: 0 1px 0 rgba(9, 35, 76, .03);
+  padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
 }
 
 .interior {
@@ -18,75 +21,62 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 8px;
 }
 
 .identidad {
   min-width: 0;
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
-  gap: 11px;
-}
-
-.identidad img {
-  width: 36px;
-  height: 36px;
-  object-fit: contain;
-  filter: brightness(0) invert(1);
-}
-
-.identidad p {
-  margin: 0 0 1px;
-  color: rgba(255, 255, 255, .7);
-  font-size: .64rem;
-  font-weight: 800;
-  letter-spacing: .13em;
-  text-transform: uppercase;
-}
-
-.identidad h2 {
-  color: #fff;
-  font-size: 1rem;
-  letter-spacing: -.01em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .salir {
-  min-height: 38px;
-  padding: 0 13px;
-  border: 1px solid rgba(255, 255, 255, .3);
-  border-radius: 9px;
-  background: rgba(7, 25, 61, .2);
-  color: #fff;
+  min-width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--gris);
   font: inherit;
   font-size: .82rem;
-  font-weight: 750;
+  font-weight: 700;
   cursor: pointer;
 }
+.salir svg { width: 19px; height: 19px; }
+.salir:hover { color: var(--peligro); background: var(--peligro-bg); }
 
-/* El recorrido («?») y el sol y la luna, como «Salir»: sobre el azul de la
-   cabecera. El margen automático del primero los pega a «Salir» y deja el
-   nombre del punto a la izquierda. */
+/* El recorrido («?») y el sol y la luna, redondos y sin borde como en
+   Applaza. El margen automático del primero los pega a «Salir». */
 .ayuda { margin-left: auto; }
 .ayuda,
 .tema {
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   flex: 0 0 auto;
-  margin-right: -8px;
   display: grid;
   place-items: center;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, .3);
-  border-radius: 9px;
-  background: rgba(7, 25, 61, .2);
-  color: #fff;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--gris);
   cursor: pointer;
 }
+.ayuda:hover,
+.tema:hover { color: var(--azul); background: var(--tinte-azul); }
 
-.regla { height: 3px; background: var(--regla); }
+@media (max-width: 380px) {
+  .salir span { display: none; }
+}
+
+.regla { display: none; }
 
 .contenido {
   width: 100%;

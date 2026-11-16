@@ -1,0 +1,217 @@
+/* La franja de bienvenida y los accesos del tablero, copiados de Applaza. */
+
+.franja {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  min-height: 360px;
+  /* De borde a borde del contenido, comiéndose su relleno. */
+  margin: calc(var(--relleno-arriba, 36px) * -1) calc(var(--relleno-lado, 36px) * -1) 0;
+  padding: 52px clamp(24px, 5vw, 72px) 104px;
+  color: #fff;
+  background: var(--degrade);
+}
+
+/* La hoja de luz celeste que cruza la franja. */
+.franja::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  width: 340px;
+  height: 420px;
+  right: 18%;
+  top: -120px;
+  border-radius: 80% 0;
+  background: linear-gradient(160deg, rgba(45, 176, 255, .3), rgba(45, 176, 255, 0));
+  transform: rotate(18deg);
+  pointer-events: none;
+}
+
+.texto {
+  position: relative;
+  z-index: 2;
+  max-width: min(680px, 64%);
+}
+.texto :global(.sobretitulo-hoja) { color: #fff; }
+
+.titulo {
+  margin: 18px 0 16px;
+  font-family: var(--display);
+  font-size: clamp(44px, 5.6vw, 76px);
+  line-height: .96;
+  font-weight: 800;
+  letter-spacing: -.015em;
+  color: #fff;
+}
+.titulo span { display: block; color: var(--celeste); }
+
+.bajada {
+  max-width: 560px;
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.55;
+  color: #e4efff;
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 26px;
+}
+
+.primaria,
+.secundaria {
+  min-height: 50px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 24px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+  color: var(--azul-noche);
+  transition: transform var(--transicion), box-shadow var(--transicion);
+}
+.primaria { background: var(--amarillo); box-shadow: 0 10px 22px rgba(244, 220, 0, .25); }
+.secundaria { background: #fff; }
+.secundaria svg { color: #0166ff; }
+.primaria:hover,
+.secundaria:hover { transform: translateY(-2px); }
+.franja :focus-visible { outline-color: #fff; }
+
+.migue {
+  position: absolute;
+  z-index: 1;
+  right: 8%;
+  bottom: 0;
+  width: 260px;
+  height: 100%;
+  pointer-events: none;
+}
+.migue img {
+  position: absolute;
+  right: 0;
+  /* La imagen termina en los tobillos: el corte queda abajo de las olas. */
+  bottom: -14px;
+  width: 260px;
+  height: auto;
+  filter: drop-shadow(0 16px 26px rgba(4, 20, 50, .4));
+}
+
+/* ── Los cuatro accesos ─────────────────────────────────────────────── */
+
+.accesos {
+  position: relative;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin: 8px 0 34px;
+}
+
+.acceso {
+  --tono: var(--azul);
+  position: relative;
+  overflow: hidden;
+  min-height: 112px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 18px;
+  border: 1px solid transparent;
+  border-radius: var(--r);
+  color: var(--tinta);
+  text-decoration: none;
+  box-shadow: 0 4px 16px rgba(9, 35, 76, .05);
+  transition: transform var(--transicion), box-shadow var(--transicion);
+}
+.acceso:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(9, 35, 76, .1); }
+
+.acceso[data-tono='azul'] { background: var(--tinte-azul); border-color: color-mix(in srgb, #0166ff 14%, var(--tinte-azul)); }
+.acceso[data-tono='amarillo'] { --tono: #9a7400; background: var(--tinte-amarillo); border-color: color-mix(in srgb, #f4dc00 40%, var(--tinte-amarillo)); }
+.acceso[data-tono='celeste'] { --tono: #0479be; background: var(--tinte-celeste); border-color: color-mix(in srgb, #2db0ff 22%, var(--tinte-celeste)); }
+.acceso[data-tono='verde'] { --tono: #147b47; background: var(--tinte-verde); border-color: color-mix(in srgb, #2dbe76 24%, var(--tinte-verde)); }
+
+.accesoIcono {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: var(--tono);
+}
+.accesoIcono svg { stroke-width: 1.7; }
+
+.accesoTexto { position: relative; z-index: 1; min-width: 0; flex: 1 1 0; }
+.accesoTexto strong,
+.accesoTexto small { display: block; }
+.accesoTexto strong {
+  font-family: var(--display);
+  font-size: 18px;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -.015em;
+}
+.accesoTexto small { margin-top: 4px; font-size: 13px; color: var(--gris); }
+
+.accesoFlecha {
+  position: relative;
+  z-index: 1;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--panel);
+  color: var(--tono);
+  box-shadow: 0 3px 10px rgba(9, 35, 76, .08);
+}
+
+/* El ícono grande y lavado de fondo, abajo a la derecha. */
+.accesoFondo {
+  position: absolute;
+  right: -10px;
+  bottom: -22px;
+  color: var(--tono);
+  opacity: .12;
+  pointer-events: none;
+}
+
+/* En oscuro los tonos se aclaran para que el ícono se lea sobre el fondo. */
+:root[data-tema='oscuro'] .acceso { --tono: var(--celeste); }
+:root[data-tema='oscuro'] .acceso[data-tono='amarillo'] { --tono: #f4dc00; }
+:root[data-tema='oscuro'] .acceso[data-tono='verde'] { --tono: #2ee0a5; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema='claro']) .acceso { --tono: var(--celeste); }
+  :root:not([data-tema='claro']) .acceso[data-tono='amarillo'] { --tono: #f4dc00; }
+  :root:not([data-tema='claro']) .acceso[data-tono='verde'] { --tono: #2ee0a5; }
+}
+
+@media (max-width: 1180px) {
+  .accesos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 900px) {
+  .texto { max-width: 100%; }
+  .bajada { max-width: calc(100% - 150px); }
+  .migue { right: -20px; width: 190px; }
+  .migue img { width: 190px; bottom: -10px; }
+}
+
+@media (max-width: 760px) {
+  .franja { min-height: 0; padding: 30px 20px 84px; }
+  .titulo { font-size: clamp(34px, 10.4vw, 44px); }
+  .bajada { font-size: 15px; max-width: calc(100% - 110px); }
+  .migue { right: -24px; width: 150px; }
+  .migue img { width: 150px; bottom: -8px; }
+  .acciones { display: grid; grid-template-columns: 1fr; max-width: calc(100% - 110px); }
+  .primaria,
+  .secundaria { justify-content: center; padding: 0 14px; font-size: 14px; white-space: nowrap; }
+  .accesos { gap: 12px; margin: 6px 0 28px; }
+  .acceso { min-height: 128px; padding: 16px 14px; flex-direction: column; align-items: flex-start; gap: 8px; }
+  .accesoTexto strong { font-size: 16px; }
+  .accesoFlecha { position: absolute; right: 12px; top: 14px; width: 30px; height: 30px; }
+}

@@ -3,46 +3,58 @@
 
 /* ── MetricCard ───────────────────────────────────────────────────────── */
 
+/* Las tarjetas de indicadores de Applaza: ícono en un cuadrado pastel, el
+   rótulo en minúscula gris y la cifra grande en Outfit. */
 .metrica {
   --tono: var(--azul);
   display: flex;
   align-items: flex-start;
-  gap: 14px;
-  transition: box-shadow var(--transicion), border-color var(--transicion);
+  gap: 13px;
+  padding: 18px;
+  transition: box-shadow var(--transicion), border-color var(--transicion), transform var(--transicion);
 }
 .metrica[data-tono='celeste'] { --tono: var(--celeste); }
 .metrica[data-tono='verde'] { --tono: var(--ingreso); }
 .metrica[data-tono='ambar'] { --tono: var(--salida); }
 
 .metrica:hover {
-  border-color: color-mix(in srgb, var(--tono) 30%, var(--linea));
-  box-shadow: var(--sombra-alta);
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--azul) 35%, var(--linea));
+  box-shadow: 0 6px 24px rgba(9, 35, 76, .08);
 }
 
 .icono {
   flex: 0 0 auto;
-  width: 44px;
-  height: 44px;
+  width: 46px;
+  height: 46px;
   display: grid;
   place-items: center;
-  border-radius: var(--r-chico);
+  border-radius: 14px;
   color: var(--tono);
-  background: color-mix(in srgb, var(--tono) 13%, var(--panel));
+  background: color-mix(in srgb, var(--tono) 12%, var(--panel));
 }
 
 .metricaCuerpo {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
+}
+.metricaCuerpo :global(.etiqueta) {
+  font-size: .8rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--gris);
 }
 
 .cifra {
   color: var(--tinta);
-  font-size: 1.9rem;
-  font-weight: 800;
+  font-family: var(--display);
+  font-size: 1.8rem;
+  font-weight: 700;
   line-height: 1.05;
-  letter-spacing: -.02em;
+  letter-spacing: -.015em;
 }
 
 .metricaAlerta {

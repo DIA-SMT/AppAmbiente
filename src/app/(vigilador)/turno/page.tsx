@@ -5,6 +5,7 @@ import { Retrato } from '@/app/_migue/Retrato'
 import {
   contenedoresDelSitioEnTx, listasDelFormularioEnTx, movimientosDelTurnoEnTx,
 } from '@/lib/datos'
+import { Olas } from '@/app/_ui/Olas'
 import { diaSemana } from '@/lib/formato'
 import { haySalidasDeContenedorEnTx } from '@/lib/salidasContenedor'
 import { migueEstaInstalado } from '@/lib/migue/configuracion'
@@ -160,7 +161,7 @@ export default async function InicioDeTurno() {
   const accesoRecambio = esPuntoVerde && (
     <Link
       href="/contenedores"
-      className="boton-accion"
+      className="boton-accion tono-celeste"
       data-recorrido="recambio"
       style={{ borderColor: 'color-mix(in srgb, var(--celeste) 50%, transparent)' }}
     >
@@ -187,7 +188,7 @@ export default async function InicioDeTurno() {
   const accesoSalidaContenedor = esPuntoVerde && conSalidas && (
     <Link
       href="/contenedores/salida"
-      className="boton-accion"
+      className="boton-accion tono-celeste"
       data-recorrido="salida-contenedor"
       style={{ borderColor: 'color-mix(in srgb, var(--celeste) 50%, transparent)' }}
     >
@@ -203,7 +204,7 @@ export default async function InicioDeTurno() {
   const accesoConteo = esPuntoVerde && (
     <Link
       href="/conteo"
-      className="boton-accion"
+      className="boton-accion tono-azul"
       data-recorrido="conteo"
       style={{ borderColor: 'color-mix(in srgb, var(--azul) 40%, transparent)' }}
     >
@@ -221,12 +222,13 @@ export default async function InicioDeTurno() {
 
   return (
     <div className="pila">
-      <div>
+      {/* La bienvenida de Applaza en chico: lo que se viene a hacer está abajo. */}
+      <section className="portada">
+        <p className="sobretitulo-hoja">Registro de residuos</p>
         <h1>{listas.sitio?.nombre ?? sesion.nombre}</h1>
-        <p className="gris" style={{ margin: 0 }}>
-          {dia.charAt(0).toUpperCase() + dia.slice(1)}
-        </p>
-      </div>
+        <p>{dia.charAt(0).toUpperCase() + dia.slice(1)}</p>
+        <Olas className="portada-olas" />
+      </section>
 
       <AvisoPendientes />
 
@@ -284,7 +286,7 @@ export default async function InicioDeTurno() {
           {!esPuntoVerde && (
             <Link
               href="/pila"
-              className="boton-accion"
+              className="boton-accion tono-azul"
               data-recorrido="pila"
               style={{ borderColor: 'color-mix(in srgb, var(--azul) 40%, transparent)' }}
             >

@@ -21,10 +21,10 @@ export function Marca({
   return (
     <span className={`${estilos.marca} ${compacta ? estilos.compacta : ''}`}>
       <Image
-        src="/institucional/isotipo-smt-oficial-original.png"
+        src="/institucional/isotipo-smt-112.webp"
         alt="Ciudad San Miguel de Tucumán"
-        width={235}
-        height={235}
+        width={112}
+        height={112}
         priority={prioridad}
       />
       <span className={estilos.ciudad} aria-hidden="true">

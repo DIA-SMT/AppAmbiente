@@ -20,10 +20,10 @@ export default async function PantallaIngreso() {
           <header className={css.marca}>
             {/* El isotipo oficial, tal cual viene en el kit: no se redibuja. */}
             <Image
-              src="/institucional/isotipo-smt-oficial-original.png"
+              src="/institucional/isotipo-smt-112.webp"
               alt="Ciudad San Miguel de Tucumán"
-              width={235}
-              height={235}
+              width={112}
+              height={112}
               className={css.isotipo}
               priority
             />
@@ -41,10 +41,10 @@ export default async function PantallaIngreso() {
 
           <footer className={css.pie}>
             <Image
-              src="/marca/logo-ia.png"
+              src="/marca/logo-ia-160.webp"
               alt="Dirección de Inteligencia Artificial"
-              width={526}
-              height={220}
+              width={160}
+              height={67}
             />
             <span>Desarrollado por la Dirección de Inteligencia Artificial</span>
           </footer>

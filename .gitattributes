@@ -1,0 +1,2 @@
+# Los scripts de la VPS corren en Linux: siempre con fin de línea LF.
+*.sh text eol=lf

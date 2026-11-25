@@ -44,4 +44,6 @@ jobs:
             --max-time 60 \
             "$URL/api/salud")
           echo "$respuesta"
-          echo "$respuesta" | jq -e '.conecta == true' > /dev/null
+          # Sin sesión /api/salud sólo dice el estado; «ok» sale únicamente si la
+          # base contestó (si no, es un 503 y el curl de arriba ya falla).
+          echo "$respuesta" | jq -e '.estado == "ok"' > /dev/null

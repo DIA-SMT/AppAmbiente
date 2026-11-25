@@ -8,7 +8,7 @@ de los respaldos (9).
 | | |
 |---|---|
 | Nombre corto (usuario, carpeta) | `ambiente` |
-| Puerto | `3010` (confirmar en el paso 0) |
+| Puerto | `3018` (confirmar en el paso 0) |
 | Dominio provisorio | `ambiente.195-35-42-168.sslip.io` |
 | Repositorio | `DIA-SMT/AppAmbiente`, rama `main` |
 
@@ -19,11 +19,11 @@ PowerShell (se come las comillas): se entra al servidor y se corren ahí.
 
 ```bash
 id ambiente                         # tiene que decir «no such user»
-ss -ltnp | grep ':3010 '            # no tiene que mostrar nada
-grep -rn 3010 /etc/nginx/sites-available /srv/*/ecosystem.config.*
+ss -ltnp | grep ':3018 '            # no tiene que mostrar nada
+grep -rn 3018 /etc/nginx/sites-available /srv/*/ecosystem.config.*
 ```
 
-Si el 3010 está tomado, usar el siguiente libre y cambiarlo en
+Si el 3018 está tomado, usar el siguiente libre y cambiarlo en
 `ecosystem.config.cjs` y en `nginx-ambiente.conf` (dos lugares).
 
 ## 1 · Usuario y carpetas
@@ -74,8 +74,8 @@ sudo -u ambiente pm2 kill            # el demonio que quedó del primer start
 systemctl enable --now pm2-ambiente
 systemctl status pm2-ambiente --no-pager
 
-# Tiene que decir 127.0.0.1:3010, no *:3010 ni 0.0.0.0:3010.
-ss -ltnp | grep ':3010 '
+# Tiene que decir 127.0.0.1:3018, no *:3018 ni 0.0.0.0:3018.
+ss -ltnp | grep ':3018 '
 ```
 
 ## 5 · nginx y certificado

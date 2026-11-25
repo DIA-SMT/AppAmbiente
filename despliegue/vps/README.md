@@ -80,16 +80,30 @@ ss -ltnp | grep ':3018 '
 
 ## 5 · nginx y certificado
 
+Igual que la Agenda Cultural: certbot sólo saca el certificado
+(`certonly --webroot`) y no edita nginx. Primero va el bloque de 80 solo,
+porque el de 443 apunta a un certificado que todavía no existe.
+
 ```bash
-curl -fsSL "$B/nginx-ambiente.conf" -o /etc/nginx/sites-available/ambiente
+D=ambiente.195-35-42-168.sslip.io
+curl -fsSL "$B/nginx-ambiente.conf" -o /root/ambiente-final.conf
+# El bloque de 80 solo: hasta la línea antes del segundo «server {».
+awk '/^server \{/{n++} n<2' /root/ambiente-final.conf > /etc/nginx/sites-available/ambiente
 ln -s /etc/nginx/sites-available/ambiente /etc/nginx/sites-enabled/ambiente
 nginx -t && systemctl reload nginx
-certbot --nginx -d ambiente.195-35-42-168.sslip.io
+certbot certonly --webroot -w /var/www/html -d "$D" --non-interactive
+# Con el certificado, el archivo completo.
+install -m 644 /root/ambiente-final.conf /etc/nginx/sites-available/ambiente
+nginx -t && systemctl reload nginx
+rm /root/ambiente-final.conf
 ```
 
-Después, adentro del bloque 443 que escribió certbot, pegar las líneas que
-están al final de [`nginx-ambiente.conf`](nginx-ambiente.conf) («PARA EL
-BLOQUE 443») y volver a correr `nginx -t && systemctl reload nginx`.
+Mientras `nginx -t` falle, nginx sigue con la configuración vieja: no se cae
+nada, pero tampoco se aplicó. La renovación del certificado la hace certbot
+solo, por el mismo `/.well-known/acme-challenge/` del bloque de 80.
+
+> **Hecho el 25/11/2026.** La app corre en `https://ambiente.195-35-42-168.sslip.io`,
+> puerto 3018, con pm2-ambiente en systemd y el certificado hasta el 23/02/2027.
 
 ## 6 · Verificar
 

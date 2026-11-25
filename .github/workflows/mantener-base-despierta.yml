@@ -31,14 +31,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      # Si algún día cambia el dominio, cargar la variable URL_PRODUCCION en
+      # La app corre en la VPS de la Dirección desde el 25/11/2026 (la cuenta
+      # de Vercel quedó bloqueada). Si cambia el dominio —cuando llegue el
+      # .smt.gob.ar—, cambiar esta línea o cargar la variable URL_PRODUCCION en
       # Settings → Secrets and variables → Actions → Variables.
-      URL: ${{ vars.URL_PRODUCCION || 'https://app-ambiente.vercel.app' }}
+      URL: ${{ vars.URL_PRODUCCION || 'https://ambiente.195-35-42-168.sslip.io' }}
     steps:
       - name: Consultar /api/salud
         run: |
-          # Los reintentos cubren el arranque en frío de la función y algún
-          # tropiezo de red; un 503 sostenido es un problema de verdad.
+          # Los reintentos cubren un reinicio de la app y algún tropiezo de
+          # red; un 503 sostenido es un problema de verdad.
           respuesta=$(curl --silent --show-error --fail-with-body \
             --retry 3 --retry-delay 20 --retry-all-errors \
             --max-time 60 \

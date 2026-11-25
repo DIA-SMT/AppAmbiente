@@ -1,7 +1,8 @@
 # Residuos SMT en la VPS
 
-Cómo mudar la **app** de Vercel a la VPS de la Dirección (195.35.42.168). La
-**base sigue en Supabase**: por ahora se muda sólo el front. Es la guía «Migrar
+Cómo corre la **app** en la VPS de la Dirección (195.35.42.168), donde se mudó
+desde Vercel el 25/11/2026. La **base sigue en Supabase**: por ahora se mudó
+sólo el front. Es la guía «Migrar
 proyectos a la VPS» aplicada a este proyecto, sin los pasos de la base (2) ni
 de los respaldos (9).
 
@@ -118,12 +119,12 @@ done
 curl -s "https://$D/api/salud"     # {"estado":"ok", …}
 ```
 
-**Que esté usando Supabase y no una base vacía.** Fuera de Vercel, si falta
-`DATABASE_URL` la app no se queja: arranca con PGlite en el disco y
-`/api/salud` igual dice `ok`. Para estar seguro, entrar en el navegador como
-coordinación y abrir `https://ambiente.195-35-42-168.sslip.io/api/salud`: con
-sesión muestra el detalle, y tiene que decir `"motor": "postgres"` y
-`"conecta": true`. Otra señal: el tablero muestra los movimientos de siempre.
+**Que esté usando Supabase.** Sin `DATABASE_URL` la app no arranca en
+producción y `/api/salud` contesta 503 con «falta configuración». Para ver el
+detalle, entrar en el navegador como coordinación y abrir
+`https://ambiente.195-35-42-168.sslip.io/api/salud`: tiene que decir
+`"motor": "postgres"` y `"conecta": true`. Otra señal: el tablero muestra los
+movimientos de siempre.
 
 Después, entrar con un punto y con coordinación, ver el tablero con Migue y
 cargar un movimiento de prueba que después se anula.
@@ -137,15 +138,14 @@ bash /srv/ambiente/desplegar.sh volver   # vuelve a la versión anterior
 
 ## Después de mudarse
 
-- **Vercel sigue andando** contra la misma base hasta que la VPS esté
-  verificada. Recién ahí se avisa a los puntos y a la coordinación la dirección
-  nueva (las sesiones no pasan de un dominio a otro: hay que entrar de nuevo
-  una vez) y se apaga Vercel.
-- **Que la base no se duerma**: el workflow `mantener-base-despierta` le pega a
-  Vercel. Al apagarlo, cargar en GitHub la variable `URL_PRODUCCION` con la
-  dirección nueva (Settings → Secrets and variables → Actions → Variables).
-  Sirve sólo si la VPS de verdad usa Supabase (ver el paso 6): con PGlite
-  contestaría «ok» sin tocar la base.
+- **Vercel ya no se usa.** El 25/11/2026 la cuenta quedó bloqueada
+  (`app-ambiente.vercel.app` contesta 402) y la VPS pasó a ser la única
+  dirección. Se sacó `vercel.json`. Si GitHub sigue mostrando el chequeo de
+  Vercel en rojo en cada PR, es la integración de Vercel instalada en la
+  organización: se desinstala desde la configuración de GitHub de DIA-SMT.
+- **Que la base no se duerma**: el workflow `mantener-base-despierta` le pega
+  cada dos días a `/api/salud` de la VPS. Si cambia el dominio, se cambia la
+  dirección en el workflow o se carga la variable `URL_PRODUCCION`.
 - **Dominio real**: cuando sistemas delegue el subdominio, se agrega al
   `server_name` y se reemite el certificado con los dos nombres.
 - **Respaldos**: siguen siendo los de Supabase mientras la base esté allá. Al

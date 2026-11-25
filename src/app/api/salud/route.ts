@@ -21,6 +21,7 @@
  * un despliegue roto antes de poder entrar.
  */
 import { NextResponse } from 'next/server'
+import { exigeBaseRemota } from '@db/client'
 import { comoServicio } from '@db/sesion'
 import { leerConfiguracion, migueEstaInstalado } from '@/lib/migue/configuracion'
 import { estadoDeMigue, gastoDelMesSinSesionEnTx } from '@/lib/migue/pantallas'
@@ -46,14 +47,12 @@ export async function GET() {
   const hayUrl = Boolean(process.env.DATABASE_URL?.trim())
   const claveOk = (process.env.AUTH_SECRET ?? '').length >= 32
   // Sin DATABASE_URL la app usa PGlite, que en la máquina de desarrollo está
-  // bien y en una función serverless no puede andar.
-  const serverless = Boolean(
-    process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY,
-  )
+  // bien y en producción no: ver exigeBaseRemota.
+  const exige = exigeBaseRemota()
 
   const salud: Record<string, unknown> = {
     motor: hayUrl ? 'postgres' : 'pglite',
-    base_configurada: hayUrl || !serverless,
+    base_configurada: hayUrl || !exige,
     clave_de_sesion: claveOk,
   }
 
@@ -68,15 +67,15 @@ export async function GET() {
     salud.error = sinSecretos(e)
   }
 
-  const bien = (hayUrl || !serverless) && claveOk && salud.conecta === true
+  const bien = (hayUrl || !exige) && claveOk && salud.conecta === true
   salud.estado = bien ? 'ok' : 'falta configuración'
 
   if (!bien) {
     salud.que_hacer = [
-      !hayUrl && serverless && 'Cargar DATABASE_URL en Vercel (Settings → Environment Variables, entorno Production) con la cadena del pooler en modo transacción, puerto 6543.',
+      !hayUrl && exige && 'Cargar DATABASE_URL en /srv/ambiente/compartido/.env con la cadena del pooler en modo transacción, puerto 6543.',
       !claveOk && 'Cargar AUTH_SECRET, de al menos 32 caracteres: node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'base64url\'))".',
       hayUrl && salud.conecta === false && 'La cadena está pero la base no contesta: revisar la contraseña dentro de la URL y que sea la del pooler.',
-      'Después de cambiar una variable hay que volver a desplegar: Vercel no las recarga solo.',
+      'Después de cambiar una variable hay que reiniciar la app (pm2 reload ambiente): no las vuelve a leer sola.',
     ].filter(Boolean)
   }
 

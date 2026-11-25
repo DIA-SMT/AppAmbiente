@@ -373,7 +373,7 @@ npm run db:sql -- --desde <la primera migración que falte>
 Escribe `db/actualizacion.sql`, que arranca con un guardián al revés que el otro:
 aborta si falta alguna migración anterior o si la primera que trae ya está aplicada.
 
-**El orden importa y no lo cuida nadie**: el despliegue en Vercel y el SQL pegado en
+**El orden importa y no lo cuida nadie**: el despliegue en la VPS y el SQL pegado en
 el editor son dos pasos sueltos. Primero se aplica el SQL y después se sube el build.
 Al revés, la app queda pidiéndole a la base cosas que todavía no existen, y una
 pantalla que se apoya en una función nueva deja de abrir hasta que el SQL entre.
@@ -405,7 +405,12 @@ Lo que queda vacío lo carga la coordinadora:
   movimientos anteriores que habían escrito ese mismo destino a mano.
 - **Pilas**, desde *Compost*, a medida que se arman.
 
-#### Variables en Vercel
+#### Variables de entorno
+
+Desde el 25/11/2026 la app corre en la VPS de la Dirección, no en Vercel (ver
+[`despliegue/vps/README.md`](despliegue/vps/README.md)). Las variables van en
+`/srv/ambiente/compartido/.env`, y después de cambiar una hay que reiniciar la app
+con `pm2 reload ambiente`: no las vuelve a leer sola.
 
 Dos obligatorias:
 
@@ -712,7 +717,7 @@ punto puede usar por día hasta el 10% del tope y cada coordinadora el 25%.
 1. **La base primero.** `npm run db:sql -- --desde 0025` escribe
    `db/actualizacion.sql`: pegarlo en Supabase → SQL Editor. Es aditiva: el código que
    ya está en el aire no la nota.
-2. **Las variables** de la tabla de arriba, en Vercel.
+2. **Las variables** de la tabla de arriba, en el `.env` de la VPS.
 3. **El código.** Sin la 0025, Migue no aparece en ningún lado; sin la clave o sin el
    tope, aparece apagado. En pantalla no dice qué variable falta: eso está en
    `/api/salud`.
@@ -720,7 +725,8 @@ punto puede usar por día hasta el 10% del tope y cada coordinadora el 25%.
 `/api/salud` dice si Migue está encendido, apagado o en el tope, sin cambiar el estado
 general: Migue apagado es un estado normal del sistema. Sin sesión contesta sólo el
 estado; el detalle (motor, migraciones, qué falta y cómo se arregla) es para una sesión
-de coordinación, y cuando algo falla va también a los logs de Vercel.
+de coordinación, y cuando algo falla va también a los registros de la VPS
+(`/srv/ambiente/registros/error.log`).
 
 ### Lo que Migue no toca, a propósito
 

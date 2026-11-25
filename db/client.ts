@@ -136,6 +136,25 @@ function esServerless(): boolean {
   )
 }
 
+/**
+ * Si este proceso tiene que trabajar contra la base de verdad y no puede caer
+ * en PGlite.
+ *
+ * Antes alcanzaba con mirar si era serverless, porque producción era Vercel.
+ * Desde el 25/11/2026 producción es la VPS, con `next start`: ahí el disco se
+ * puede escribir, y sin DATABASE_URL la app arrancaba con una base PGlite vacía
+ * en la carpeta de la versión, sin avisar, y /api/salud decía «ok». Los puntos
+ * habrían cargado contra una base que nadie mira y que desaparece en el
+ * próximo despliegue.
+ *
+ * Para probar en la máquina un build de producción con PGlite (npm run build
+ * y npm run start sin base), PGLITE_EN_PRODUCCION=si. En la VPS no va nunca.
+ */
+export function exigeBaseRemota(): boolean {
+  if (esServerless()) return true
+  return process.env.NODE_ENV === 'production' && process.env.PGLITE_EN_PRODUCCION !== 'si'
+}
+
 export function obtenerBase(): Promise<Base> {
   if (!cache.__baseAmbiente) {
     const url = process.env.DATABASE_URL?.trim()
@@ -145,10 +164,12 @@ export function obtenerBase(): Promise<Base> {
     // no lo fuera cada instancia tendría su propia base vacía. Lo que se ve sin
     // esto es un ENOENT del mkdir, que no dice nada; en el navegador, ni eso:
     // Next esconde los errores de servidor detrás de un digest.
-    if (!url && esServerless()) {
+    // En la VPS el disco sí se escribe, y el problema es el contrario: PGlite
+    // arranca bien y nadie se entera (ver exigeBaseRemota).
+    if (!url && exigeBaseRemota()) {
       throw new Error(
-        'Falta DATABASE_URL. Cargarla en Vercel → Settings → Environment Variables, ' +
-          'marcando el entorno Production, y volver a desplegar. Va la cadena del ' +
+        'Falta DATABASE_URL. En la VPS va en /srv/ambiente/compartido/.env ' +
+          '(despliegue/vps/README.md) y después pm2 reload ambiente. Va la cadena del ' +
           'pooler en modo transacción (Supabase: puerto 6543).',
       )
     }
